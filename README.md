@@ -1,0 +1,77 @@
+<p align="center">
+  <img src="docs/logo.png" alt="OSRS Bubble Tool logo" width="128">
+</p>
+
+<h1 align="center">OSRS Bubble Tool</h1>
+
+<p align="center">
+  A floating toolbox for Old School RuneScape on Android.<br>
+  Free, no ads, no accounts, and nothing is sent anywhere.
+</p>
+
+---
+
+OSRS Bubble Tool puts a small bubble on top of the game. Tap it to open a tool in a narrow window beside the game, tap again to hide it, and keep playing. It brings some of the most-missed RuneLite conveniences to mobile, without touching the game itself.
+
+- **Tap** the bubble to open or hide the current tool
+- **Drag** the bubble to move it anywhere on screen
+- **Long-press** the bubble to pick a different tool
+
+Tool windows are two inches wide in landscape, and can be slid left and right with the bar at the top.
+
+## Tools
+
+| Tool | What it does |
+| --- | --- |
+| **OSRS Wiki** | The wiki in a window over the game, shrunk to fit. |
+| **Puzzle Box Solver** | Reads a clue puzzle box from the screen and shows the next moves on top of it, colour-coded. Keeps tracking as you slide tiles. |
+| **Inventory Setups** | Save pictures of your inventory, equipment, rune pouch and spellbook under a name, so you can check them while gearing up. |
+| **XP Calculator** | [oldschool.tools](https://oldschool.tools) calculators, with dropdown menus that work inside the window. |
+| **DPS Calculator** | The OSRS Wiki DPS calculator. **Import my gear** recognises your worn equipment from the screen and loads it straight into the calculator. It copes with any brightness setting and tells look-alike items apart, such as enchanted and plain bolts. |
+| **Shooting Star Tracker** | Live shooting star locations from [07.gg](https://07.gg/trackers/shooting-star). |
+| **Zulrah Helper** | A tap-along rotation guide, like the RuneLite plugin: Zulrah's colour and position, where to stand, and which prayer to use, with the possible next phases underneath. |
+| **Timers** | Farming and birdhouse timers. Tap **Planted** after a run and get a notification when it's ready. Covers herbs, trees, fruit trees, hardwoods, allotments, hops, seaweed and more. Growth times follow the game's growth ticks, and timers survive closing the app and restarting the phone. |
+| **GE Prices** | The OSRS Wiki [Real-time Prices](https://prices.runescape.wiki/osrs/) site. |
+
+## Battery and privacy
+
+- The screen is only captured when you use a tool that needs it (Puzzle Box Solver, Inventory Setups and DPS gear import). Nothing watches the screen in the background.
+- Timers don't keep anything running. Android wakes the app once when a timer is due.
+- Screenshots are processed on the phone and thrown away. Only pictures you choose to keep, in Inventory Setups or with **Save picture to phone**, are stored.
+- The app has no ads, no analytics and no accounts. The website tools load those sites directly, the same as a browser would.
+
+## Permissions
+
+The app's **Permissions** screen explains each one and has a button to turn it on.
+
+| Permission | Why |
+| --- | --- |
+| Display over other apps | Shows the bubble and tool windows on top of the game. Required. |
+| Notifications | Timer alerts, and the small notification Android requires while the bubble runs. |
+| Alarms & reminders | Makes timer alerts arrive on time instead of a few minutes late. |
+| Screen capture | Asked by Android the first time you use a tool that reads the screen, once per bubble session. |
+
+## Building it yourself
+
+1. Install [Android Studio](https://developer.android.com/studio).
+2. Clone this repository, or download it with **Code → Download ZIP**.
+3. Open the project folder in Android Studio and let Gradle finish syncing.
+4. Connect your phone with USB debugging turned on and press **Run ▶**.
+
+## Is it allowed?
+
+The app only shows information and waits for you to tap. It never reads the game's memory, changes the game, or clicks anything for you. Everything it does is something you could do yourself with a second screen and a wiki page.
+
+## Credits
+
+- Item data and icons from the [OSRS Wiki DPS calculator](https://github.com/weirdgloop/osrs-dps-calc).
+- Solved puzzle pictures, wiki pages and Real-time Prices from the [Old School RuneScape Wiki](https://oldschool.runescape.wiki).
+- Zulrah rotation data and arena layout adapted from the [Zulrah Helper](https://github.com/while-loop/runelite-plugins) RuneLite plugin, © 2020 Anthony Alves and © 2026 Ron Young, used under the BSD 2-Clause License (the full notice is in `ZulrahTool.kt` and on the app's Legal screen).
+- Farming growth times based on [RuneLite](https://github.com/runelite/runelite)'s Time Tracking plugin.
+- XP calculators by [oldschool.tools](https://oldschool.tools), shooting star data by [07.gg](https://07.gg).
+
+## Legal
+
+Created using intellectual property belonging to Jagex Limited under the terms of Jagex's Fan Content Policy. This content is not endorsed by or affiliated with Jagex.
+
+Old School RuneScape and RuneScape are trademarks of Jagex Limited.
