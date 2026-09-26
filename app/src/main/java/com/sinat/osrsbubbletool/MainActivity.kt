@@ -1,0 +1,317 @@
+package com.sinat.osrsbubbletool
+
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowInsets
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+import android.widget.Toast
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
+
+// The app's own screens: the main screen, Permissions, and Legal.
+class MainActivity : Activity() {
+
+    companion object {
+        private val PARCHMENT = Color.parseColor("#F2E3C0")
+        private val DARK_BROWN = Color.parseColor("#3E2C12")
+        private val BUTTON_BROWN = Color.parseColor("#8B6B3E")
+        private val ROW_BROWN = Color.parseColor("#E3CFA2")
+        private val GO_GREEN = Color.parseColor("#3E7A2E")
+        private const val REQUEST_NOTIFICATIONS = 1
+    }
+
+    private enum class Screen { MAIN, PERMISSIONS, LEGAL }
+    private var screen = Screen.MAIN
+    private var backCallback: OnBackInvokedCallback? = null
+
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // turning the phone rebuilds the screen; stay on the same page
+        val saved = savedInstanceState?.getString("screen")
+        show(Screen.values().firstOrNull { it.name == saved } ?: Screen.MAIN)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString("screen", screen.name)
+    }
+
+    // Coming back from a settings page: update the permission ticks
+    override fun onResume() {
+        super.onResume()
+        if (screen == Screen.PERMISSIONS) show(Screen.PERMISSIONS)
+    }
+
+    private fun show(s: Screen) {
+        screen = s
+        val content = when (s) {
+            Screen.MAIN -> mainScreen()
+            Screen.PERMISSIONS -> permissionsScreen()
+            Screen.LEGAL -> legalScreen()
+        }
+        setContentView(content)
+        updateBackHandling()
+    }
+
+    // ---------------- Back button: sub-screens go back to the main screen ----------------
+
+    private fun updateBackHandling() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        backCallback?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
+        backCallback = null
+        if (screen != Screen.MAIN) {
+            val cb = OnBackInvokedCallback { show(Screen.MAIN) }
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, cb)
+            backCallback = cb
+        }
+    }
+
+    @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")  // used on older Android versions
+    override fun onBackPressed() {
+        if (screen != Screen.MAIN) show(Screen.MAIN) else super.onBackPressed()
+    }
+
+    // ---------------- Main screen ----------------
+
+    private fun mainScreen(): View {
+        val landscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val logo = ImageView(this).apply { setImageResource(R.drawable.ic_bubble) }
+        val logoSize = if (landscape) 44 else 72
+
+        val middle = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            addView(logo, LinearLayout.LayoutParams(dp(logoSize), dp(logoSize)))
+            addView(label("OSRS Bubble Tool", 22f, bold = true).apply { gravity = Gravity.CENTER },
+                matchWidth(if (landscape) 4 else 10))
+            addView(label("Tap Start Bubble, then open Old School RuneScape.\n\n" +
+                "Tap the bubble to open or hide a tool.\n" +
+                "Drag the bubble to move it.\n" +
+                "Long-press the bubble for the tool menu.", if (landscape) 13f else 14f).apply { gravity = Gravity.CENTER },
+                matchWidth(if (landscape) 8 else 16))
+            addView(button("Start Bubble", GO_GREEN) { startBubble() }.apply {
+                textSize = 17f
+                setPadding(dp(28), dp(12), dp(28), dp(12))
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(if (landscape) 12 else 24) })
+        }
+
+        val bottom = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(button("Legal") { show(Screen.LEGAL) })
+            addView(View(this@MainActivity), LinearLayout.LayoutParams(0, 1, 1f))
+            addView(button("Permissions") { show(Screen.PERMISSIONS) })
+        }
+
+        return page(scrolling = true) {
+            addView(middle, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(label("Unofficial fan-made tool. Not affiliated with Jagex.", 11f).apply { gravity = Gravity.CENTER },
+                matchWidth(8))
+            addView(bottom, matchWidth(8))
+        }
+    }
+
+    private fun startBubble() {
+        if (!Settings.canDrawOverlays(this)) {
+            Toast.makeText(this, "First allow \"Display over other apps\"", Toast.LENGTH_LONG).show()
+            show(Screen.PERMISSIONS)
+            return
+        }
+        startForegroundService(Intent(this, BubbleService::class.java))
+        Toast.makeText(this, "Bubble started", Toast.LENGTH_SHORT).show()
+    }
+
+    // ---------------- Permissions screen ----------------
+
+    private fun permissionsScreen(): View = page(scrolling = true) {
+        addView(backButton(), wrap())
+        addView(label("Permissions", 20f, bold = true), matchWidth(10))
+        addView(label("What the app asks for, and why. Nothing here is sent anywhere.", 13f), matchWidth(4))
+
+        addView(permissionCard(
+            "Display over other apps",
+            "Needed for the bubble and every tool window to show on top of the game. The app can't work without this.",
+            allowed = Settings.canDrawOverlays(this@MainActivity)
+        ) {
+            openSettings(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+        }, matchWidth(12))
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            addView(permissionCard(
+                "Notifications",
+                "Lets Timers tell you when a farming patch or birdhouse run is ready. Also shows the small notification Android requires while the bubble is running.",
+                allowed = FarmingTimers.notificationsAllowed(this@MainActivity)
+            ) { askForNotifications() }, matchWidth(10))
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            addView(permissionCard(
+                "Alarms & reminders",
+                "Lets Timers alert you right on time. Without it, Android may deliver timer alerts a few minutes late to save battery.",
+                allowed = FarmingTimers.canUseExactAlarms(this@MainActivity)
+            ) {
+                openSettings(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName")))
+            }, matchWidth(10))
+        }
+
+        addView(permissionCard(
+            "Screen capture",
+            "Used by the Puzzle Box Solver, Inventory Setups and the DPS Calculator's \"Import my gear\" to look at the game screen. Android doesn't allow apps to turn this on ahead of time, so it asks the first time you use one of those tools, once each time the bubble is started. Pictures stay on your phone.",
+            allowed = null, onAllow = null
+        ), matchWidth(10))
+    }
+
+    private fun askForNotifications() {
+        val prefs = getSharedPreferences("app", MODE_PRIVATE)
+        val askedBefore = prefs.getBoolean("asked_notifications", false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            (!askedBefore || shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS))) {
+            prefs.edit().putBoolean("asked_notifications", true).apply()
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+        } else {
+            // Android won't show the question again once it's been refused; open the settings page instead
+            openSettings(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_NOTIFICATIONS && screen == Screen.PERMISSIONS) show(Screen.PERMISSIONS)
+    }
+
+    // allowed: true/false shows a tick or an "Allow" button; null means there's nothing to press
+    private fun permissionCard(title: String, text: String, allowed: Boolean?, onAllow: (() -> Unit)?): View {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = GradientDrawable().apply { setColor(ROW_BROWN); cornerRadius = dp(8).toFloat() }
+        }
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(label(title, 15f, bold = true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            when (allowed) {
+                true -> addView(label("✓ Allowed", 14f, bold = true).apply { setTextColor(GO_GREEN) })
+                false -> if (onAllow != null) addView(button("Allow", GO_GREEN, onAllow))
+                null -> addView(label("Asked when needed", 12f))
+            }
+        }
+        card.addView(top)
+        card.addView(label(text, 13f), matchWidth(6))
+        return card
+    }
+
+    private fun openSettings(intent: Intent) {
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+        }
+    }
+
+    // ---------------- Legal screen ----------------
+
+    private fun legalScreen(): View = page(scrolling = true) {
+        addView(backButton(), wrap())
+        addView(label("Legal", 20f, bold = true), matchWidth(10))
+
+        fun section(title: String, text: String, size: Float = 13f) {
+            addView(label(title, 15f, bold = true), matchWidth(16))
+            addView(label(text, size), matchWidth(4))
+        }
+
+        section("Jagex",
+            "Created using intellectual property belonging to Jagex Limited under the terms of Jagex's Fan Content Policy. " +
+            "This content is not endorsed by or affiliated with Jagex.\n\n" +
+            "OSRS Bubble Tool is free and has no ads or paid features.")
+
+        section("OSRS Wiki",
+            "Item data and icons from the OSRS Wiki DPS calculator (github.com/weirdgloop/osrs-dps-calc). " +
+            "The OSRS Wiki, Real-time Prices (prices.runescape.wiki), XP calculator (oldschool.tools), DPS calculator and Shooting Star Tracker (07.gg) " +
+            "are websites run by their own owners and are opened as they are.")
+
+        section("RuneLite",
+            "Farming growth times based on RuneLite's Time Tracking plugin (github.com/runelite/runelite).")
+
+        section("Zulrah Helper",
+            "Zulrah Helper rotation data and arena layout adapted from the Zulrah Helper RuneLite plugin " +
+            "(github.com/while-loop/runelite-plugins).\n\n" +
+            "Copyright (c) 2020, Anthony Alves\nCopyright (c) 2026, Ron Young\nAll rights reserved.\n\n" +
+            "Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n" +
+            "1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.\n\n" +
+            "2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.\n\n" +
+            "THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.",
+            size = 11f)
+    }
+
+    // ---------------- Small building blocks ----------------
+
+    // A full screen with the app's background, kept clear of the status and navigation bars
+    private fun page(scrolling: Boolean, fill: LinearLayout.() -> Unit): View {
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(16), dp(20), dp(16))
+            fill()
+        }
+        // (the scroll view stretches short pages to fill the screen, so they can still be centred)
+        val root: ViewGroup = if (scrolling) ScrollView(this).apply { isFillViewport = true; addView(column) }
+                              else LinearLayout(this).apply {
+                                  addView(column, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                              }
+        root.setBackgroundColor(PARCHMENT)
+        root.setOnApplyWindowInsetsListener { v, insets ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            } else {
+                @Suppress("DEPRECATION")
+                v.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
+                    insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
+            }
+            insets
+        }
+        return root
+    }
+
+    private fun backButton() = button("◀ Back") { show(Screen.MAIN) }
+
+    private fun matchWidth(top: Int) =
+        LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(top) }
+
+    private fun wrap() = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+
+    private fun button(label: String, color: Int = BUTTON_BROWN, onClick: () -> Unit) = TextView(this).apply {
+        text = label
+        textSize = 14f
+        setTextColor(Color.WHITE)
+        gravity = Gravity.CENTER
+        setPadding(dp(16), dp(9), dp(16), dp(9))
+        background = GradientDrawable().apply { setColor(color); cornerRadius = dp(6).toFloat() }
+        setOnClickListener { onClick() }
+    }
+
+    private fun label(text: String, size: Float, bold: Boolean = false) = TextView(this).apply {
+        this.text = text
+        textSize = size
+        setTextColor(DARK_BROWN)
+        if (bold) setTypeface(typeface, Typeface.BOLD)
+    }
+}

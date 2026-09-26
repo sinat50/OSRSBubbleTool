@@ -1,0 +1,2 @@
+Wed Sep 2 18:18:56 2026 +0000 89c3e25
+Item list and icons from the OSRS Wiki DPS calculator (github.com/weirdgloop/osrs-dps-calc, GPL-3.0). Item images (c) Jagex Ltd.

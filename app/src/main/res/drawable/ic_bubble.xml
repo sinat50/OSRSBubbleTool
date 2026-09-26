@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- dark outer rim -->
+    <path android:fillColor="#2B1E0C"
+        android:pathData="M12,1a11,11 0,1 1,0 22a11,11 0,1 1,0 -22z" />
+    <!-- gold ring -->
+    <path android:fillColor="#C9A24A"
+        android:pathData="M12,2a10,10 0,1 1,0 20a10,10 0,1 1,0 -20z" />
+    <!-- badge face -->
+    <path android:fillColor="#4A3620"
+        android:pathData="M12,3a9,9 0,1 1,0 18a9,9 0,1 1,0 -18z" />
+
+    <!-- pickaxe handle -->
+    <path android:strokeColor="#A0703A" android:strokeWidth="1.4"
+        android:strokeLineCap="round"
+        android:pathData="M16.6,16.6L7.6,7.6" />
+    <!-- pickaxe head -->
+    <path android:strokeColor="#BFC5CC" android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:pathData="M5.8,10.6Q7,7 10.6,5.8" />
+
+    <!-- hammer handle -->
+    <path android:strokeColor="#7A4E22" android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:pathData="M7.2,16.8L15,9" />
+    <!-- hammer head: dark outline -->
+    <path android:strokeColor="#2B1E0C" android:strokeWidth="3.4"
+        android:pathData="M13.5,6.3L17.7,10.5" />
+    <!-- hammer head: steel -->
+    <path android:strokeColor="#BFC5CC" android:strokeWidth="2.6"
+        android:pathData="M13.7,6.5L17.5,10.3" />
+</vector>
