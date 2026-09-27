@@ -337,22 +337,32 @@ class GearRecognizer(private val context: Context) {
                 })
             }.mapValues { it.value.get() }
 
-            // Pass 2: find the game brightness at which the best guesses fit best overall
-            val totals = GAMMAS.map { g ->
-                pool.submit(Callable {
-                    var total = 0f
-                    for ((slot, d) in occupied) {
-                        var best = Float.MAX_VALUE
-                        for (item in shortlist[slot].orEmpty().take(SHORTLIST)) {
-                            val base = icon(item.iconFile) ?: continue
-                            best = min(best, fitAny(shade(base, g), d).cost)
-                        }
-                        if (best < Float.MAX_VALUE) total += best
+            // Pass 2: find the game brightness at which the best guesses fit best overall.
+            // Every third brightness first, then the ones either side of the best of those.
+            fun totalAt(g: Float) = pool.submit(Callable {
+                var total = 0f
+                for ((slot, d) in occupied) {
+                    var best = Float.MAX_VALUE
+                    for (item in shortlist[slot].orEmpty().take(SHORTLIST)) {
+                        val shaded = shadedIcon(item.iconFile, g) ?: continue
+                        best = min(best, fitAny(shaded, d).cost)
                     }
-                    total
-                })
-            }.map { it.get() }
-            val gamma = GAMMAS[totals.indices.minByOrNull { totals[it] } ?: GAMMAS.indexOf(1f)]
+                    if (best < Float.MAX_VALUE) total += best
+                }
+                total
+            })
+            val tried = HashMap<Float, Float>()
+            val coarse = GAMMAS.filterIndexed { i, _ -> i % 3 == 0 || i == GAMMAS.lastIndex }
+            coarse.map { it to totalAt(it) }.forEach { (g, f) -> tried[g] = f.get() }
+            val roughBest = tried.minByOrNull { it.value }!!.key
+            val at = GAMMAS.indexOf(roughBest)
+            listOf(at - 2, at - 1, at + 1, at + 2)
+                .filter { it in GAMMAS.indices && GAMMAS[it] !in tried }
+                .map { GAMMAS[it] to totalAt(GAMMAS[it]) }
+                .forEach { (g, f) -> tried[g] = f.get() }
+            val gamma = tried.minByOrNull { it.value }?.key ?: 1f
+            // shaded copies at other brightnesses aren't needed any more
+            synchronized(shadedCache) { shadedCache.keys.removeAll { !it.endsWith("@$gamma") } }
 
             // Pass 3: rematch the best guesses, drawn at that brightness
             val tasks = LinkedHashMap<String, Future<Pair<List<Choice>, String?>>>()
@@ -380,6 +390,7 @@ class GearRecognizer(private val context: Context) {
         } finally {
             pool.shutdown()
             synchronized(shadedCache) { shadedCache.clear() }
+            synchronized(enlargedCache) { enlargedCache.clear() }
         }
     }
 
@@ -596,8 +607,8 @@ class GearRecognizer(private val context: Context) {
     ): List<Choice> {
         val fits = ArrayList<Pair<Item, Fit>>()
         for (item in candidates) {
-            val base = icon(item.iconFile) ?: continue
-            fits.add(item to fitAny(shade(base, gamma), d))
+            val shaded = shadedIcon(item.iconFile, gamma) ?: continue
+            fits.add(item to fitAny(shaded, d))
         }
         fits.sortBy { it.second.cost }
 
@@ -638,7 +649,7 @@ class GearRecognizer(private val context: Context) {
             if (partner != null) {
                 val index = ranked.indexOfFirst { it.first.name == partnerName }
                 val entry = if (index >= 0) ranked.removeAt(index)
-                    else partner to (icon(partner.iconFile)?.let { fitAny(shade(it, gamma), d) } ?: Fit(Float.MAX_VALUE, 0, 0))
+                    else partner to (shadedIcon(partner.iconFile, gamma)?.let { fitAny(it, d) } ?: Fit(Float.MAX_VALUE, 0, 0))
                 val topIsYourPick = preferred != null && top.id == preferred.id
                 val enchantedFirst = slot == "ammo" && partnerName.endsWith(" (e)") && !topIsYourPick
                 ranked.add(if (enchantedFirst) 0 else min(1, ranked.size), entry)
@@ -824,9 +835,21 @@ class GearRecognizer(private val context: Context) {
         val plain = bestFit(ic, d)
         if (d.boxH == 0 || d.boxW == 0) return plain
         val scale = min(d.boxH / ic.h.toFloat(), d.boxW / ic.w.toFloat())
-        if (scale < ENLARGE_FROM) return plain
-        val big = bestFit(enlarge(ic, min(scale, ENLARGE_MAX)), d)
+        // Only for icons a little smaller than the item. Much smaller icons (a ring in a big
+        // slot) can't be the item even enlarged, and trying them is what made this slow.
+        if (scale < ENLARGE_FROM || scale > ENLARGE_MAX * 1.15f) return plain
+        val big = bestFit(enlargedCopy(ic, min(scale, ENLARGE_MAX)), d)
         return if (big.cost < plain.cost) Fit(big.cost, big.oy, big.ox, enlarged = true) else plain
+    }
+
+    // Enlarged copies are kept for the rest of the recognition, so each is only made once
+    private val enlargedCache = java.util.IdentityHashMap<Icon, HashMap<Int, Icon>>()
+
+    private fun enlargedCopy(ic: Icon, scale: Float): Icon {
+        val key = (scale * 20).roundToInt()   // steps of 5%
+        synchronized(enlargedCache) {
+            return enlargedCache.getOrPut(ic) { HashMap() }.getOrPut(key) { enlarge(ic, key / 20f) }
+        }
     }
 
     // A copy of the icon made bigger (each pixel repeated as needed)

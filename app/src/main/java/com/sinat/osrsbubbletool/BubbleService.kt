@@ -42,6 +42,8 @@ class BubbleService : Service() {
         const val PRICES_ZOOM_PERCENT = 85          // GE Prices text size
         const val PANEL_WIDTH_INCHES = 2f   // width of tool windows in landscape
         const val ZULRAH_WIDTH_INCHES = 1.2f // the Zulrah Helper window is thinner
+        const val LIGHT_BOX_WIDTH_INCHES = 1.3f  // the Light Box Solver is a small box, top right
+        const val PUZZLE_BOX_WIDTH_INCHES = 1.5f // so is the Puzzle Box Solver
         const val BUBBLE_SIZE_DP = 36       // size of the bubble
         const val BAR_HEIGHT_DP = 28        // height of the window's button bar
         const val BAR_BUTTON_WIDTH_DP = 66  // width of the back and close buttons
@@ -129,6 +131,61 @@ class BubbleService : Service() {
             })();
         """
 
+        // GE Prices: the price graphs grab every touch (to show the price under your finger),
+        // so once you'd scrolled down to them you couldn't scroll back up. This lets an up/down
+        // swipe on a graph scroll the page, while a sideways drag still reads the prices.
+        const val CHART_SCROLL_FIX_JS = """
+            (function() {
+                if (window.__bubbleChartScroll) return;
+                window.__bubbleChartScroll = true;
+                var charts = 'canvas, svg, .highcharts-container, .recharts-wrapper, [class*="chart"], [class*="Chart"]';
+                var style = document.createElement('style');
+                style.textContent = charts.split(',').map(function(s) {
+                    return s.trim() + ', ' + s.trim() + ' *';
+                }).join(', ') + ' { touch-action: pan-y !important; }';
+                document.head.appendChild(style);
+
+                var startX = 0, startY = 0, mode = null;
+                function onChart(t) { return t && t.closest ? t.closest(charts) : null; }
+                window.addEventListener('touchstart', function(e) {
+                    var t = e.touches[0];
+                    startX = t.clientX; startY = t.clientY;
+                    mode = onChart(e.target) ? 'undecided' : null;
+                }, { capture: true, passive: true });
+                function move(e, x, y) {
+                    if (mode === null) return;
+                    var dx = Math.abs(x - startX), dy = Math.abs(y - startY);
+                    if (mode === 'undecided' && (dx > 8 || dy > 8)) mode = dy > dx ? 'scroll' : 'chart';
+                    // an up/down swipe: keep it away from the graph so the page scrolls
+                    if (mode === 'scroll') e.stopImmediatePropagation();
+                }
+                window.addEventListener('touchmove', function(e) {
+                    move(e, e.touches[0].clientX, e.touches[0].clientY);
+                }, { capture: true, passive: true });
+                window.addEventListener('pointermove', function(e) {
+                    if (e.pointerType === 'touch') move(e, e.clientX, e.clientY);
+                }, { capture: true, passive: true });
+                window.addEventListener('touchend', function() { mode = null; }, true);
+            })();
+        """
+
+        // Runs as a page starts loading: touch handlers the page adds from then on can't block
+        // scrolling (the browser ignores their attempts to), for the GE Prices graphs
+        const val PASSIVE_TOUCH_JS = """
+            (function() {
+                if (window.__bubblePassive) return;
+                window.__bubblePassive = true;
+                var add = EventTarget.prototype.addEventListener;
+                EventTarget.prototype.addEventListener = function(type, fn, opts) {
+                    if (type === 'touchstart' || type === 'touchmove') {
+                        if (typeof opts === 'object' && opts !== null) opts = Object.assign({}, opts, { passive: true });
+                        else opts = { capture: !!opts, passive: true };
+                    }
+                    return add.call(this, type, fn, opts);
+                };
+            })();
+        """
+
         // Measures the page and scales it down so nothing sticks out past the window's edges
         const val FIT_WIDTH_JS = """
             (function() {
@@ -147,6 +204,7 @@ class BubbleService : Service() {
     enum class Tool(val label: String) {
         WIKI("OSRS Wiki"),
         PUZZLE_BOX("Puzzle Box Solver"),
+        LIGHT_BOX("Light Box Solver"),
         INVENTORY_SETUPS("Inventory Setups"),
         XP_CALCULATOR("XP Calculator"),
         DPS_CALCULATOR("DPS Calculator"),
@@ -165,6 +223,7 @@ class BubbleService : Service() {
     private lateinit var dpsTool: DpsTool
     private lateinit var zulrahTool: ZulrahTool
     private lateinit var farmingTool: FarmingTool
+    private lateinit var lightBoxTool: LightBoxTool
 
     private val toolWindows = mutableMapOf<Tool, LinearLayout>() // built once, reused
     private var currentTool = Tool.WIKI
@@ -185,11 +244,12 @@ class BubbleService : Service() {
         capture = CaptureManager(this) { capturing ->
             if (!destroyed) updateForeground(capturing)
         }
-        puzzleTool = PuzzleBoxTool(this, windowManager, capture, ::setOverlaysVisible)
+        puzzleTool = PuzzleBoxTool(this, windowManager, capture, ::setOverlaysVisible) { hideToolWindow() }
         setupsTool = InventorySetupsTool(this, windowManager, capture, ::setOverlaysVisible)
         dpsTool = DpsTool(this, windowManager, capture, ::setOverlaysVisible)
         zulrahTool = ZulrahTool(this)
         farmingTool = FarmingTool(this)
+        lightBoxTool = LightBoxTool(this, windowManager, capture, ::setOverlaysVisible) { hideToolWindow() }
         createBubble()
     }
 
@@ -432,6 +492,7 @@ class BubbleService : Service() {
         windowManager.addView(window, params)
         shownWindow = window
         shownParams = params
+        setWebPagesRunning(true)
         // re-add the bubble so it stays on top of the window
         windowManager.removeView(bubble)
         windowManager.addView(bubble, bubbleParams)
@@ -442,10 +503,24 @@ class BubbleService : Service() {
         shownWindow?.let { windowManager.removeView(it) }
         shownWindow = null
         shownParams = null
+        if (wasShowing) setWebPagesRunning(false)
         if (wasShowing && currentTool == Tool.PUZZLE_BOX) puzzleTool.onWindowClosed()
         if (wasShowing && currentTool == Tool.INVENTORY_SETUPS) setupsTool.onWindowClosed()
         if (wasShowing && currentTool == Tool.DPS_CALCULATOR) dpsTool.onWindowClosed()
         if (wasShowing && currentTool == Tool.FARMING) farmingTool.onWindowClosed()
+        if (wasShowing && currentTool == Tool.LIGHT_BOX) lightBoxTool.onWindowClosed()
+    }
+
+    // Web pages (Wiki, GE Prices, star tracker...) keep running their scripts and live updates
+    // even when their window is hidden. Pause them all while no window is showing, to save battery.
+    private fun setWebPagesRunning(running: Boolean) {
+        if (running) {
+            webViews.firstOrNull()?.resumeTimers()   // this one call covers every page
+            webViews.forEach { it.onResume() }
+        } else {
+            webViews.forEach { it.onPause() }
+            webViews.firstOrNull()?.pauseTimers()
+        }
     }
 
     private fun buildToolWindow(tool: Tool): LinearLayout = when (tool) {
@@ -469,6 +544,7 @@ class BubbleService : Service() {
         Tool.INVENTORY_SETUPS -> buildFrame(setupsTool.buildView()) { setupsTool.goBack() }
         Tool.ZULRAH -> buildFrame(zulrahTool.buildView()) { zulrahTool.goBack() }
         Tool.FARMING -> buildFrame(farmingTool.buildView(), onBack = null)
+        Tool.LIGHT_BOX -> buildFrame(lightBoxTool.buildView(), onBack = null)
         Tool.PRICES -> {
             val web = buildWebView(PRICES_URL, PRICES_ZOOM_PERCENT)
             buildFrame(web) { if (web.canGoBack()) web.goBack() }
@@ -513,7 +589,7 @@ class BubbleService : Service() {
                 MotionEvent.ACTION_MOVE -> {
                     val maxX = maxOf(0, screenWidth() - params.width)
                     params.x = (startWindowX + (event.rawX - downRawX).toInt()).coerceIn(0, maxX)
-                    windowX = params.x
+                    if (currentTool != Tool.LIGHT_BOX && currentTool != Tool.PUZZLE_BOX) windowX = params.x  // others share one position
                     shownWindow?.let { windowManager.updateViewLayout(it, params) }
                 }
             }
@@ -542,6 +618,26 @@ class BubbleService : Service() {
         val screenW = screenWidth()
         val screenH = screenHeight()
         val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        // Light Box Solver: a small box in the top-right corner, only as tall as it needs,
+        // so it stays clear of the light box (which opens in the middle of the game)
+        if (currentTool == Tool.LIGHT_BOX || currentTool == Tool.PUZZLE_BOX) {
+            val inches = if (currentTool == Tool.LIGHT_BOX) LIGHT_BOX_WIDTH_INCHES else PUZZLE_BOX_WIDTH_INCHES
+            val w = (inches * metrics.xdpi).toInt().coerceAtMost(screenW)
+            val margin = dp(8)
+            return WindowManager.LayoutParams(
+                w,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.START or Gravity.TOP
+                x = maxOf(0, screenW - w - margin)
+                y = margin
+                allowScreenEdges(this)
+            }
+        }
+
         val width = when {
             currentTool == Tool.ZULRAH -> (ZULRAH_WIDTH_INCHES * metrics.xdpi).toInt()
             !landscape -> (screenW * 0.9f).toInt()
@@ -583,7 +679,12 @@ class BubbleService : Service() {
             settings.builtInZoomControls = true   // allow pinch-to-zoom
             settings.displayZoomControls = false  // hide the +/- zoom buttons
             webViewClient = object : WebViewClient() {
+                override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
+                    if (url?.contains("prices.runescape.wiki") == true) view.evaluateJavascript(PASSIVE_TOUCH_JS, null)
+                }
+
                 override fun onPageFinished(view: WebView, url: String?) {
+                    if (url?.contains("prices.runescape.wiki") == true) view.evaluateJavascript(CHART_SCROLL_FIX_JS, null)
                     view.evaluateJavascript(INLINE_DROPDOWNS_JS, null)
                     if (url?.contains("07.gg") == true) view.evaluateJavascript(STAR_DETAILS_FIX_JS, null)
                     // Shrink the page so its full width fits the window.
@@ -608,6 +709,7 @@ class BubbleService : Service() {
         puzzleTool.onRotated()
         setupsTool.onRotated()
         dpsTool.onRotated()
+        lightBoxTool.onRotated()
         if (shownWindow != null) {
             val params = makeWindowParams()
             shownParams = params
@@ -621,6 +723,7 @@ class BubbleService : Service() {
         setupsTool.destroy()
         dpsTool.destroy()
         farmingTool.destroy()
+        lightBoxTool.destroy()
         capture.shutdown()
         hideMenu()
         hideToolWindow()

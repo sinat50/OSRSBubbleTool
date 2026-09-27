@@ -80,6 +80,9 @@ class CaptureManager(
     // The most recent screen image, or null if nothing new is ready
     fun grab(): Bitmap? = capturer.grab()
 
+    // Looks at the newest screen image without making a picture of it (quick). Null if nothing changed.
+    fun <T> sample(block: (ScreenCapturer.Frame) -> T): T? = capturer.sample(block)
+
     // Turns capture off for good (when the bubble closes)
     fun shutdown() {
         shuttingDown = true

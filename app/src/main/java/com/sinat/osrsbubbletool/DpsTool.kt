@@ -192,9 +192,9 @@ class DpsTool(
         } else {
             equipmentArea.show()
             areaButton?.text = "Save area"
-            showStatus("Drag the gold frame over the whole equipment window, from its top edge down to " +
-                "the four buttons at the bottom. It doesn't need to be exact. Drag the corner to resize, " +
-                "then tap Save area.")
+            showStatus("Only needed if Import can't find your equipment tab by itself. Drag the gold frame " +
+                "over the whole equipment window, from its top edge down to the four buttons at the bottom. " +
+                "Drag the corner to resize, then tap Save area.")
         }
     }
 
@@ -209,10 +209,6 @@ class DpsTool(
     private fun importGear() {
         if (busy) return
         finishAreaSetup()
-        if (!equipmentArea.hasSavedArea) {
-            showStatus("Tap Set area first and drag the frame over your equipment tab.")
-            return
-        }
         if (!capture.isActive) {
             showStatus("Waiting for screen-capture permission...")
             capture.request { ok ->
@@ -233,28 +229,28 @@ class DpsTool(
                 showStatus("Couldn't capture the screen. Try again.")
                 return@postDelayed
             }
-            val area = equipmentArea.savedArea(shot.width, shot.height)
-            if (area == null) {
-                busy = false
-                showStatus("The equipment area was set with the phone turned the other way. Tap Set area to set it again.")
-                return@postDelayed
-            }
-            val r = Rect(area)
-            if (!r.intersect(0, 0, shot.width, shot.height) || r.width() < 40 || r.height() < 60) {
-                busy = false
-                showStatus("The equipment area is off the screen or too small. Tap Set area to fix it.")
-                return@postDelayed
-            }
-            val tab = Bitmap.createBitmap(shot, r.left, r.top, r.width(), r.height())
-            lastCapture = tab
             showStatus("Recognizing your gear...")
             val preferred = GearRecognizer.SLOT_ORDER
                 .filter { picksPrefs.contains(it) }
                 .associateWith { picksPrefs.getInt(it, 0) }
             Thread {
+                // Find the side panel by itself; the area set by hand is only a backup
+                val area = PanelFinder.find(LightBoxReader.Pixels(shot))
+                    ?: equipmentArea.savedArea(shot.width, shot.height)
+                val r = area?.let { Rect(it) }
+                if (r == null || !r.intersect(0, 0, shot.width, shot.height) || r.width() < 40 || r.height() < 60) {
+                    handler.post {
+                        busy = false
+                        showStatus("Couldn't find your equipment tab. Make sure it's open and not covered, " +
+                            "then try again. If it still isn't found, use Set area.")
+                    }
+                    return@Thread
+                }
+                val tab = Bitmap.createBitmap(shot, r.left, r.top, r.width(), r.height())
                 val result = try { recognizer.recognize(tab, preferred) } catch (e: Exception) { null }
                 handler.post {
                     busy = false
+                    lastCapture = tab
                     showRecognition(result, tab)
                 }
             }.start()

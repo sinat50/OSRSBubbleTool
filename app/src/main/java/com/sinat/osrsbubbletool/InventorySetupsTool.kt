@@ -221,7 +221,7 @@ class InventorySetupsTool(
         column.addView(nameField, fullWidth())
 
         status = label("Tap Capture for each part while it's showing in the game. " +
-            "The first time, tap Set area to mark where that part is on screen.")
+            "The app finds your side panel by itself; Set area is only needed if it can't.")
         column.addView(status, fullWidth(4))
 
         for (section in Section.values()) {
@@ -325,11 +325,6 @@ class InventorySetupsTool(
         val setup = current ?: return
         if (settingArea != null) finishAreaSetup()   // save the frame so it isn't in the picture
 
-        if (regions[section]?.hasSavedArea != true) {
-            status?.text = "Tap Set area first to mark where your ${section.label.lowercase()} is on screen."
-            return
-        }
-
         // Capture is off (first capture since the bubble started): ask Android once
         if (!capture.isActive) {
             status?.text = "Waiting for screen-capture permission..."
@@ -350,10 +345,21 @@ class InventorySetupsTool(
                 status?.text = "Couldn't capture the screen. Try again."
                 return@postDelayed
             }
-            val area = regions[section]?.savedArea(shot.width, shot.height)
+            // Found by itself: the inventory and equipment fill the side panel, the spellbook is
+            // the spellbook tab's picture, and the rune pouch is the runes box in its open window.
+            // An area set by hand is only used if it can't be found.
+            val pixels = LightBoxReader.Pixels(shot)
+            val found = when (section) {
+                Section.INVENTORY, Section.EQUIPMENT -> PanelFinder.find(pixels)
+                Section.SPELLBOOK -> PanelFinder.find(pixels)?.let { PanelFinder.spellbookTab(it) }
+                Section.RUNE_POUCH -> PanelFinder.runePouch(pixels)
+            }
+            val area = found ?: regions[section]?.savedArea(shot.width, shot.height)
             if (area == null) {
-                status?.text = "The ${section.label.lowercase()} area was set with the phone turned the " +
-                    "other way. Tap Set area to set it again."
+                status?.text = if (section == Section.RUNE_POUCH)
+                    "Couldn't find the rune pouch. Open it in the game (the window with Pouch and Inventory), then tap Capture."
+                else "Couldn't find your side panel on screen. Make sure it's showing, then try again, " +
+                    "or tap Set area to mark it by hand."
                 return@postDelayed
             }
             val r = Rect(area)
