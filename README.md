@@ -24,10 +24,11 @@ Tool windows are two inches wide in landscape, and can be slid left and right wi
 | Tool | What it does |
 | --- | --- |
 | **OSRS Wiki** | The wiki in a window over the game, shrunk to fit. |
-| **Puzzle Box Solver** | Reads a clue puzzle box from the screen and shows the next moves on top of it, colour-coded. Keeps tracking as you slide tiles. |
-| **Inventory Setups** | Save pictures of your inventory, equipment, rune pouch and spellbook under a name, so you can check them while gearing up. |
+| **Puzzle Box Solver** | Finds the clue puzzle box on screen by itself, reads the tiles and outlines your next moves on top of it, colour-coded, with "Move 3 of 42" above the puzzle. Follows your moves as you slide tiles, and re-plans if you make a different move. |
+| **Light Box Solver** | Finds the light box by itself, asks you to press each button once to learn what it does, then outlines the buttons that turn every bulb on. Instructions appear right on the light box. |
+| **Inventory Setups** | Save pictures of your inventory, equipment, spellbook and rune pouch under a name, so you can check them while gearing up. Each part is found on screen automatically. |
 | **XP Calculator** | [oldschool.tools](https://oldschool.tools) calculators, with dropdown menus that work inside the window. |
-| **DPS Calculator** | The OSRS Wiki DPS calculator. **Import my gear** recognises your worn equipment from the screen and loads it straight into the calculator. It copes with any brightness setting and tells look-alike items apart, such as enchanted and plain bolts. |
+| **DPS Calculator** | The OSRS Wiki DPS calculator. **Import my gear** finds your equipment tab by itself, recognises your worn equipment and loads it straight into the calculator. It copes with any brightness setting and tells look-alike items apart, such as enchanted and plain bolts. |
 | **Shooting Star Tracker** | Live shooting star locations from [07.gg](https://07.gg/trackers/shooting-star). |
 | **Zulrah Helper** | A tap-along rotation guide, like the RuneLite plugin: Zulrah's colour and position, where to stand, and which prayer to use, with the possible next phases underneath. |
 | **Timers** | Farming and birdhouse timers. Tap **Planted** after a run and get a notification when it's ready. Covers herbs, trees, fruit trees, hardwoods, allotments, hops, seaweed and more. Growth times follow the game's growth ticks, and timers survive closing the app and restarting the phone. |
@@ -35,7 +36,8 @@ Tool windows are two inches wide in landscape, and can be slid left and right wi
 
 ## Battery and privacy
 
-- The screen is only captured when you use a tool that needs it (Puzzle Box Solver, Inventory Setups and DPS gear import). Nothing watches the screen in the background.
+- The screen is only captured when you use a tool that needs it (the Puzzle Box and Light Box Solvers, Inventory Setups and DPS gear import). Capture pauses itself whenever no tool is using it.
+- Website tools pause while their window is closed.
 - Timers don't keep anything running. Android wakes the app once when a timer is due.
 - Screenshots are processed on the phone and thrown away. Only pictures you choose to keep, in Inventory Setups or with **Save picture to phone**, are stored.
 - The app has no ads, no analytics and no accounts. The website tools load those sites directly, the same as a browser would.
@@ -49,7 +51,7 @@ The app's **Permissions** screen explains each one and has a button to turn it o
 | Display over other apps | Shows the bubble and tool windows on top of the game. Required. |
 | Notifications | Timer alerts, and the small notification Android requires while the bubble runs. |
 | Alarms & reminders | Makes timer alerts arrive on time instead of a few minutes late. |
-| Screen capture | Asked by Android the first time you use a tool that reads the screen, once per bubble session. |
+| Screen capture | Asked by Android the first time you use a tool that reads the screen, once each time you start the bubble. |
 
 ## Building it yourself
 
