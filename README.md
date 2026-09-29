@@ -17,7 +17,7 @@ OSRS Bubble Tool puts a small bubble on top of the game. Tap it to open a tool i
 - **Drag** the bubble to move it anywhere on screen
 - **Long-press** the bubble to pick a different tool
 
-Tool windows are two inches wide in landscape, and can be slid left and right with the bar at the top.
+Tool windows are two inches wide in landscape. Drag the bar at the top to move a window anywhere, and drag the corner at the bottom right to resize it. Each tool remembers its size, and double-tapping the corner puts it back to normal.
 
 ## Tools
 
@@ -36,6 +36,7 @@ Tool windows are two inches wide in landscape, and can be slid left and right wi
 | **Quest Helper (Beta)** | Step-by-step guides for 195 quests and miniquests, with the dialogue options to pick, the items for each step and the enemies you'll face. Every quest's requirements are ticked off against your account through [WikiSync](https://oldschool.runescape.wiki/w/RuneScape:WikiSync), including the quests they need in turn. Includes the achievement diaries, and solutions for 50 quest puzzles: drawn maps for the Song of the Elves light puzzles, tap-in solvers for riddles and locks, and trackers for the trial-and-error ones. |
 | **Calculator** | A basic calculator that understands OSRS shorthand like 1.5m and 250k. |
 | **Notepad** | Write, save and read notes without leaving the game. |
+| **Game Room** | Games for while you wait. **Higher or Lower**: guess whether the next item is worth more or less on the Grand Exchange, with live wiki prices and a best streak. **Loot Simulator**: kill any of 46 bosses or open any tier of clue casket as many times as you like, or until the pet drops, using the wiki's drop rates. **2048**: the classic sliding-tile puzzle, saved after every move. |
 
 ## Battery and privacy
 
@@ -45,6 +46,7 @@ Tool windows are two inches wide in landscape, and can be slid left and right wi
 - Screenshots are processed on the phone and thrown away. Only pictures you choose to keep, in Inventory Setups or with **Save picture to phone**, are stored.
 - The app has no ads, no analytics and no accounts. The website tools load those sites directly, the same as a browser would.
 - If you choose to enter your RuneScape name in the Quest Helper, it's used to read your public WikiSync data. That's the only personal thing the app ever sends.
+- Each time you open the app, it checks GitHub for a newer version. The button in the top right says **Up To Date** or **Update Available** and opens the latest release page. Nothing about you is sent.
 
 ## Permissions
 

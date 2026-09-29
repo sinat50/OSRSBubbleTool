@@ -64,6 +64,8 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (screen == Screen.PERMISSIONS) show(Screen.PERMISSIONS)
+        // look for a newer version on GitHub each time the app is opened
+        UpdateChecker.check(this) { styleUpdateButton() }
     }
 
     private fun show(s: Screen) {
@@ -131,10 +133,38 @@ class MainActivity : Activity() {
         }
 
         return page(scrolling = true) {
+            // top right: "Up To Date" or "Update Available"
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(View(this@MainActivity), LinearLayout.LayoutParams(0, 1, 1f))
+                addView(button("") { openReleasePage() }.also { updateButton = it; styleUpdateButton() })
+            }, matchWidth(0))
             addView(middle, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
             addView(label("Unofficial fan-made tool. Not affiliated with Jagex.", 11f).apply { gravity = Gravity.CENTER },
                 matchWidth(8))
             addView(bottom, matchWidth(8))
+        }
+    }
+
+    // The update button on the main screen: brown "Up To Date", or green "Update Available"
+    private var updateButton: TextView? = null
+
+    private fun styleUpdateButton() {
+        val b = updateButton ?: return
+        val state = UpdateChecker.state(this)
+        b.text = when (state) {
+            UpdateChecker.State.UPDATE_AVAILABLE -> "Update Available"
+            UpdateChecker.State.UP_TO_DATE -> "Up To Date"
+            UpdateChecker.State.NOT_CHECKED -> "Check for Update"
+        }
+        (b.background as? GradientDrawable)?.setColor(if (state == UpdateChecker.State.UPDATE_AVAILABLE) GO_GREEN else BUTTON_BROWN)
+    }
+
+    private fun openReleasePage() {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(UpdateChecker.RELEASES_PAGE)))
+        } catch (e: Exception) {
+            Toast.makeText(this, "Couldn't open a browser", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -291,7 +321,9 @@ class MainActivity : Activity() {
         section("OSRS Wiki",
             "Item data and icons from the OSRS Wiki DPS calculator (github.com/weirdgloop/osrs-dps-calc). " +
             "The OSRS Wiki, Real-time Prices (prices.runescape.wiki), XP calculator (oldschool.tools), DPS calculator and Shooting Star Tracker (07.gg) " +
-            "are websites run by their own owners and are opened as they are.")
+            "are websites run by their own owners and are opened as they are.\n\n" +
+            "Game Room: Grand Exchange prices from the OSRS Wiki's Real-time Prices, and drop rates and item pictures from the OSRS Wiki " +
+            "(oldschool.runescape.wiki, content under CC BY-NC-SA 3.0).")
 
         section("RuneLite",
             "Farming growth times based on RuneLite's Time Tracking plugin (github.com/runelite/runelite).")

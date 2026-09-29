@@ -22,6 +22,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -222,7 +223,8 @@ class BubbleService : Service() {
         PRICES("GE Prices"),
         CALCULATOR("Calculator"),
         NOTES("Notepad"),
-        QUESTS("Quest Helper (Beta)")
+        QUESTS("Quest Helper (Beta)"),
+        GAMES("Game Room")
     }
 
     private lateinit var windowManager: WindowManager
@@ -238,12 +240,15 @@ class BubbleService : Service() {
     private lateinit var questTool: QuestHelperTool
     private val calculatorTool by lazy { CalculatorTool(this) }
     private val notesTool by lazy { NotesTool(this) }
+    private val gameRoomTool by lazy { GameRoomTool(this) }
 
     private val toolWindows = mutableMapOf<Tool, LinearLayout>() // built once, reused
     private var currentTool = Tool.WIKI
     private var shownWindow: LinearLayout? = null
     private var shownParams: WindowManager.LayoutParams? = null
     private var windowX = 0            // remembers where you dragged the window
+    private var windowY: Int? = null   // …and how far down (null = centred)
+    private val sizes by lazy { getSharedPreferences("window_sizes", MODE_PRIVATE) }   // sizes you've dragged windows to
     private var menu: View? = null
     private val webViews = mutableListOf<WebView>()
     private var destroyed = false
@@ -596,6 +601,7 @@ class BubbleService : Service() {
         Tool.QUESTS -> buildFrame(questTool.buildView()) { questTool.goBack() }
         Tool.CALCULATOR -> buildFrame(calculatorTool.buildView(), onBack = null)
         Tool.NOTES -> buildFrame(notesTool.buildView()) { notesTool.goBack() }
+        Tool.GAMES -> buildFrame(gameRoomTool.buildView()) { gameRoomTool.goBack() }
         Tool.PRICES -> {
             val web = buildWebView(PRICES_URL, PRICES_ZOOM_PERCENT)
             buildFrame(web) { if (web.canGoBack()) web.goBack() }
@@ -629,18 +635,29 @@ class BubbleService : Service() {
         }
 
         var downRawX = 0f
+        var downRawY = 0f
         var startWindowX = 0
+        var startWindowY = 0
+        val canResize = isResizable(currentTool)
+        if (canResize) dragHandle.text = "✥"   // these windows move up and down too
         dragHandle.setOnTouchListener { _, event ->
             val params = shownParams ?: return@setOnTouchListener false
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     downRawX = event.rawX
+                    downRawY = event.rawY
                     startWindowX = params.x
+                    startWindowY = params.y
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val maxX = maxOf(0, screenWidth() - params.width)
                     params.x = (startWindowX + (event.rawX - downRawX).toInt()).coerceIn(0, maxX)
                     if (currentTool != Tool.LIGHT_BOX && currentTool != Tool.PUZZLE_BOX) windowX = params.x  // others share one position
+                    if (isResizable(currentTool)) {
+                        val maxY = maxOf(0, screenHeight() - params.height)
+                        params.y = (startWindowY + (event.rawY - downRawY).toInt()).coerceIn(0, maxY)
+                        windowY = params.y
+                    }
                     shownWindow?.let { windowManager.updateViewLayout(it, params) }
                 }
             }
@@ -655,11 +672,114 @@ class BubbleService : Service() {
             addView(closeButton)
         }
 
+        // The content, with a resize corner at the bottom right (for the tools that can be resized)
+        val body = FrameLayout(this).apply {
+            addView(content, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            if (canResize) addView(resizeCorner(), FrameLayout.LayoutParams(dp(26), dp(26), Gravity.BOTTOM or Gravity.END))
+        }
+
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.WHITE)
             addView(topBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(BAR_HEIGHT_DP)))
-            addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        }
+    }
+
+    // ---------------- Resizing windows ----------------
+
+    // The Light Box and Puzzle Box Solvers are already small, and the Notepad is sized around the keyboard
+    private fun isResizable(tool: Tool) = tool != Tool.LIGHT_BOX && tool != Tool.PUZZLE_BOX && tool != Tool.NOTES
+
+    // Each tool remembers its own size, separately for landscape and portrait
+    private fun sizeKey(tool: Tool): String {
+        val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        return tool.name + if (landscape) "_land" else "_port"
+    }
+
+    private val minWindowWidth get() = dp(150)
+    private val minWindowHeight get() = dp(140)
+
+    // Drag the corner to resize. Double-tap it to go back to the normal size.
+    @SuppressLint("ClickableViewAccessibility")
+    private fun resizeCorner(): View = object : View(this) {
+        private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            strokeWidth = dp(2).toFloat()
+            strokeCap = android.graphics.Paint.Cap.ROUND
+        }
+        private val back = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#B33E2C12") }
+        override fun onDraw(canvas: android.graphics.Canvas) {
+            val w = width.toFloat(); val h = height.toFloat()
+            // a dark quarter-circle in the corner with three diagonal lines, like a window's resize grip
+            canvas.drawCircle(w, h, w * 0.95f, back)
+            paint.color = Color.parseColor("#F2E3C0")
+            for (i in 1..3) {
+                val d = w * 0.22f * i
+                canvas.drawLine(w - d, h - dp(3), w - dp(3), h - d, paint)
+            }
+        }
+    }.apply {
+        var downX = 0f; var downY = 0f
+        var startW = 0; var startH = 0
+        var lastTap = 0L
+        var moved = false
+        setOnTouchListener { _, e ->
+            val params = shownParams ?: return@setOnTouchListener false
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = e.rawX; downY = e.rawY
+                    startW = params.width; startH = params.height
+                    moved = false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = (e.rawX - downX).toInt()
+                    val dy = (e.rawY - downY).toInt()
+                    if (abs(dx) > dp(3) || abs(dy) > dp(3)) moved = true
+                    if (moved) {
+                        params.width = (startW + dx).coerceIn(minWindowWidth, maxOf(minWindowWidth, screenWidth() - params.x))
+                        params.height = (startH + dy).coerceIn(minWindowHeight, maxOf(minWindowHeight, screenHeight() - params.y))
+                        shownWindow?.let { windowManager.updateViewLayout(it, params) }
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (moved) {
+                        sizes.edit()
+                            .putInt(sizeKey(currentTool) + "_w", params.width)
+                            .putInt(sizeKey(currentTool) + "_h", params.height)
+                            .apply()
+                        refitWebPages()
+                    } else {
+                        val now = System.currentTimeMillis()
+                        if (now - lastTap < 350) {
+                            // double-tap: back to the normal size
+                            sizes.edit().remove(sizeKey(currentTool) + "_w").remove(sizeKey(currentTool) + "_h").apply()
+                            windowY = null   // and back to the middle of the screen
+                            val fresh = makeWindowParams()
+                            params.width = fresh.width
+                            params.height = fresh.height
+                            params.x = fresh.x
+                            params.y = fresh.y
+                            shownWindow?.let { windowManager.updateViewLayout(it, params) }
+                            refitWebPages()
+                            lastTap = 0
+                        } else lastTap = now
+                    }
+                }
+            }
+            true
+        }
+    }
+
+    // Web pages are shrunk to fit the window's width, so fit them again after a resize
+    private fun refitWebPages() {
+        val window = shownWindow ?: return
+        for (web in webViews) {
+            var v: android.view.ViewParent? = web.parent
+            var inWindow = false
+            while (v != null) { if (v === window) { inWindow = true; break }; v = v.parent }
+            if (!inWindow) continue
+            val fit = if (web.url?.contains("prices.runescape.wiki") == true) FIT_BOTH_SIDES_JS else FIT_WIDTH_JS
+            web.postDelayed({ web.evaluateJavascript(fit, null) }, 150)
         }
     }
 
@@ -696,18 +816,31 @@ class BubbleService : Service() {
             else -> (PANEL_WIDTH_INCHES * metrics.xdpi).toInt()
         }.coerceAtMost(screenW)
 
-        windowX = windowX.coerceIn(0, maxOf(0, screenW - width))
+        var w = width
+        var h = (screenH * 0.9f).toInt()
+        // a size you've dragged this tool to
+        if (isResizable(currentTool)) {
+            val key = sizeKey(currentTool)
+            if (sizes.contains(key + "_w")) {
+                w = sizes.getInt(key + "_w", w).coerceIn(minOf(minWindowWidth, screenW), screenW)
+                h = sizes.getInt(key + "_h", h).coerceIn(minOf(minWindowHeight, screenH), screenH)
+            }
+        }
+        windowX = windowX.coerceIn(0, maxOf(0, screenW - w))
+        val resizable = isResizable(currentTool)
 
         return WindowManager.LayoutParams(
-            width,
-            (screenH * 0.9f).toInt(),
+            w,
+            h,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, // touches outside still reach the game
             PixelFormat.TRANSLUCENT
         ).apply {
             // the Notepad sits at the top of the screen, so the keyboard (bottom half) doesn't cover the note
-            gravity = Gravity.START or if (currentTool == Tool.NOTES) Gravity.TOP else Gravity.CENTER_VERTICAL
+            gravity = Gravity.START or if (currentTool == Tool.NOTES || resizable) Gravity.TOP else Gravity.CENTER_VERTICAL
             x = windowX
+            // resizable windows sit where you last dragged them (centred to start with)
+            if (resizable) y = (windowY ?: (screenH - h) / 2).coerceIn(0, maxOf(0, screenH - h))
             // …but below the status bar, which catches touches at the very top outside the game
             if (currentTool == Tool.NOTES) y = NotesTool.topOffset(this@BubbleService)
             allowScreenEdges(this)
