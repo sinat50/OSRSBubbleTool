@@ -6,7 +6,7 @@
 
 <p align="center">
   A floating toolbox for Old School RuneScape on Android.<br>
-  Free, no ads, no accounts, and nothing is sent anywhere.
+  Free, no ads, and no accounts.
 </p>
 
 ---
@@ -23,8 +23,8 @@ Tool windows are two inches wide in landscape, and can be slid left and right wi
 
 | Tool | What it does |
 | --- | --- |
-| **OSRS Wiki** | The wiki in a window over the game, shrunk to fit. |
-| **Puzzle Box Solver** | Finds the clue puzzle box on screen by itself, reads the tiles and outlines your next moves on top of it, colour-coded, with "Move 3 of 42" above the puzzle. Follows your moves as you slide tiles, and re-plans if you make a different move. |
+| **OSRS Wiki** | The wiki in a window over the game, shrunk to fit. Can also open the game's own wiki links (the wiki button) in the bubble instead of your browser. |
+| **Puzzle Box Solver** | Finds the clue puzzle box on screen by itself, reads the tiles and shows your next moves on top of it, with "Move 3 of 42" above the puzzle. Choose colour-coded boxes or shrinking dots. Follows your moves as you slide tiles, and re-plans if you make a different move. |
 | **Light Box Solver** | Finds the light box by itself, asks you to press each button once to learn what it does, then outlines the buttons that turn every bulb on. Instructions appear right on the light box. |
 | **Inventory Setups** | Save pictures of your inventory, equipment, spellbook and rune pouch under a name, so you can check them while gearing up. Each part is found on screen automatically. |
 | **XP Calculator** | [oldschool.tools](https://oldschool.tools) calculators, with dropdown menus that work inside the window. |
@@ -33,6 +33,9 @@ Tool windows are two inches wide in landscape, and can be slid left and right wi
 | **Zulrah Helper** | A tap-along rotation guide, like the RuneLite plugin: Zulrah's colour and position, where to stand, and which prayer to use, with the possible next phases underneath. |
 | **Timers** | Farming and birdhouse timers. Tap **Planted** after a run and get a notification when it's ready. Covers herbs, trees, fruit trees, hardwoods, allotments, hops, seaweed and more. Growth times follow the game's growth ticks, and timers survive closing the app and restarting the phone. |
 | **GE Prices** | The OSRS Wiki [Real-time Prices](https://prices.runescape.wiki/osrs/) site. |
+| **Quest Helper (Beta)** | Step-by-step guides for 195 quests and miniquests, with the dialogue options to pick, the items for each step and the enemies you'll face. Every quest's requirements are ticked off against your account through [WikiSync](https://oldschool.runescape.wiki/w/RuneScape:WikiSync), including the quests they need in turn. Includes the achievement diaries, and solutions for 50 quest puzzles: drawn maps for the Song of the Elves light puzzles, tap-in solvers for riddles and locks, and trackers for the trial-and-error ones. |
+| **Calculator** | A basic calculator that understands OSRS shorthand like 1.5m and 250k. |
+| **Notepad** | Write, save and read notes without leaving the game. |
 
 ## Battery and privacy
 
@@ -41,6 +44,7 @@ Tool windows are two inches wide in landscape, and can be slid left and right wi
 - Timers don't keep anything running. Android wakes the app once when a timer is due.
 - Screenshots are processed on the phone and thrown away. Only pictures you choose to keep, in Inventory Setups or with **Save picture to phone**, are stored.
 - The app has no ads, no analytics and no accounts. The website tools load those sites directly, the same as a browser would.
+- If you choose to enter your RuneScape name in the Quest Helper, it's used to read your public WikiSync data. That's the only personal thing the app ever sends.
 
 ## Permissions
 
@@ -52,6 +56,7 @@ The app's **Permissions** screen explains each one and has a button to turn it o
 | Notifications | Timer alerts, and the small notification Android requires while the bubble runs. |
 | Alarms & reminders | Makes timer alerts arrive on time instead of a few minutes late. |
 | Screen capture | Asked by Android the first time you use a tool that reads the screen, once each time you start the bubble. |
+| Open wiki links | Optional. Lets the game's wiki button open pages in the bubble. Other apps' wiki links still go to your browser. |
 
 ## Building it yourself
 
@@ -70,6 +75,8 @@ The app only shows information and waits for you to tap. It never reads the game
 - Solved puzzle pictures, wiki pages and Real-time Prices from the [Old School RuneScape Wiki](https://oldschool.runescape.wiki).
 - Zulrah rotation data and arena layout adapted from the [Zulrah Helper](https://github.com/while-loop/runelite-plugins) RuneLite plugin, © 2020 Anthony Alves and © 2026 Ron Young, used under the BSD 2-Clause License (the full notice is in `ZulrahTool.kt` and on the app's Legal screen).
 - Farming growth times based on [RuneLite](https://github.com/runelite/runelite)'s Time Tracking plugin.
+- Quest guides, requirements, achievement diary tasks and puzzle solutions adapted from the [Quest Helper](https://github.com/Zoinkwiz/quest-helper) RuneLite plugin, © 2020 Zoinkwiz and the Quest Helper contributors, used under the BSD 2-Clause License (the full notice and every contributor are listed on the app's Legal screen). Some puzzle answers come from the OSRS Wiki's quick guides.
+- Quest progress and levels read with [WikiSync](https://oldschool.runescape.wiki/w/RuneScape:WikiSync) by the OSRS Wiki.
 - XP calculators by [oldschool.tools](https://oldschool.tools), shooting star data by [07.gg](https://07.gg).
 
 ## Legal
