@@ -32,6 +32,12 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
         // They stay within the outer edge of each tile, which the tracking ignores.
         val MOVE_WIDTHS = floatArrayOf(0.10f, 0.07f, 0.045f, 0.025f)
 
+        // Dot style: one dot per move, each clearly smaller than the last (as a fraction of a tile's width).
+        // The biggest leaves the ring the tracking reads (see PuzzleFinder.emptySpace) uncovered.
+        val DOT_RADII = floatArrayOf(0.28f, 0.2f, 0.13f, 0.07f)
+        private val DOT_COLOR = Color.parseColor("#FFD60A")
+        private val DOT_EDGE = Color.parseColor("#1A1208")
+
         private val BANNER_BG = Color.parseColor("#E6201A10")
         val GREEN = MOVE_COLORS[0]
     }
@@ -48,6 +54,30 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
     private var banner = RectF()    // the message strip
 
     val isShowing: Boolean get() = view != null
+
+    // true = dots that shrink with each move; false = coloured boxes around the tiles
+    var dots = false
+        set(value) { field = value; updateCovered(); view?.invalidate() }
+
+    // Tiles with a dot in the middle (or that had one a moment ago, as the screen can lag a frame).
+    // The tracking reads those tiles differently so the dot doesn't hide the empty space.
+    @Volatile var coveredTiles: Set<Int> = emptySet()
+        private set
+    private var previouslyCovered: Set<Int> = emptySet()
+    private var coveredChangedAt = 0L
+
+    private fun updateCovered() {
+        val now = android.os.SystemClock.uptimeMillis()
+        val current = if (dots) moves.toSet() else emptySet()
+        if (now - coveredChangedAt > 600) previouslyCovered = emptySet()
+        previouslyCovered = previouslyCovered + coveredTiles
+        coveredChangedAt = now
+        coveredTiles = current + previouslyCovered
+        // forget the old ones once the screen has surely caught up
+        view?.postDelayed({ if (android.os.SystemClock.uptimeMillis() - coveredChangedAt >= 600) {
+            previouslyCovered = emptySet(); coveredTiles = if (dots) moves.toSet() else emptySet()
+        } }, 650)
+    }
 
     // tiles: where the puzzle's tiles are, in screenshot pixels
     fun show(tiles: Rect) {
@@ -90,6 +120,7 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
     // The positions (0-24) of the next moves, in order. Up to 4 are shown.
     fun setMoves(nextMoves: List<Int>) {
         moves = nextMoves.take(MOVE_COLORS.size)
+        updateCovered()
         view?.invalidate()
     }
 
@@ -105,6 +136,8 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
         params = null
         moves = emptyList()
         message = ""
+        coveredTiles = emptySet()
+        previouslyCovered = emptySet()
     }
 
     @SuppressLint("ViewConstructor")
@@ -138,7 +171,18 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
             val tileH = tiles.height() / GRID.toFloat()
 
             // draw the later moves first, so move 1 ends up on top
-            for (i in moves.indices.reversed()) {
+            if (dots) {
+                for (i in moves.indices.reversed()) {
+                    val pos = moves[i]
+                    val cx = tiles.left - ox + (pos % GRID + 0.5f) * tileW
+                    val cy = tiles.top - oy + (pos / GRID + 0.5f) * tileH
+                    val r = tileW * DOT_RADII[i]
+                    fill.color = DOT_EDGE
+                    canvas.drawCircle(cx, cy, r, fill)
+                    fill.color = DOT_COLOR
+                    canvas.drawCircle(cx, cy, r - maxOf(1.5f, tileW * 0.02f), fill)
+                }
+            } else for (i in moves.indices.reversed()) {
                 val pos = moves[i]
                 val stroke = tileW * MOVE_WIDTHS[i]
                 paint.color = MOVE_COLORS[i]

@@ -45,6 +45,8 @@ class PuzzleBoxTool(
     private val handler = Handler(Looper.getMainLooper())
     private val puzzleArea = PuzzleAreaOverlay(context, windowManager)
     private val guide = MoveGuideOverlay(context, windowManager)
+    private val prefs = context.getSharedPreferences("puzzle_box", Context.MODE_PRIVATE)
+    private var styleButtons: List<TextView> = emptyList()
     private val references = PuzzleReferences(context)
     private var status: TextView? = null
     private var image: ImageView? = null
@@ -101,6 +103,29 @@ class PuzzleBoxTool(
             setPadding(dp(6), dp(4), dp(6), dp(4))
         }
 
+        // Guide style: coloured boxes around the tiles, or dots that shrink with each move
+        guide.dots = prefs.getBoolean("dots", false)
+        fun styleButton(label: String, dots: Boolean) = button(label, 11f) {
+            guide.dots = dots
+            prefs.edit().putBoolean("dots", dots).apply()
+            refreshStyleButtons()
+        }.apply { setPadding(dp(4), dp(5), dp(4), dp(5)) }
+        val boxesButton = styleButton("▢ Boxes", false)
+        val dotsButton = styleButton("● Dots", true)
+        styleButtons = listOf(boxesButton, dotsButton)
+        refreshStyleButtons()
+        val styleRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(TextView(context).apply {
+                text = "Show moves as:"
+                textSize = 11f
+                setTextColor(Color.parseColor("#3E2C12"))
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(4) })
+            addView(boxesButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(3) })
+            addView(dotsButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        }
+
         status = TextView(context).apply {
             text = "Open a puzzle box, then tap Scan puzzle. The moves appear on the puzzle."
             textSize = 11f
@@ -124,9 +149,21 @@ class PuzzleBoxTool(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(image, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(styleRow, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) })
             addView(areaButton, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = dp(6) })
+        }
+    }
+
+    // The chosen style's button is darker
+    private fun refreshStyleButtons() {
+        styleButtons.forEachIndexed { i, b ->
+            val chosen = (i == 1) == guide.dots
+            (b.background as? GradientDrawable)?.setColor(Color.parseColor(if (chosen) "#5A4220" else "#B89A63"))
+            b.setTypeface(null, if (chosen) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
         }
     }
 
@@ -351,7 +388,7 @@ class PuzzleBoxTool(
         // null = screen unchanged
         val empty = capture.sample {
             if (!PuzzleFinder.frameVisible(it, area)) -2
-            else if (finished) -3 else PuzzleFinder.emptySpace(it, area)
+            else if (finished) -3 else PuzzleFinder.emptySpace(it, area, guide.coveredTiles)
         }
         if (empty == -2) {
             // closed: clear everything off the screen straight away

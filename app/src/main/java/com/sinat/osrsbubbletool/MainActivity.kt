@@ -33,6 +33,13 @@ class MainActivity : Activity() {
         private val ROW_BROWN = Color.parseColor("#E3CFA2")
         private val GO_GREEN = Color.parseColor("#3E7A2E")
         private const val REQUEST_NOTIFICATIONS = 1
+
+        // The BSD 2-Clause licence conditions and disclaimer (used by the Zulrah and Quest Helper credits)
+        private const val BSD_TERMS =
+            "Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n" +
+                "1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.\n\n" +
+                "2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.\n\n" +
+                "THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
     }
 
     private enum class Screen { MAIN, PERMISSIONS, LEGAL }
@@ -83,7 +90,10 @@ class MainActivity : Activity() {
         }
     }
 
-    @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")  // used on older Android versions
+    // Only used on Android 12 and older. Newer phones use the callback in updateBackHandling() above,
+    // so the warning about back gestures doesn't apply here.
+    @android.annotation.SuppressLint("GestureBackNavigation")
+    @Suppress("OVERRIDE_DEPRECATION", "DEPRECATION")
     override fun onBackPressed() {
         if (screen != Screen.MAIN) show(Screen.MAIN) else super.onBackPressed()
     }
@@ -171,11 +181,46 @@ class MainActivity : Activity() {
             }, matchWidth(10))
         }
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            addView(permissionCard(
+                "Open wiki links in the bubble",
+                "When you use the game's wiki button (under the world map), the page opens in the bubble's " +
+                    "Wiki window instead of your browser. Tap Allow, then Add link, and tick oldschool.runescape.wiki. " +
+                    "Wiki links from other apps still open in your normal browser.\n\n" + lastWikiLink(),
+                allowed = wikiLinksAllowed()
+            ) {
+                openSettings(Intent(Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS, Uri.parse("package:$packageName")))
+            }, matchWidth(10))
+        }
+
         addView(permissionCard(
             "Screen capture",
             "Used by the Puzzle Box Solver, Inventory Setups and the DPS Calculator's \"Import my gear\" to look at the game screen. Android doesn't allow apps to turn this on ahead of time, so it asks the first time you use one of those tools, once each time the bubble is started. Pictures stay on your phone.",
             allowed = null, onAllow = null
         ), matchWidth(10))
+    }
+
+    // What happened to the last wiki link that reached the app (to help sort out problems)
+    private fun lastWikiLink(): String {
+        val prefs = getSharedPreferences("wiki_links", MODE_PRIVATE)
+        if (!prefs.contains("time")) return "Last link: none have reached the app yet."
+        val time = android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date(prefs.getLong("time", 0)))
+        val where = if (prefs.getBoolean("to_bubble", false)) "opened in the bubble" else "sent to your browser"
+        return "Last link: at $time from ${prefs.getString("from", "?")}, $where."
+    }
+
+    // Has "Open by default" been turned on for the wiki's web address?
+    private fun wikiLinksAllowed(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
+        return try {
+            val manager = getSystemService(android.content.pm.verify.domain.DomainVerificationManager::class.java)
+            val state = manager.getDomainVerificationUserState(packageName) ?: return false
+            val host = state.hostToStateMap["oldschool.runescape.wiki"]
+            host == android.content.pm.verify.domain.DomainVerificationUserState.DOMAIN_STATE_SELECTED ||
+                host == android.content.pm.verify.domain.DomainVerificationUserState.DOMAIN_STATE_VERIFIED
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun askForNotifications() {
@@ -255,11 +300,13 @@ class MainActivity : Activity() {
             "Zulrah Helper rotation data and arena layout adapted from the Zulrah Helper RuneLite plugin " +
             "(github.com/while-loop/runelite-plugins).\n\n" +
             "Copyright (c) 2020, Anthony Alves\nCopyright (c) 2026, Ron Young\nAll rights reserved.\n\n" +
-            "Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n" +
-            "1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.\n\n" +
-            "2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.\n\n" +
-            "THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.",
+            BSD_TERMS,
             size = 11f)
+
+        section("Quest Helper",
+            "Quest guides, quest requirements and achievement diary tasks adapted from the Quest Helper RuneLite plugin (github.com/Zoinkwiz/quest-helper).\n\n" +
+            QuestGuides.COPYRIGHTS.joinToString("\n") + "\nAll rights reserved.\n\n" +
+            BSD_TERMS, size = 11f)
     }
 
     // ---------------- Small building blocks ----------------

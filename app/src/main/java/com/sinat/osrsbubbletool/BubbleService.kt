@@ -54,6 +54,14 @@ class BubbleService : Service() {
 
         // Messages from CapturePermissionActivity
         const val ACTION_CAPTURE_RESULT = "com.sinat.osrsbubbletool.CAPTURE_RESULT"
+
+        // A wiki link opened from another app (like the game's wiki button), sent by WikiLinkActivity
+        const val ACTION_OPEN_WIKI = "com.sinat.osrsbubbletool.OPEN_WIKI"
+        const val EXTRA_URL = "url"
+
+        // True while the bubble is on (so you're most likely playing)
+        @Volatile var isRunning = false
+            private set
         const val EXTRA_RESULT_CODE = "resultCode"
         const val EXTRA_RESULT_DATA = "resultData"
 
@@ -211,7 +219,10 @@ class BubbleService : Service() {
         SHOOTING_STARS("Shooting Star Tracker"),
         ZULRAH("Zulrah Helper"),
         FARMING("Timers"),
-        PRICES("GE Prices")
+        PRICES("GE Prices"),
+        CALCULATOR("Calculator"),
+        NOTES("Notepad"),
+        QUESTS("Quest Helper (Beta)")
     }
 
     private lateinit var windowManager: WindowManager
@@ -224,6 +235,9 @@ class BubbleService : Service() {
     private lateinit var zulrahTool: ZulrahTool
     private lateinit var farmingTool: FarmingTool
     private lateinit var lightBoxTool: LightBoxTool
+    private lateinit var questTool: QuestHelperTool
+    private val calculatorTool by lazy { CalculatorTool(this) }
+    private val notesTool by lazy { NotesTool(this) }
 
     private val toolWindows = mutableMapOf<Tool, LinearLayout>() // built once, reused
     private var currentTool = Tool.WIKI
@@ -238,6 +252,7 @@ class BubbleService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        isRunning = true
         updateForeground(capturing = false)
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         windowX = dp(8)
@@ -249,12 +264,14 @@ class BubbleService : Service() {
         dpsTool = DpsTool(this, windowManager, capture, ::setOverlaysVisible)
         zulrahTool = ZulrahTool(this)
         farmingTool = FarmingTool(this)
+        questTool = QuestHelperTool(this, openWiki = { url -> openWikiLink(url, returnTo = Tool.QUESTS) }, hideWindow = { hideToolWindow() })
         lightBoxTool = LightBoxTool(this, windowManager, capture, ::setOverlaysVisible) { hideToolWindow() }
         createBubble()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_CAPTURE_RESULT) capture.onPermissionResult(intent)
+        if (intent?.action == ACTION_OPEN_WIKI) intent.getStringExtra(EXTRA_URL)?.let { openWikiLink(it) }
         return START_NOT_STICKY
     }
 
@@ -476,7 +493,35 @@ class BubbleService : Service() {
 
     // ---------------- Tool windows ----------------
 
+    // Shows a wiki page in the Wiki window (from the game's wiki button, for example)
+    private var wikiWeb: WebView? = null
+    private var pendingWikiUrl: String? = null
+
+    // Opens a wiki page in the Wiki window. If another tool sent you there (returnTo), the ◀ button
+    // on that first page takes you back to it.
+    private fun openWikiLink(url: String, returnTo: Tool? = null) {
+        hideMenu()
+        val web = wikiWeb
+        wikiReturnIndex = web?.copyBackForwardList()?.currentIndex ?: -1   // the page before the one we're opening
+        if (web == null) pendingWikiUrl = url else web.loadUrl(url)   // built with this page if new
+        if (currentTool != Tool.WIKI || shownWindow == null) openTool(Tool.WIKI)
+        wikiReturnTo = returnTo
+    }
+
+    private var wikiReturnTo: Tool? = null
+    private var wikiReturnIndex = -1
+
+    // The Wiki window's ◀ button
+    private fun wikiBack(web: WebView) {
+        val back = wikiReturnTo
+        if (back != null && web.copyBackForwardList().currentIndex <= wikiReturnIndex + 1) {
+            wikiReturnTo = null
+            openTool(back)
+        } else if (web.canGoBack()) web.goBack()
+    }
+
     private fun openTool(tool: Tool) {
+        if (tool != Tool.WIKI) wikiReturnTo = null   // went somewhere else: forget the way back
         hideToolWindow()
         currentTool = tool
         showToolWindow()
@@ -509,6 +554,7 @@ class BubbleService : Service() {
         if (wasShowing && currentTool == Tool.DPS_CALCULATOR) dpsTool.onWindowClosed()
         if (wasShowing && currentTool == Tool.FARMING) farmingTool.onWindowClosed()
         if (wasShowing && currentTool == Tool.LIGHT_BOX) lightBoxTool.onWindowClosed()
+        if (wasShowing && currentTool == Tool.NOTES) notesTool.onWindowClosed()
     }
 
     // Web pages (Wiki, GE Prices, star tracker...) keep running their scripts and live updates
@@ -525,8 +571,10 @@ class BubbleService : Service() {
 
     private fun buildToolWindow(tool: Tool): LinearLayout = when (tool) {
         Tool.WIKI -> {
-            val web = buildWebView(WIKI_URL, PAGE_ZOOM_PERCENT)
-            buildFrame(web) { if (web.canGoBack()) web.goBack() }
+            val web = buildWebView(pendingWikiUrl ?: WIKI_URL, PAGE_ZOOM_PERCENT)
+            pendingWikiUrl = null
+            wikiWeb = web
+            buildFrame(web) { wikiBack(web) }
         }
         Tool.XP_CALCULATOR -> {
             val web = buildWebView(XP_CALCULATOR_URL, XP_CALCULATOR_ZOOM_PERCENT)
@@ -545,6 +593,9 @@ class BubbleService : Service() {
         Tool.ZULRAH -> buildFrame(zulrahTool.buildView()) { zulrahTool.goBack() }
         Tool.FARMING -> buildFrame(farmingTool.buildView(), onBack = null)
         Tool.LIGHT_BOX -> buildFrame(lightBoxTool.buildView(), onBack = null)
+        Tool.QUESTS -> buildFrame(questTool.buildView()) { questTool.goBack() }
+        Tool.CALCULATOR -> buildFrame(calculatorTool.buildView(), onBack = null)
+        Tool.NOTES -> buildFrame(notesTool.buildView()) { notesTool.goBack() }
         Tool.PRICES -> {
             val web = buildWebView(PRICES_URL, PRICES_ZOOM_PERCENT)
             buildFrame(web) { if (web.canGoBack()) web.goBack() }
@@ -654,8 +705,11 @@ class BubbleService : Service() {
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, // touches outside still reach the game
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            // the Notepad sits at the top of the screen, so the keyboard (bottom half) doesn't cover the note
+            gravity = Gravity.START or if (currentTool == Tool.NOTES) Gravity.TOP else Gravity.CENTER_VERTICAL
             x = windowX
+            // …but below the status bar, which catches touches at the very top outside the game
+            if (currentTool == Tool.NOTES) y = NotesTool.topOffset(this@BubbleService)
             allowScreenEdges(this)
         }
     }
@@ -719,6 +773,7 @@ class BubbleService : Service() {
 
     override fun onDestroy() {
         destroyed = true
+        isRunning = false
         puzzleTool.destroy()
         setupsTool.destroy()
         dpsTool.destroy()
