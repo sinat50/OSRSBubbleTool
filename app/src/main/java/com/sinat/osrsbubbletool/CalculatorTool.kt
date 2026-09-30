@@ -120,7 +120,7 @@ class CalculatorTool(private val context: Context) {
                 justAnswered = false
                 val c = when (k) { "÷" -> "/"; "×" -> "*"; "−" -> "-"; else -> k }
                 // don't allow two operators in a row (swap the old one), except a minus for a negative number
-                if (op && expression.isNotEmpty() && expression.last() in "+-*/" && c != "-") expression = expression.dropLast(1)
+                if (op && c != "-") while (expression.isNotEmpty() && expression.last() in "+-*/") expression = expression.dropLast(1)
                 if (op && expression.isEmpty() && c != "-") expression = "0"
                 expression += c
             }

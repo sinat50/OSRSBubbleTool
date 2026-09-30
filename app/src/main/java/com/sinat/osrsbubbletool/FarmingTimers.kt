@@ -16,7 +16,8 @@ import org.json.JSONObject
 // to show the notification. Timers are saved, so they survive closing the app, and
 // FarmingTimerReceiver sets the alarms again after the phone restarts.
 //
-// Growth times follow RuneLite's Time Tracking plugin: crops grow one stage on each
+// Growth times follow RuneLite's Time Tracking plugin (github.com/runelite/runelite; Copyright (c) 2018-2019, Abex,
+// Copyright (c) 2018, NotFoxtrot; BSD 2-Clause License, full text on the app's Legal screen): crops grow one stage on each
 // "growth tick", and growth ticks happen at fixed times on the clock (every 5, 10, 20,
 // 40... minutes), not counted from when you planted.
 object FarmingTimers {
@@ -97,11 +98,16 @@ object FarmingTimers {
                 Timer(3, "trees", 4, 0, false),
                 Timer(4, "fruit_trees", 0, 0, false)
             ).also { save(context, it) }
-        val array = JSONArray(text)
-        return MutableList(array.length()) { i ->
-            val o = array.getJSONObject(i)
-            Timer(o.getInt("id"), o.getString("kind"), o.optInt("crop"), o.optLong("end"), o.optBoolean("notified"))
+        // read each timer on its own, so one damaged entry can't lose (or crash on) the rest
+        val array = try { JSONArray(text) } catch (e: Exception) { return mutableListOf() }
+        val list = mutableListOf<Timer>()
+        for (i in 0 until array.length()) {
+            try {
+                val o = array.getJSONObject(i)
+                list.add(Timer(o.getInt("id"), o.getString("kind"), o.optInt("crop"), o.optLong("end"), o.optBoolean("notified")))
+            } catch (e: Exception) { }
         }
+        return list
     }
 
     @Synchronized

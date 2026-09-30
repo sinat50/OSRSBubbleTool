@@ -3,7 +3,6 @@ package com.sinat.osrsbubbletool
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -34,7 +33,7 @@ class MainActivity : Activity() {
         private val GO_GREEN = Color.parseColor("#3E7A2E")
         private const val REQUEST_NOTIFICATIONS = 1
 
-        // The BSD 2-Clause licence conditions and disclaimer (used by the Zulrah and Quest Helper credits)
+        // The BSD 2-Clause licence conditions and disclaimer (used by the Zulrah, RuneLite, Teleport Finder and Quest Helper credits)
         private const val BSD_TERMS =
             "Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n" +
                 "1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.\n\n" +
@@ -65,7 +64,7 @@ class MainActivity : Activity() {
         super.onResume()
         if (screen == Screen.PERMISSIONS) show(Screen.PERMISSIONS)
         // look for a newer version on GitHub each time the app is opened
-        UpdateChecker.check(this) { styleUpdateButton() }
+        UpdateChecker.check(this) { if (!isDestroyed) styleUpdateButton() }
     }
 
     private fun show(s: Screen) {
@@ -105,44 +104,46 @@ class MainActivity : Activity() {
     private fun mainScreen(): View {
         val landscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
         val logo = ImageView(this).apply { setImageResource(R.drawable.ic_bubble) }
-        val logoSize = if (landscape) 44 else 72
+        val logoSize = if (landscape) 32 else 72
+        // landscape screens are short, so everything is a little smaller to fit without scrolling
+        fun TextView.compact() = apply { if (landscape) { textSize = 12f; setPadding(dp(12), dp(6), dp(12), dp(6)) } }
 
         val middle = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             addView(logo, LinearLayout.LayoutParams(dp(logoSize), dp(logoSize)))
-            addView(label("OSRS Bubble Tool", 22f, bold = true).apply { gravity = Gravity.CENTER },
-                matchWidth(if (landscape) 4 else 10))
+            addView(label("OSRS Bubble Tool", if (landscape) 18f else 22f, bold = true).apply { gravity = Gravity.CENTER },
+                matchWidth(if (landscape) 2 else 10))
             addView(label("Tap Start Bubble, then open Old School RuneScape.\n\n" +
                 "Tap the bubble to open or hide a tool.\n" +
                 "Drag the bubble to move it.\n" +
-                "Long-press the bubble for the tool menu.", if (landscape) 13f else 14f).apply { gravity = Gravity.CENTER },
-                matchWidth(if (landscape) 8 else 16))
+                "Long-press the bubble for the tool menu.", if (landscape) 12f else 14f).apply { gravity = Gravity.CENTER },
+                matchWidth(if (landscape) 4 else 16))
             addView(button("Start Bubble", GO_GREEN) { startBubble() }.apply {
-                textSize = 17f
-                setPadding(dp(28), dp(12), dp(28), dp(12))
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(if (landscape) 12 else 24) })
+                textSize = if (landscape) 15f else 17f
+                if (landscape) setPadding(dp(22), dp(8), dp(22), dp(8)) else setPadding(dp(28), dp(12), dp(28), dp(12))
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(if (landscape) 8 else 24) })
         }
 
         val bottom = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(button("Legal") { show(Screen.LEGAL) })
+            addView(button("Legal") { show(Screen.LEGAL) }.compact())
             addView(View(this@MainActivity), LinearLayout.LayoutParams(0, 1, 1f))
-            addView(button("Permissions") { show(Screen.PERMISSIONS) })
+            addView(button("Permissions") { show(Screen.PERMISSIONS) }.compact())
         }
 
-        return page(scrolling = true) {
+        return page(scrolling = true, padTop = if (landscape) 6 else 16, padBottom = if (landscape) 6 else 16) {
             // top right: "Up To Date" or "Update Available"
             addView(LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 addView(View(this@MainActivity), LinearLayout.LayoutParams(0, 1, 1f))
-                addView(button("") { openReleasePage() }.also { updateButton = it; styleUpdateButton() })
+                addView(button("") { openReleasePage() }.compact().also { updateButton = it; styleUpdateButton() })
             }, matchWidth(0))
             addView(middle, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-            addView(label("Unofficial fan-made tool. Not affiliated with Jagex.", 11f).apply { gravity = Gravity.CENTER },
-                matchWidth(8))
-            addView(bottom, matchWidth(8))
+            addView(label("Unofficial fan-made tool. Not affiliated with Jagex.", if (landscape) 10f else 11f).apply { gravity = Gravity.CENTER },
+                matchWidth(if (landscape) 4 else 8))
+            addView(bottom, matchWidth(if (landscape) 4 else 8))
         }
     }
 
@@ -316,17 +317,38 @@ class MainActivity : Activity() {
         section("Jagex",
             "Created using intellectual property belonging to Jagex Limited under the terms of Jagex's Fan Content Policy. " +
             "This content is not endorsed by or affiliated with Jagex.\n\n" +
+            "Old School RuneScape and RuneScape are trademarks of Jagex Limited. Item, monster and game pictures are (c) Jagex Limited.\n\n" +
             "OSRS Bubble Tool is free and has no ads or paid features.")
 
         section("OSRS Wiki",
-            "Item data and icons from the OSRS Wiki DPS calculator (github.com/weirdgloop/osrs-dps-calc). " +
-            "The OSRS Wiki, Real-time Prices (prices.runescape.wiki), XP calculator (oldschool.tools), DPS calculator and Shooting Star Tracker (07.gg) " +
-            "are websites run by their own owners and are opened as they are.\n\n" +
-            "Game Room: Grand Exchange prices from the OSRS Wiki's Real-time Prices, and drop rates and item pictures from the OSRS Wiki " +
-            "(oldschool.runescape.wiki, content under CC BY-NC-SA 3.0).")
+            "Content from the Old School RuneScape Wiki (oldschool.runescape.wiki) is used under the Creative Commons " +
+            "Attribution-NonCommercial-ShareAlike 3.0 licence (creativecommons.org/licenses/by-nc-sa/3.0). " +
+            "It has been shortened and reformatted for the app, and anything adapted from it is shared under the same licence. It includes:\n\n" +
+            "\u2022 Quest Helper: solved puzzle pictures and some puzzle answers from the wiki's quick guides\n" +
+            "\u2022 Hunter Rumours: rumour lists, locations, travel and equipment from the Hunters' Rumours pages\n" +
+            "\u2022 Teleport Finder: search suggestions, where NPCs, monsters and places are on the map, monster levels, and descriptions of some teleport destinations\n\n" +
+            "Your quests and levels are read from WikiSync, a service of the OSRS Wiki.")
+
+        section("OSRS Wiki DPS calculator",
+            "DPS Calculator gear import: the item list and item pictures come from the OSRS Wiki DPS calculator's " +
+            "repository (github.com/weirdgloop/osrs-dps-calc), which is licensed under the GNU General Public License v3.0 " +
+            "(gnu.org/licenses/gpl-3.0). That list is itself made from the OSRS Wiki.", size = 11f)
+
+        section("Websites",
+            "The OSRS Wiki, Real-time Prices, the DPS calculator, the XP calculator (oldschool.tools) and the Shooting Star Tracker (07.gg) " +
+            "are websites run by their own owners. The app opens them as they are, like a browser.")
 
         section("RuneLite",
-            "Farming growth times based on RuneLite's Time Tracking plugin (github.com/runelite/runelite).")
+            "Farming growth times based on RuneLite's Time Tracking plugin. Teleport Finder: newer teleport destinations " +
+            "(like the Spider cave and Wyrmscraig teleports) and the list of dungeon entrances, from RuneLite's world map (github.com/runelite/runelite).\n\n" +
+            "Copyright (c) 2016-2017, Adam <Adam@sigterm.info>\nCopyright (c) 2018-2019, Abex\n" +
+            "Copyright (c) 2018, NotFoxtrot <https://github.com/NotFoxtrot>\nCopyright (c) 2018, Morgan Lewis <https://github.com/MESLewis>\n" +
+            "Copyright (c) 2020, Arman S <https://github.com/Rman887>\n" +
+            "All rights reserved.\n\n" +
+            BSD_TERMS, size = 11f)
+
+        section("2048",
+            "The Game Room's 2048 is the app's own version of the game created by Gabriele Cirulli.", size = 11f)
 
         section("Zulrah Helper",
             "Zulrah Helper rotation data and arena layout adapted from the Zulrah Helper RuneLite plugin " +
@@ -334,6 +356,12 @@ class MainActivity : Activity() {
             "Copyright (c) 2020, Anthony Alves\nCopyright (c) 2026, Ron Young\nAll rights reserved.\n\n" +
             BSD_TERMS,
             size = 11f)
+
+        section("Teleport Finder",
+            "Teleport destinations, the walking map, and the doors, ladders, cave entrances, boats, portals and levers that join places, from the Shortest Path RuneLite plugin " +
+            "(github.com/Skretzo/shortest-path), used under the BSD 2-Clause License.\n\n" +
+            "Copyright (c) Skretzo and the Shortest Path contributors\nAll rights reserved.\n\n" +
+            BSD_TERMS, size = 11f)
 
         section("Quest Helper",
             "Quest guides, quest requirements and achievement diary tasks adapted from the Quest Helper RuneLite plugin (github.com/Zoinkwiz/quest-helper).\n\n" +
@@ -344,10 +372,10 @@ class MainActivity : Activity() {
     // ---------------- Small building blocks ----------------
 
     // A full screen with the app's background, kept clear of the status and navigation bars
-    private fun page(scrolling: Boolean, fill: LinearLayout.() -> Unit): View {
+    private fun page(scrolling: Boolean, padTop: Int = 16, padBottom: Int = 16, fill: LinearLayout.() -> Unit): View {
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(16), dp(20), dp(16))
+            setPadding(dp(20), dp(padTop), dp(20), dp(padBottom))
             fill()
         }
         // (the scroll view stretches short pages to fill the screen, so they can still be centred)

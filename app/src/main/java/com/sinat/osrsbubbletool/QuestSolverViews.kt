@@ -147,13 +147,14 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
     private fun hodChest(c: LinearLayout) {
         c.addView(label("Read the book: four of its letters are white. Type them in the order they appear:", 13f, bold = true), full(8))
         val result = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        fun update(text: String) {
+        fun update(raw: String) {
             result.removeAllViews()
+            val text = raw.trim().uppercase().take(4)   // the same letters hodPositions reads
             if (text.length < 4) return
             val pos = S.hodPositions(text)
             result.addView(card(ANSWER) {
                 addView(label("Set the chest's dials to:", 13f, bold = true))
-                text.uppercase().take(4).forEachIndexed { i, ch ->
+                text.forEachIndexed { i, ch ->
                     val where = if (pos[i] > 0) "$ch  (letter ${pos[i]} of 10)" else "$ch isn't on this dial: check the book again"
                     addView(pairRow("Dial ${i + 1}", where), full(3))
                 }
@@ -185,7 +186,7 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
     private fun sinsGrid(c: LinearLayout) {
         c.addView(label("Type the number beside each row (top to bottom) and under each column (left to right):", 13f, bold = true), full(8))
         val result = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        fun nums(key: String) = (texts[key] ?: "").split(Regex("[^0-9]+")).filter { it.isNotEmpty() }.map { it.toInt() }
+        fun nums(key: String) = (texts[key] ?: "").split(Regex("[^0-9]+")).mapNotNull { it.toIntOrNull() }
         fun update() {
             result.removeAllViews()
             val rows = nums("sins_rows"); val cols = nums("sins_cols")
@@ -382,7 +383,7 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
         c.addView(label("What value do you need? Type it (the Eyes of Glouphrie shows a green number), or tap the discs " +
             "the machine shows to add them up (the Path of Glouphrie).", 13f, bold = true), full(8))
         val result = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
-        val shown = (texts["disc_shown"] ?: "").split(",").filter { it.isNotEmpty() }.map { it.toInt() }
+        val shown = (texts["disc_shown"] ?: "").split(",").mapNotNull { it.toIntOrNull() }
         fun target(): Int? = (texts["disc_target"] ?: "").trim().toIntOrNull() ?: shown.takeIf { it.isNotEmpty() }?.sumOf { S.DISCS[it].value }
         fun update() {
             result.removeAllViews()
@@ -422,10 +423,13 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
 
     // King's Ransom: the four-tumbler lock, raising every tumbler that isn't green yet
     private fun tumblers(c: LinearLayout) {
-        val heights = (prefs.getString("kr_heights", null) ?: "1111").map { it - '0' }
-        val green = (prefs.getString("kr_green", null) ?: "0000").map { it == '1' }
+        // saved as "1,2,1,3" (older versions saved "1213", which breaks once a height reaches 10)
+        val savedHeights = prefs.getString("kr_heights", null) ?: "1,1,1,1"
+        val heights = (if (',' in savedHeights) savedHeights.split(',').mapNotNull { it.trim().toIntOrNull() } else savedHeights.map { it - '0' })
+            .takeIf { it.size == 4 } ?: listOf(1, 1, 1, 1)
+        val green = (prefs.getString("kr_green", null) ?: "0000").map { it == '1' }.takeIf { it.size == 4 } ?: listOf(false, false, false, false)
         fun save(h: List<Int>, g: List<Boolean>) {
-            prefs.edit().putString("kr_heights", h.joinToString("")).putString("kr_green", g.joinToString("") { if (it) "1" else "0" }).apply()
+            prefs.edit().putString("kr_heights", h.joinToString(",")).putString("kr_green", g.joinToString("") { if (it) "1" else "0" }).apply()
             refresh()
         }
         c.addView(card(ANSWER) {

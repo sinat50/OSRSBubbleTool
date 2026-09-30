@@ -183,7 +183,11 @@ class Game2048View(context: Context, private val game: Game2048, private val onM
     private fun easeOut(t: Float) = 1 - (1 - t) * (1 - t)
 
     override fun onDetachedFromWindow() {
+        // the window was closed mid-slide: finish it, so it doesn't reopen half-way through a move
         animator?.cancel()
+        animator = null
+        move = null
+        progress = 1f
         super.onDetachedFromWindow()
     }
 }

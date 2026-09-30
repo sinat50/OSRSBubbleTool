@@ -247,7 +247,7 @@ class InventorySetupsTool(
             column.addView(image, fullWidth(6))
 
             val saved = sectionFile(setup, section)
-            val bitmap = if (saved.exists()) BitmapFactory.decodeFile(saved.path) else null
+            val bitmap = if (saved.exists()) decodeForScreen(saved) else null
             showPicture(section, bitmap)
         }
 
@@ -345,39 +345,65 @@ class InventorySetupsTool(
                 status?.text = "Couldn't capture the screen. Try again."
                 return@postDelayed
             }
-            // Found by itself: the inventory and equipment fill the side panel, the spellbook is
-            // the spellbook tab's picture, and the rune pouch is the runes box in its open window.
-            // An area set by hand is only used if it can't be found.
-            val pixels = LightBoxReader.Pixels(shot)
-            val found = when (section) {
-                Section.INVENTORY, Section.EQUIPMENT -> PanelFinder.find(pixels)
-                Section.SPELLBOOK -> PanelFinder.find(pixels)?.let { PanelFinder.spellbookTab(it) }
-                Section.RUNE_POUCH -> PanelFinder.runePouch(pixels)
-            }
-            val area = found ?: regions[section]?.savedArea(shot.width, shot.height)
-            if (area == null) {
-                status?.text = if (section == Section.RUNE_POUCH)
-                    "Couldn't find the rune pouch. Open it in the game (the window with Pouch and Inventory), then tap Capture."
-                else "Couldn't find your side panel on screen. Make sure it's showing, then try again, " +
-                    "or tap Set area to mark it by hand."
-                return@postDelayed
-            }
-            val r = Rect(area)
-            if (!r.intersect(0, 0, shot.width, shot.height) || r.width() < 2 || r.height() < 2) {
-                status?.text = "The ${section.label.lowercase()} area is off the screen. Tap Set area to move it."
-                return@postDelayed
-            }
-            val picture = Bitmap.createBitmap(shot, r.left, r.top, r.width(), r.height())
-            try {
-                val file = sectionFile(setup, section)
-                file.parentFile?.mkdirs()
-                file.outputStream().use { picture.compress(Bitmap.CompressFormat.PNG, 100, it) }
-                showPicture(section, picture)
-                status?.text = "${section.label} saved."
-            } catch (e: Exception) {
-                status?.text = "Couldn't save the picture: ${e.message}"
-            }
+            status?.text = "Saving…"
+            val saved = regions[section]?.savedArea(shot.width, shot.height)
+            // Finding the panel and saving the picture take a moment, so they run in the background
+            // (on the main thread they'd make the game stutter)
+            Thread {
+                var message: String
+                var picture: Bitmap? = null
+                try {
+                    // Found by itself: the inventory and equipment fill the side panel, the spellbook is
+                    // the spellbook tab's picture, and the rune pouch is the runes box in its open window.
+                    // An area set by hand is only used if it can't be found.
+                    val pixels = LightBoxReader.Pixels(shot)
+                    val found = when (section) {
+                        Section.INVENTORY, Section.EQUIPMENT -> PanelFinder.find(pixels)
+                        Section.SPELLBOOK -> PanelFinder.find(pixels)?.let { PanelFinder.spellbookTab(it) }
+                        Section.RUNE_POUCH -> PanelFinder.runePouch(pixels)
+                    }
+                    val area = found ?: saved
+                    val r = area?.let { Rect(it) }
+                    message = when {
+                        area == null -> if (section == Section.RUNE_POUCH)
+                            "Couldn't find the rune pouch. Open it in the game (the window with Pouch and Inventory), then tap Capture."
+                            else "Couldn't find your side panel on screen. Make sure it's showing, then try again, " +
+                                "or tap Set area to mark it by hand."
+                        r == null || !r.intersect(0, 0, shot.width, shot.height) || r.width() < 2 || r.height() < 2 ->
+                            "The ${section.label.lowercase()} area is off the screen. Tap Set area to move it."
+                        else -> {
+                            val pic = Bitmap.createBitmap(shot, r.left, r.top, r.width(), r.height())
+                            picture = pic
+                            val file = sectionFile(setup, section)
+                            file.parentFile?.mkdirs()
+                            file.outputStream().use { pic.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                            "${section.label} saved."
+                        }
+                    }
+                } catch (t: Throwable) {
+                    message = "Couldn't save the picture: ${t.message}"
+                } finally {
+                    if (picture !== shot) shot.recycle()   // the full screenshot isn't needed any more
+                }
+                val pic = picture
+                handler.post {
+                    if (current !== setup) return@post
+                    if (pic != null && message.endsWith("saved.")) showPicture(section, pic)
+                    status?.text = message
+                }
+            }.start()
         }, CAPTURE_DELAY_MS)
+    }
+
+    // Saved pictures are full size; shown on screen, half size is plenty on high-resolution phones
+    private fun decodeForScreen(file: File): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.path, bounds)
+        if (bounds.outWidth <= 0) return null
+        var sample = 1
+        val maxWidth = context.resources.displayMetrics.widthPixels
+        while (bounds.outWidth / (sample * 2) >= maxWidth) sample *= 2
+        return BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
     }
 
     // ---------------- Saving the list ----------------

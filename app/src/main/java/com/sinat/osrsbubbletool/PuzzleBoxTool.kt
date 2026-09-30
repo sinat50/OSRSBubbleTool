@@ -200,23 +200,26 @@ class PuzzleBoxTool(
         }
 
         status?.text = "Looking for the puzzle..."
+        val id = planId   // changes if you stop, rotate or set the area meanwhile: then this scan is dropped
         capture.matchScreenSize()
         setOverlaysVisible(false)
         handler.postDelayed({
+            if (destroyed) return@postDelayed
             val shot = capture.grab()
             setOverlaysVisible(true)
+            if (id != planId) return@postDelayed
             if (shot == null) {
                 status?.text = "Couldn't capture the screen. Try again."
                 return@postDelayed
             }
             Thread {
                 val found = PuzzleFinder.findTiles(LightBoxReader.Pixels(shot))
-                handler.post { if (!destroyed) showResult(shot, found) }
+                handler.post { if (!destroyed && id == planId) showResult(shot, found, id) }
             }.start()
         }, CAPTURE_DELAY_MS)
     }
 
-    private fun showResult(shot: Bitmap, found: Rect?) {
+    private fun showResult(shot: Bitmap, found: Rect?, id: Int) {
         val rough = found ?: puzzleArea.savedArea(shot.width, shot.height)
         if (rough == null) {
             lastFullView = null
@@ -261,6 +264,7 @@ class PuzzleBoxTool(
 
         // Identify the tiles by comparing them with the wiki's solved pictures
         references.load { puzzles, error ->
+            if (destroyed || id != planId) return@load   // stopped while the pictures were downloading
             if (puzzles == null) {
                 status?.text = "Couldn't get the puzzle pictures from the wiki: $error. " +
                     "Check your internet connection and scan again."
@@ -308,7 +312,7 @@ class PuzzleBoxTool(
         solving = true
         scanButton?.text = "Stop"
         Thread {
-            val moves = PuzzleSolver.solve(board)
+            val moves = try { PuzzleSolver.solve(board) } catch (e: OutOfMemoryError) { null }   // a very hard scramble on a low-memory phone
             handler.post {
                 if (id != planId || destroyed) return@post  // guiding was stopped meanwhile
                 solving = false
@@ -375,11 +379,18 @@ class PuzzleBoxTool(
 
     // Checks whether the empty space has moved, reading only a few pixels per tile
     private fun trackOnce() {
-        if (solving) return
         val area = lastArea ?: return
         val now = SystemClock.uptimeMillis()
 
-        if (replanAt != 0L) {
+        // While re-planning, still notice if the puzzle is closed, so the guide doesn't linger
+        if (solving || replanAt != 0L) {
+            val gone = capture.sample { !PuzzleFinder.frameVisible(it, area) }
+            if (gone == true && ++misses >= GONE_READS) {
+                stopGuide("The puzzle was closed. Tap Scan puzzle to start again.")
+                return
+            }
+            if (gone == false) misses = 0
+            if (solving) return
             if (now >= replanAt) replanNow(area)
             return
         }
@@ -583,6 +594,7 @@ class PuzzleBoxTool(
 
     fun destroy() {
         destroyed = true
+        handler.removeCallbacksAndMessages(null)   // including a scan that was about to take its picture
         stopGuide(null)
         puzzleArea.hide()
     }

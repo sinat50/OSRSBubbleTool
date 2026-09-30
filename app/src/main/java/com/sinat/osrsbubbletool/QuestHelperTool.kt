@@ -53,7 +53,8 @@ import com.sinat.osrsbubbletool.QuestBook.Status
 class QuestHelperTool(
     private val context: Context,
     private val openWiki: (String) -> Unit,  // shows a wiki page in the Wiki window
-    private val hideWindow: () -> Unit = {}  // gets the window out of the way (e.g. before opening the browser)
+    private val hideWindow: () -> Unit = {},  // gets the window out of the way (e.g. before opening the browser)
+    private val openWikiSync: () -> Unit = {} // the WikiSync tool, where you set your name
 ) {
     companion object {
         private val PARCHMENT = Color.parseColor("#F2E3C0")
@@ -101,7 +102,7 @@ class QuestHelperTool(
         val rewards: List<String>,
         val sections: List<Section>
     ) {
-        val steps: List<Step> get() = sections.flatMap { it.steps }
+        val steps: List<Step> = sections.flatMap { it.steps }
     }
 
     private val guides = listOf(
@@ -252,9 +253,7 @@ class QuestHelperTool(
     private fun setPosition(q: Quest, i: Int) = prefs.edit().putInt(q.key, i.coerceIn(0, q.steps.size)).apply()
 
     private val sync = WikiSync(context)
-    private var syncMessage: String? = null   // the last problem fetching from WikiSync
-    private var editingName = false
-    private var syncOpen = false               // is the WikiSync section open? (starts closed)
+    private var shownSyncState: String? = null   // what the WikiSync tag showed last redraw
 
     private enum class Tab { QUESTS, DIARIES }
     private var tab = Tab.QUESTS
@@ -287,7 +286,10 @@ class QuestHelperTool(
         show()
         // fetch fresh data whenever the window is opened, if it's been a while
         holder.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
-            override fun onViewAttachedToWindow(v: View) { if (sync.needsRefresh) refresh() }
+            override fun onViewAttachedToWindow(v: View) {
+                // back from the WikiSync tool with a new name or fresh data: redraw with it
+                if (sync.needsRefresh) refresh() else if (syncState() != shownSyncState) show()
+            }
             override fun onViewDetachedFromWindow(v: View) {}
         })
         return holder
@@ -304,18 +306,16 @@ class QuestHelperTool(
     }
 
     private fun refresh() {
-        syncMessage = "Checking WikiSync…"
-        show()
-        sync.refresh { _, error ->
-            syncMessage = error
-            show()
-        }
+        sync.refresh { _, _ -> show() }
     }
+
+    private fun syncState() = sync.username + "|" + (sync.cached?.fetchedAt ?: 0)
 
     // Rebuilds the window. keepScroll keeps your place when something on the same page changes.
     private fun show(keepScroll: Boolean = true) {
         val oldScroll = (holder.getChildAt(0) as? ScrollView)?.scrollY ?: 0
         holder.removeAllViews()
+        shownSyncState = syncState()
         val quest = openQuest
         val diary = openDiary
         val puzzle = openPuzzle
@@ -338,7 +338,7 @@ class QuestHelperTool(
     // ---------------- The main list: quests or diaries ----------------
 
     private fun listScreen(): View = page {
-        addView(accountCard())
+        addView(syncBadge())
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(tabButton("Quests", tab == Tab.QUESTS) { tab = Tab.QUESTS; show(keepScroll = false) },
@@ -380,9 +380,12 @@ class QuestHelperTool(
         field.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            // wait until typing pauses, so each keystroke doesn't rebuild ~200 rows
+            private val refill = Runnable { fillQuestList(list) }
             override fun afterTextChanged(s: Editable?) {
                 search = s?.toString() ?: ""
-                fillQuestList(list)
+                list.removeCallbacks(refill)
+                list.postDelayed(refill, 150)
             }
         })
     }
@@ -452,7 +455,7 @@ class QuestHelperTool(
         if (info == null) return@page
         helpButton(name)?.let { addView(it, full(6)) }
         addView(questFacts(info), full(2))
-        addView(accountCard(), full(6))
+        addView(syncBadge(), full(6))
         addView(summary(name, info.requirements), full(6))
         addView(card(ROW_BROWN) {
             addView(label("Requirements", 12f, bold = true))
@@ -616,7 +619,8 @@ class QuestHelperTool(
     private fun wikiImage(url: String): View = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         val file = java.io.File(java.io.File(context.filesDir, "wiki_images").apply { mkdirs() }, url.substringAfterLast('/'))
-        val bitmap = if (file.exists()) android.graphics.BitmapFactory.decodeFile(file.path) else null
+        // decoded once and kept, no wider than the screen (it's redrawn on every tap)
+        val bitmap = decodedImages[url] ?: (if (file.exists()) decodeScaled(file) else null)?.also { decodedImages[url] = it }
         if (bitmap != null) {
             addView(android.widget.ImageView(context).apply {
                 setImageBitmap(bitmap)
@@ -633,6 +637,17 @@ class QuestHelperTool(
     }
 
     private val downloading = HashSet<String>()
+    private val decodedImages = HashMap<String, android.graphics.Bitmap>()
+
+    private fun decodeScaled(file: java.io.File): android.graphics.Bitmap? {
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeFile(file.path, bounds)
+        if (bounds.outWidth <= 0) return null
+        var sample = 1
+        val maxWidth = context.resources.displayMetrics.widthPixels
+        while (bounds.outWidth / (sample * 2) >= maxWidth) sample *= 2
+        return android.graphics.BitmapFactory.decodeFile(file.path, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+    }
 
     private fun downloadImage(url: String, file: java.io.File) {
         if (!downloading.add(url)) return
@@ -647,7 +662,11 @@ class QuestHelperTool(
                     if (c.responseCode == 200) {
                         val tmp = java.io.File(file.path + ".part")
                         c.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
-                        ok = tmp.renameTo(file)
+                        // only keep it if it really is a picture (a Wi-Fi login page also answers "OK")
+                        val check = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        android.graphics.BitmapFactory.decodeFile(tmp.path, check)
+                        ok = check.outWidth > 0 && tmp.renameTo(file)
+                        if (!ok) tmp.delete()
                     }
                 } finally { c.disconnect() }
             } catch (e: Exception) { }
@@ -688,7 +707,7 @@ class QuestHelperTool(
         column.addView(titleRow(q.name, "Wiki guide") { openWiki(q.wikiPage) })
         helpButton(q.name)?.let { column.addView(it, full(6)) }
         QuestBook.quest(q.name)?.let { column.addView(questFacts(it), full(2)) }
-        column.addView(accountCard(), full(6))
+        column.addView(syncBadge(), full(6))
         column.addView(summary(q.name, requirements), full(6))
 
         // Before you start
@@ -881,7 +900,7 @@ class QuestHelperTool(
         val diary = QuestBook.diaries.firstOrNull { it.region == region } ?: return@page
         val data = sync.cached
         addView(titleRow("$region Diary", "Wiki page") { openWiki(QuestBook.wikiUrl("${region}_Diary")) })
-        addView(accountCard(), full(6))
+        addView(syncBadge(), full(6))
 
         // Tier buttons
         addView(LinearLayout(context).apply {
@@ -1013,72 +1032,8 @@ class QuestHelperTool(
 
     // ---------------- Your account (WikiSync) ----------------
 
-    // The WikiSync section: a "WikiSync ▾" button that opens and closes it. It starts closed.
-    private fun accountCard(): View = LinearLayout(context).apply {
-        orientation = LinearLayout.VERTICAL
-        val open = syncOpen
-        val data = sync.cached
-        val header = if (sync.username.isEmpty()) "WikiSync" else "WikiSync: ${sync.username}"
-        addView(smallButton(header + if (open) "  ▴" else "  ▾") {
-            syncOpen = !open
-            editingName = false
-            show()
-        }.apply { textSize = 12f; setPadding(dp(10), dp(9), dp(10), dp(9)) }, full())
-        if (!open) {
-            syncMessage?.let { addView(label(it, 11f).apply { setTextColor(PARTLY_ORANGE) }, full(2)) }
-            return@apply
-        }
-
-        addView(card(ROW_BROWN) {
-            addView(label("Your quests, levels and diaries are read from WikiSync, the OSRS Wiki's service. " +
-                "This app can only read your WikiSync data: it can't update it. To update it, log in " +
-                "to RuneLite on a PC with the WikiSync plugin turned on, then tap Refresh here.", 11f))
-
-            if (sync.username.isEmpty() || editingName) {
-                addView(label("Your RuneScape name", 12f, bold = true), full(8))
-                val field = EditText(context).apply {
-                    setText(sync.username)
-                    hint = "e.g. Zezima"
-                    textSize = 14f
-                    setSingleLine()
-                    imeOptions = EditorInfo.IME_ACTION_DONE
-                }
-                val save = {
-                    val name = field.text.toString().trim()
-                    if (name.isNotEmpty()) {
-                        sync.username = name
-                        editingName = false
-                        syncOpen = false
-                        refresh()
-                    }
-                }
-                field.setOnEditorActionListener { _, _, _ -> save(); true }
-                addView(field, full(2))
-                addView(smallButton("Save") { save() }, full(4))
-            } else {
-                addView(label("Name: ${sync.username}\nLast read from WikiSync: " +
-                    (data?.let { ago(it.fetchedAt) } ?: "not yet"), 12f), full(8))
-                addView(LinearLayout(context).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    addView(smallButton("↻ Refresh") { refresh() },
-                        LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(4) })
-                    addView(smallButton("✎ Change name") { editingName = true; show() },
-                        LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(4) })
-                }, full(6))
-            }
-            syncMessage?.let { addView(label(it, 11f).apply { setTextColor(PARTLY_ORANGE) }, full(6)) }
-        }, full(4))
-    }
-
-    private fun ago(time: Long): String {
-        val minutes = (System.currentTimeMillis() - time) / 60_000
-        return when {
-            minutes < 1 -> "just now"
-            minutes < 60 -> "$minutes min ago"
-            minutes < 60 * 24 -> "${minutes / 60} h ago"
-            else -> "${minutes / (60 * 24)} days ago"
-        }
-    }
+    // The little ✓/✗ WikiSync tag; tapping it opens the WikiSync tool
+    private fun syncBadge(): View = WikiSyncBadge.row(context, sync) { openWikiSync() }
 
     // ---------------- Small building blocks ----------------
 

@@ -51,6 +51,7 @@ class BubbleService : Service() {
         const val PAGE_ZOOM_PERCENT = 70    // wiki text size: 100 = normal, lower = smaller
         const val XP_CALCULATOR_ZOOM_PERCENT = 85  // XP Calculator text size
         const val MENU_WIDTH_DP = 170       // width of the long-press menu
+        const val MENU_MAX_PORTRAIT_DP = 340 // tallest the long-press menu gets in portrait (it scrolls past that)
         const val LONG_PRESS_MS = 600L      // how long to hold the bubble to open the menu
 
         // Messages from CapturePermissionActivity
@@ -211,6 +212,7 @@ class BubbleService : Service() {
 
     // The tools the bubble can open. New tools get added here.
     enum class Tool(val label: String) {
+        WIKISYNC("WikiSync"),
         WIKI("OSRS Wiki"),
         PUZZLE_BOX("Puzzle Box Solver"),
         LIGHT_BOX("Light Box Solver"),
@@ -224,6 +226,8 @@ class BubbleService : Service() {
         CALCULATOR("Calculator"),
         NOTES("Notepad"),
         QUESTS("Quest Helper (Beta)"),
+        HUNTER("Hunter Rumours"),
+        TELEPORTS("Teleport Finder (Beta)"),
         GAMES("Game Room")
     }
 
@@ -240,7 +244,13 @@ class BubbleService : Service() {
     private lateinit var questTool: QuestHelperTool
     private val calculatorTool by lazy { CalculatorTool(this) }
     private val notesTool by lazy { NotesTool(this) }
-    private val gameRoomTool by lazy { GameRoomTool(this) }
+    private val wikiSyncTool by lazy { WikiSyncTool(this) }
+    private var syncReturnTo: Tool? = null   // the tool that opened WikiSync, for the back button
+    private val hunterTool by lazy { HunterRumourTool(this, openWikiSync = { openWikiSync(Tool.HUNTER) }) }
+    private val teleportLazy = lazy { TeleportFinderTool(this, openWikiSync = { openWikiSync(Tool.TELEPORTS) }) }
+    private val teleportTool by teleportLazy
+    private val gameRoomLazy = lazy { GameRoomTool(this) }
+    private val gameRoomTool by gameRoomLazy
 
     private val toolWindows = mutableMapOf<Tool, LinearLayout>() // built once, reused
     private var currentTool = Tool.WIKI
@@ -261,6 +271,9 @@ class BubbleService : Service() {
         updateForeground(capturing = false)
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         windowX = dp(8)
+        lastScreenSize = screenWidth() to screenHeight()
+        // Android forgets an app's alarms if it's force-stopped; set the farming ones again
+        try { FarmingTimers.rescheduleAll(this) } catch (e: Exception) { }
         capture = CaptureManager(this) { capturing ->
             if (!destroyed) updateForeground(capturing)
         }
@@ -269,7 +282,8 @@ class BubbleService : Service() {
         dpsTool = DpsTool(this, windowManager, capture, ::setOverlaysVisible)
         zulrahTool = ZulrahTool(this)
         farmingTool = FarmingTool(this)
-        questTool = QuestHelperTool(this, openWiki = { url -> openWikiLink(url, returnTo = Tool.QUESTS) }, hideWindow = { hideToolWindow() })
+        questTool = QuestHelperTool(this, openWiki = { url -> openWikiLink(url, returnTo = Tool.QUESTS) }, hideWindow = { hideToolWindow() },
+            openWikiSync = { openWikiSync(Tool.QUESTS) })
         lightBoxTool = LightBoxTool(this, windowManager, capture, ::setOverlaysVisible) { hideToolWindow() }
         createBubble()
     }
@@ -392,6 +406,7 @@ class BubbleService : Service() {
                     if (dragging) {
                         bubbleParams.x = startX + dx.toInt()
                         bubbleParams.y = startY + dy.toInt()
+                        clampBubble()   // stay on screen, so the next drag starts from where it really is
                         windowManager.updateViewLayout(bubble, bubbleParams)
                     }
                     true
@@ -462,8 +477,23 @@ class BubbleService : Service() {
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         )
         val screenH = screenHeight()
+        // keep clear of the status bar and the navigation bar / gesture strip when they're showing
+        var topInset = 0
+        var bottomInset = 0
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bars = windowManager.currentWindowMetrics.windowInsets.getInsets(
+                android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout())
+            topInset = bars.top
+            bottomInset = bars.bottom
+        }
         val margin = dp(8)
-        val menuHeight = minOf(list.measuredHeight + dp(2), screenH - margin * 2)
+        val top = topInset + margin
+        val bottom = screenH - bottomInset - margin
+        // In portrait the whole list would reach down most of the screen; keep it to a size
+        // that's easy to reach, and let it scroll
+        val portrait = screenH > screenWidth()
+        val limit = if (portrait) minOf(bottom - top, dp(MENU_MAX_PORTRAIT_DP)) else bottom - top
+        val menuHeight = minOf(list.measuredHeight + dp(2), limit)
         scroll.isScrollbarFadingEnabled = list.measuredHeight + dp(2) <= menuHeight  // fade if nothing to scroll
 
         // place the menu beside the bubble, flipping to the left side if there's no room
@@ -483,7 +513,7 @@ class BubbleService : Service() {
             gravity = Gravity.TOP or Gravity.START
             this.x = x.coerceAtLeast(0)
             // start level with the bubble, but move up if it would run off the bottom
-            y = bubbleParams.y.coerceIn(margin, maxOf(margin, screenH - menuHeight - margin))
+            y = bubbleParams.y.coerceIn(top, maxOf(top, bottom - menuHeight))
         }
         allowScreenEdges(params)
 
@@ -527,9 +557,16 @@ class BubbleService : Service() {
 
     private fun openTool(tool: Tool) {
         if (tool != Tool.WIKI) wikiReturnTo = null   // went somewhere else: forget the way back
+        if (tool != Tool.WIKISYNC) syncReturnTo = null
         hideToolWindow()
         currentTool = tool
         showToolWindow()
+    }
+
+    // A tool's WikiSync tag was tapped: open WikiSync, with ◀ going back to that tool
+    private fun openWikiSync(from: Tool) {
+        openTool(Tool.WIKISYNC)
+        syncReturnTo = from
     }
 
     private fun toggleToolWindow() {
@@ -563,15 +600,25 @@ class BubbleService : Service() {
     }
 
     // Web pages (Wiki, GE Prices, star tracker...) keep running their scripts and live updates
-    // even when their window is hidden. Pause them all while no window is showing, to save battery.
+    // even when their window is hidden. Only the page in the window you're looking at runs; the rest are paused.
     private fun setWebPagesRunning(running: Boolean) {
-        if (running) {
-            webViews.firstOrNull()?.resumeTimers()   // this one call covers every page
-            webViews.forEach { it.onResume() }
-        } else {
-            webViews.forEach { it.onPause() }
-            webViews.firstOrNull()?.pauseTimers()
-        }
+        val window = shownWindow
+        val visible = if (running && window != null) webViews.filter { isInside(it, window) } else emptyList()
+        webViews.forEach { if (it in visible) it.onResume() else it.onPause() }
+        // these two affect every page at once
+        if (visible.isNotEmpty()) webViews.first().resumeTimers() else webViews.firstOrNull()?.pauseTimers()
+    }
+
+    private fun isInside(v: View, window: View): Boolean {
+        var p: android.view.ViewParent? = v.parent
+        while (p != null) { if (p === window) return true; p = p.parent }
+        return false
+    }
+
+    private fun clampBubble() {
+        val size = dp(BUBBLE_SIZE_DP)
+        bubbleParams.x = bubbleParams.x.coerceIn(0, maxOf(0, screenWidth() - size))
+        bubbleParams.y = bubbleParams.y.coerceIn(0, maxOf(0, screenHeight() - size))
     }
 
     private fun buildToolWindow(tool: Tool): LinearLayout = when (tool) {
@@ -598,10 +645,13 @@ class BubbleService : Service() {
         Tool.ZULRAH -> buildFrame(zulrahTool.buildView()) { zulrahTool.goBack() }
         Tool.FARMING -> buildFrame(farmingTool.buildView(), onBack = null)
         Tool.LIGHT_BOX -> buildFrame(lightBoxTool.buildView(), onBack = null)
+        Tool.WIKISYNC -> buildFrame(wikiSyncTool.buildView()) { syncReturnTo?.let { openTool(it) } }
         Tool.QUESTS -> buildFrame(questTool.buildView()) { questTool.goBack() }
         Tool.CALCULATOR -> buildFrame(calculatorTool.buildView(), onBack = null)
         Tool.NOTES -> buildFrame(notesTool.buildView()) { notesTool.goBack() }
         Tool.GAMES -> buildFrame(gameRoomTool.buildView()) { gameRoomTool.goBack() }
+        Tool.HUNTER -> buildFrame(hunterTool.buildView()) { hunterTool.goBack() }
+        Tool.TELEPORTS -> buildFrame(teleportTool.buildView()) { teleportTool.goBack() }
         Tool.PRICES -> {
             val web = buildWebView(PRICES_URL, PRICES_ZOOM_PERCENT)
             buildFrame(web) { if (web.canGoBack()) web.goBack() }
@@ -774,10 +824,7 @@ class BubbleService : Service() {
     private fun refitWebPages() {
         val window = shownWindow ?: return
         for (web in webViews) {
-            var v: android.view.ViewParent? = web.parent
-            var inWindow = false
-            while (v != null) { if (v === window) { inWindow = true; break }; v = v.parent }
-            if (!inWindow) continue
+            if (!isInside(web, window)) continue
             val fit = if (web.url?.contains("prices.runescape.wiki") == true) FIT_BOTH_SIDES_JS else FIT_WIDTH_JS
             web.postDelayed({ web.evaluateJavascript(fit, null) }, 150)
         }
@@ -890,9 +937,17 @@ class BubbleService : Service() {
     // ---------------- Housekeeping ----------------
 
     // Resize the window when the phone rotates
+    private var lastScreenSize = 0 to 0
+
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        // only a rotation (or folding the phone) moves things; dark mode, font or language changes don't
+        val size = screenWidth() to screenHeight()
+        if (size == lastScreenSize) return
+        lastScreenSize = size
         hideMenu()
+        clampBubble()
+        windowManager.updateViewLayout(bubble, bubbleParams)
         puzzleTool.onRotated()
         setupsTool.onRotated()
         dpsTool.onRotated()
@@ -907,16 +962,19 @@ class BubbleService : Service() {
     override fun onDestroy() {
         destroyed = true
         isRunning = false
+        // close the window first, while the tools can still tidy up after it
+        hideMenu()
+        hideToolWindow()
         puzzleTool.destroy()
         setupsTool.destroy()
         dpsTool.destroy()
         farmingTool.destroy()
         lightBoxTool.destroy()
+        if (gameRoomLazy.isInitialized()) gameRoomTool.destroy()
+        if (teleportLazy.isInitialized()) teleportTool.destroy()
         capture.shutdown()
-        hideMenu()
-        hideToolWindow()
         windowManager.removeView(bubble)
-        webViews.forEach { it.destroy() }
+        webViews.forEach { (it.parent as? ViewGroup)?.removeView(it); it.destroy() }
         super.onDestroy()
     }
 }

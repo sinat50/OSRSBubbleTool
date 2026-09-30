@@ -1,0 +1,803 @@
+# Ways between the surface, caves and other areas, from the Shortest Path RuneLite plugin (github.com/Skretzo/shortest-path), BSD 2-Clause.
+# fromX	fromY	toX	toY	what	quests
+3088	3120	3088	9520	Climb-down Ladder	
+3088	9520	3088	3120	Climb-up Ladder	
+3111	9525	3111	3125	Climb-up Ladder	
+3111	3125	3111	9525	Climb-down Ladder	
+3112	9526	3112	3126	Climb-up Ladder	
+3112	3126	3112	9526	Climb-down Ladder	
+3210	3216	3210	9616	Climb-down Trapdoor	
+3210	9616	3210	3216	Climb-up Ladder	
+3209	9615	3209	3215	Climb-up Ladder	
+3169	3171	3169	9571	Climb-down Dark hole	
+3169	9571	3169	3171	Climb Climbing rope	
+3168	3172	3168	9572	Climb-down Dark hole	
+3168	9572	3168	3172	Climb Climbing rope	
+3169	3173	3167	9573	Climb-down Dark hole	
+3085	9672	3085	3272	Climb-up Ladder	
+3083	9672	3083	3272	Climb-up Ladder	
+3084	9671	3084	3271	Climb-up Ladder	
+3085	3272	3085	9672	Climb-down Trapdoor	
+3083	3272	3083	9672	Climb-down Trapdoor	
+3084	3271	3084	9671	Climb-down Trapdoor	
+3118	3243	3118	9644	Climb-down Trapdoor	
+3117	3244	3118	9644	Climb-down Trapdoor	
+3119	9643	3118	3243	Climb-up Ladder	
+3118	9644	3118	3243	Climb-up Ladder	
+3115	3356	3077	9771	Walk-Down Stairs	
+3077	9771	3115	3356	Walk-Up Stairs	
+3116	3356	3077	9771	Walk-Down Stairs	
+3092	3361	3117	9753	Climb-down Ladder	
+3117	9753	3092	3361	Climb-up Ladder	
+3054	3382	3065	9951	Climb-down Staircase	
+3065	9951	3053	3382	Leave Old passageway	
+3065	9952	3053	3382	Leave Old passageway	
+3014	9952	3038	3382	Leave Old passageway	
+3038	3382	3014	9951	Climb-down Staircase	
+3014	9951	3038	3382	Leave Old passageway	
+3152	3644	3164	10043	Walk-down Stairs	
+3164	10044	3152	3644	Exit Opening	
+3152	3643	3164	10043	Walk-down Stairs	
+3164	10043	3152	3644	Exit Opening	
+2562	3024	2523	3070	Enter Cave entrance	
+2523	3070	2540	3055	Enter Cave entrance	
+2553	3054	2552	3034	Enter Cave entrance	
+2562	3023	2523	3070	Enter Cave entrance	
+2524	3070	2540	3055	Enter Cave entrance	
+2551	3053	2552	3034	Enter Cave entrance	
+2500	2988	2576	3029	Enter Cave entrance	
+2576	3029	2500	2988	Climb-down Ladder	
+2499	2988	2576	3029	Enter Cave entrance	
+2575	3028	2500	2988	Climb-down Ladder	
+2606	3079	2601	9478	Climb-down Staircase	
+2602	9478	2606	3078	Climb-up Staircase	
+2620	9496	2620	9566	Climb-down Staircase	
+2620	9565	2621	9496	Climb-up Staircase	
+2587	3237	2570	9682	Enter Cave entrance	
+2570	9682	2587	3237	Climb-up Stairs	
+2589	3236	2570	9682	Enter Cave entrance	
+2569	9684	2587	3237	Climb-up Stairs	
+2584	3235	2570	9682	Enter Cave entrance	
+2589	3235	2570	9682	Enter Cave entrance	
+2570	3268	2570	9668	Climb-down Ladder	
+2570	9668	2570	3268	Climb-up Ladder	
+2571	3267	2571	9667	Climb-down Ladder	
+2571	9667	2571	3267	Climb-up Ladder	
+2536	3271	2537	9670	Walk-down Spooky stairs	
+2537	9670	2536	3271	Walk-up Spooky stairs	
+2145	4648	2014	4712	Open Door	
+2145	4647	2014	4711	Open Door	
+2010	4711	2343	9622	Climb-down Well	
+2010	4712	2343	9622	Climb-down Well	
+2150	4546	2336	9794	Ascend Cave	
+1857	4639	2311	9793	Enter Tunnel	Mourning's End Part II
+2305	9915	2113	4729	Ascend Cave	
+2311	9793	1857	4639	Descend Cave	
+2336	9794	2150	4546	Ascend Cave	
+2464	6082	2150	4546	Ascend Cave	
+2439	6081	1857	4639	Descend Cave	
+2566	3243	2566	9643	Climb-down Ladder	
+2566	9643	2566	3243	Climb-up Ladder	
+2569	9628	2569	3228	Climb-up Ladder	
+2569	3228	2569	9628	Climb-down Ladder	
+2568	9627	2568	3227	Climb-up Ladder	
+2568	3227	2568	9627	Climb-down Ladder	
+2572	3228	2572	9628	Climb-down Ladder	
+2572	9628	2572	3228	Climb-up Ladder	
+2573	3227	2573	9627	Climb-down Ladder	
+2573	9627	2573	3227	Climb-up Ladder	
+2567	3227	2567	9627	Climb-down Ladder	
+2567	9627	2567	3227	Climb-up Ladder	
+2566	3228	2566	9628	Climb-down Ladder	
+2566	9628	2566	3228	Climb-up Ladder	
+2566	3232	2566	9632	Climb-down Ladder	
+2566	9632	2566	3232	Climb-up Ladder	
+2569	3232	2569	9632	Climb-down Ladder	
+2569	9632	2569	3232	Climb-up Ladder	
+2621	3262	2621	9662	Climb-down Ladder	
+2621	9662	2621	3262	Climb-up Ladder	
+2572	9632	2572	3232	Climb-up Ladder	
+2561	9621	2561	3221	Climb-up Ladder	
+2561	3221	2561	9621	Climb-down Ladder	
+3077	3493	3077	9893	Open trapdoor	Shadow of the Storm
+3077	9893	3077	3493	Climb Cellar stairs	
+3096	3468	3096	9867	Climb-down Trapdoor	
+3096	9867	3096	3468	Climb-up Ladder	
+3097	9868	3096	3468	Climb-up Ladder	
+3257	3454	1759	4958	Walk-down Stairs	
+1759	4958	3258	3452	Walk-up Stairs	
+1760	4958	3258	3452	Walk-up Stairs	
+3258	3451	1759	4958	Walk-down Stairs	
+1761	4965	1631	4957	Walk-down Stairs	
+1631	4957	1761	4964	Walk-up Stairs	
+1761	4963	1631	4957	Walk-down Stairs	
+1632	4957	1761	4964	Walk-up Stairs	
+3231	9800	3231	3400	Climb-up Ladder	
+3231	3400	3231	9800	Climb-down Ladder	
+3232	9801	3232	3401	Climb-up Ladder	
+3232	3401	3232	9801	Climb-down Ladder	
+3186	3434	3190	9834	Climb-down Staircase	
+3190	9834	3186	3434	Climb-up Staircase	
+3243	3383	3243	9783	Climb-down Ladder	
+3243	9783	3244	3382	Climb-up Ladder	
+3244	3382	3244	9782	Climb-down Ladder	
+3244	9782	3244	3382	Climb-up Ladder	
+3244	9784	3244	3382	Climb-up Ladder	
+3237	9858	3236	3458	Climb-up Ladder	
+3236	3458	3237	9858	Climb-down Manhole	
+3081	3421	1859	5243	Climb-down Entrance	
+1859	5243	3081	3421	Climb-up Ladder	
+1860	5244	3081	3421	Climb-up Ladder	
+1858	5244	3081	3421	Climb-up Ladder	
+1913	5225	3081	3421	Climb-up Ladder	
+1902	5223	2042	5245	Climb-down Ladder	
+2042	5245	1859	5243	Climb-up Ladder	
+2026	5219	2123	5252	Climb-down Ladder	
+2122	5251	2042	5245	Climb-up Dripping vine	
+2150	5279	2123	5252	Climb-up Goo covered vine	
+2147	5284	2358	5215	Climb-down Dripping vine	
+2358	5215	2123	5252	Climb-up Boney ladder	
+2148	5283	2358	5215	Climb-down Dripping vine	
+2357	5216	2123	5252	Climb-up Boney ladder	
+2149	5284	2358	5215	Climb-down Dripping vine	
+2349	5215	3081	3421	Climb-up Bone Chain	
+2350	5216	3081	3421	Climb-up Bone Chain	
+3165	3252	3149	9652	Climb-down Trapdoor	
+3166	3251	3149	9652	Climb-down Trapdoor	
+3149	9652	3165	3251	Climb-up Ladder	
+3018	3231	2962	9650	Climb-down Manhole	
+2962	9650	3018	3233	Climb-up Ladder	
+3105	3162	3104	9576	Climb-down Ladder	
+3104	9576	3105	3162	Climb-up Ladder	
+3103	9577	3105	3162	Climb-up Ladder	
+3103	9575	3105	3162	Climb-up Ladder	
+3103	3162	3104	9576	Climb-down Ladder	
+2884	3398	2884	9798	Climb-down Ladder	
+2884	9798	2884	3398	Climb-up Ladder	
+2883	3397	2883	9797	Climb-down Ladder	
+2883	9797	2883	3397	Climb-up Ladder	
+2842	3423	2842	9823	Climb-down Ladder	
+2842	9823	2842	3423	Climb-up Ladder	
+2843	3424	2843	9824	Climb-down Ladder	
+2843	9824	2843	3424	Climb-up Ladder	
+1310	1237	2873	9848	Crawl Cave	
+2873	9848	1310	1237	Crawl Cave	
+2873	9847	1310	1237	Crawl Cave	
+1292	1253	1240	1226	Turn Iron Winch	
+1291	1253	1240	1226	Turn Iron Winch	
+1240	1226	1291	1253	Exit Portcullis	
+1309	1269	1304	1290	Turn Iron Winch	
+1304	1290	1309	1269	Exit Portcullis	
+1368	1226	1328	1253	Exit Portcullis	
+1328	1253	1368	1226	Turn Iron Winch	
+2906	3476	2906	9876	Climb-down Ladder	
+2906	9876	2906	3476	Climb-up Ladder	
+2907	3475	2906	9876	Climb-down Ladder	
+2907	9875	2906	3476	Climb-up Ladder	
+2898	3469	2901	9867	Enter Manhole	
+2901	9867	2899	3469	Climb-up Staircase	
+2877	3482	2876	9878	Climb-down Stairs	
+2876	9879	2877	3482	Climb-up Stairs	
+2821	9882	2820	3486	Climb-up Stairs	
+2820	3486	2820	9882	Climb-down Stairs	
+2505	3641	2506	3584	Climb-down Staircase	
+2510	3644	2518	9994	Climb Iron ladder	
+2518	9994	2510	3644	Climb Iron ladder	
+2512	3476	2527	3413	Swim River	
+2511	3477	2527	3413	Swim River	
+2511	3463	2527	3413	Get in Barrel	
+2512	3466	2527	3413	Climb Dead Tree	
+2511	3463	2575	9861	Open Door	
+2575	9861	2511	3463	Open Door	
+2566	9901	2604	9901	Open Door	
+2604	9901	2566	9901	Open Door	
+2557	9844	2557	3444	Climb-up Ladder	
+2533	3156	2533	9556	Climb-down Ladder	
+2534	3155	2534	9555	Climb-down Ladder	
+2533	9556	2533	3156	Climb-up Ladder	
+2533	3156	2597	4436	Climb-down Ladder	
+2532	3155	2596	4435	Climb-down Ladder	
+2597	4436	2533	3156	Climb-up Ladder	
+2596	4435	2533	3156	Climb-up Ladder	
+3555	4002	3549	10448	Climb-down Staircase	
+3549	10448	3555	4002	Climb-up Staircase	
+3551	10481	1568	5061	Enter Broken Grandiose Doors	
+1570	5061	3549	10481	Enter Broken Grandiose Doors	
+1567	5061	3549	10481	Enter Broken Grandiose Doors	
+3595	10291	3680	3854	Climb-up Exit	
+3680	3854	3595	10291	Climb Down Trap Door	
+3596	10291	3680	3854	Climb-up Exit	
+3666	3810	3685	3756	Jump on Rubber cap mushroom	
+3663	3808	3685	3756	Jump on Rubber cap mushroom	
+2855	3169	2855	9569	Climb-down Rocks	
+2855	9569	2856	3167	Climb Climbing rope	
+2856	3167	2856	9567	Climb-down Rocks	
+2856	9568	2856	3167	Climb Climbing rope	
+2858	3168	2858	9568	Climb-down Rocks	
+2862	9573	2480	5175	Enter Cave entrance	
+2480	5175	2862	9572	Enter Cave exit	
+2862	9571	2480	5175	Enter Cave entrance	
+2479	5175	2862	9572	Enter Cave exit	
+2864	9570	2480	5175	Enter Cave entrance	
+2865	9572	2480	5175	Enter Cave entrance	
+2504	3191	2515	3159	Follow Elkoy	
+2515	3159	2504	3191	Follow Elkoy	
+2464	3497	2464	9897	Open Trapdoor	
+2464	9897	2464	3497	Climb-up Ladder	
+2430	3424	2429	9824	Enter Cave	
+2429	9824	2430	3424	Use Tunnel	
+2402	3420	2409	9812	Enter Cave entrance	
+2409	9812	2402	3419	Exit Tunnel	
+2402	3419	2409	9812	Enter Cave entrance	
+2405	3420	2409	9812	Enter Cave entrance	
+2405	3419	2409	9812	Enter Cave entrance	
+3309	3452	3297	9824	Enter Rift	
+3297	9824	3312	3450	Climb-up Rope	
+3298	9823	3312	3450	Climb-up Rope	
+1483	3549	1483	9951	Enter Crypt Entrance	
+1483	9951	1483	3549	Climb-up Ladder	
+3649	3220	3631	3219	Enter Door	
+3631	3219	3649	3219	Enter Door	
+3649	3219	3631	3219	Enter Door	
+3631	3220	3649	3219	Enter Door	
+3593	9674	3593	3272	Climb-up Stairs	
+3593	3272	3593	9674	Climb-down Stairs	
+3637	9695	3643	3306	Climb-up Staircase	
+3643	3306	3637	9695	Climb-down Staircase	
+3513	9811	3492	9862	Enter Cave	
+3492	9862	3513	9811	Enter Cave entrance	
+3491	9876	3483	9832	Enter Cave entrance	
+3483	9832	3491	9876	Enter Cave entrance	
+3696	9764	3633	3339	Climb-up Staircase	
+3633	3339	3696	9764	Climb-down Staircase	
+3633	3340	3696	9764	Climb-down Staircase	
+3654	3384	2400	5969	Enter Mausoleum Door	
+2400	5969	3654	3384	Climb-up Stairs	
+2399	5969	3654	3384	Climb-up Stairs	
+3500	9811	3509	3449	Open Wooden doors	
+3509	3449	3500	9811	Open Wooden doors	
+3720	3307	3732	9683	Climb-down Trapdoor	
+3732	9683	3720	3307	Climb-up Ladder	
+3727	3302	3738	9703	Climb-down Stairs	
+3738	9703	3728	3302	Climb-up Stairs	
+3728	3302	3738	9703	Climb-down Stairs	
+3727	9756	3725	3356	Climb-up Ladder	
+3725	3356	3727	9756	Climb-down Trapdoor	
+3669	9888	3654	3519	Climb-up Ladder	
+3654	3519	3669	9888	Climb-down Trapdoor	
+3653	3520	3669	9888	Climb-down Trapdoor	
+3578	3526	3577	9927	Push Memorial	Creature of Fenkenstrain
+3577	9927	3578	3526	Climb-up Ladder	
+3504	9969	3504	3569	Climb-up Ladder	Creature of Fenkenstrain
+3504	3571	3504	9969	Push Memorial	
+3417	3536	3412	9932	Climb-down Ladder	
+3412	9932	3417	3536	Climb-up Ladder	
+3018	3450	3018	9850	Climb-down Trapdoor	
+3018	9850	3018	3450	Climb-up Ladder	
+3020	3450	3020	9850	Climb-down Trapdoor	
+3058	9777	3061	3377	Climb-up Staircase	
+3061	3377	3058	9777	Climb-down Staircase	
+3728	5692	3060	9766	Exit Tunnel	
+3060	9766	3728	5692	Enter Cave	
+3021	3339	3021	9739	Climb-down Ladder	
+3021	9739	3021	3339	Climb-up Ladder	
+3019	3337	3019	9737	Climb-down Ladder	
+3019	9737	3019	3337	Climb-up Ladder	
+2899	3565	2205	4933	Climb-down Stairs	
+2205	4934	2899	3564	Climb-up Stairs	
+2900	3565	2205	4933	Climb-down Stairs	
+2206	4934	2900	3565	Climb-up Stairs	
+2834	3542	2907	9968	Climb-down Ladder	
+2907	9968	2834	3542	Climb-up Ladder	
+3061	4985	2906	3537	Enter Passageway	
+2906	3537	3061	4985	Enter Trapdoor	
+2857	3577	2269	4752	Enter Cave Entrance	
+2269	4752	2858	3577	Exit Cave Exit	
+2860	3578	2269	4752	Enter Cave Entrance	
+3232	10351	3233	3950	Use Crevice	
+3233	3950	3232	10351	Enter Cavern	
+3242	3948	3243	10351	Enter Cavern	
+3243	10351	3242	3948	Use Crevice	
+3232	3938	3233	10332	Enter Cavern	
+3233	10332	3233	3938	Use Crevice	
+3005	3962	3005	10362	Climb-down Ladder	
+3005	10362	3005	3962	Climb-up Ladder	
+3069	10255	3016	3849	Climb-up Ladder	
+3017	3850	3069	10255	Climb-down Ladder	
+3068	10256	3016	3849	Climb-up Ladder	
+3069	3857	3016	10249	Climb-down Ladder	
+3016	10249	3070	3856	Climb-up Ladder	
+3044	3927	3044	10322	Climb-down Staircase	
+3044	10323	3044	3927	Climb-up Staircase	
+3259	3663	3385	10052	Walk-down Stairs	
+3260	3663	3385	10052	Walk-down Stairs	
+3384	10052	3259	3663	Exit Opening	
+3293	3749	3406	10145	Walk-down Stairs	
+3405	10145	3294	3749	Exit Opening	
+3073	3653	3197	10056	Enter Cavern	
+3076	3653	3197	10056	Enter Cavern	
+3069	3740	3187	10127	Jump-down Crevice	
+3066	3740	3187	10127	Jump-down Crevice	
+3067	3739	3187	10127	Jump-down Crevice	
+3068	3739	3187	10127	Jump-down Crevice	
+3067	3744	3187	10127	Jump-down Crevice	
+3068	3744	3187	10127	Jump-down Crevice	
+3126	3831	3241	10233	Enter Cavern	
+3126	3832	3241	10233	Enter Cavern	
+3217	10058	3102	3655	Climb-up Stairs	
+3246	10215	3124	3805	Climb-up Stairs	
+3373	9304	3375	2904	Climb Rope	
+3375	2904	3374	9305	Climb-down Crevice	
+3374	2903	3374	9305	Climb-down Crevice	
+3315	2796	2800	5160	Climb-down Ladder	
+2799	5160	3315	2796	Climb-up Ladder	
+2800	5160	2166	4409	Climb-down Ladder	
+2166	4409	2800	5160	Climb-up Ladder	
+3320	2796	3321	2858	Climb-through Hole	
+3322	2858	3319	2796	Enter Rock	
+3232	2897	2913	4954	Climb-down Ladder	
+2913	4954	3233	2898	Climb-up Ladder	
+2909	4965	2846	4964	Climb-down Ladder	
+2846	4964	2909	4965	Climb-up Ladder	
+2845	4963	2909	4965	Climb-up Ladder	
+2909	4963	2846	4964	Climb-down Ladder	
+3233	2887	3233	9313	Enter Tunnel	
+3233	9293	2783	4941	Climb-up Ladder	
+2783	4941	3233	9293	Climb-down Ladder	
+2784	4942	3233	9293	Climb-down Ladder	
+3231	9293	2783	4941	Climb-up Ladder	
+2782	4972	2845	4973	Climb-up Ladder	
+2845	4973	2782	4972	Climb-down Ladder	
+3226	3108	3483	9510	Climb-down Tunnel entrance	
+3483	9510	3226	3108	Climb-up Rope	
+3228	3110	3483	9510	Climb-down Tunnel entrance	
+3227	3107	3483	9510	Climb-down Tunnel entrance	
+3228	3107	3483	9510	Climb-down Tunnel entrance	
+3484	9510	3226	3108	Climb-up Rope	
+3514	9521	2711	5206	Enter Tunnel	
+2711	5206	3514	9521	Enter Blocked tunnel	
+2747	5374	3317	9603	Open Bone door	
+2748	5374	3317	9603	Open Bone door	
+3317	9602	2747	5374	Open Door	
+3318	9602	2748	5374	Open Door	
+3491	3090	2721	4886	Climb-down Staircase	
+2721	4886	3491	3090	Climb-up Staircase	
+2722	4883	3491	3090	Climb-up Staircase	
+2719	4913	2720	4884	Enter Door	
+2721	4911	2720	4884	Enter Door	
+2724	4912	2720	4884	Enter Door	
+2723	4914	2720	4884	Enter Door	
+3371	3129	3349	9536	Use Rope -> Root	
+3349	9536	3371	3129	Leave Cave exit	
+3310	2961	3206	9379	Climb-down Smokey well	
+3206	9379	3310	2961	Climb-up Rope	
+3205	9380	3310	2961	Climb-up Rope	
+3321	3122	3305	9497	Enter Cave	
+3305	9497	3321	3122	Use Crevice	
+3749	2973	3748	9373	Enter Cave entrance	
+3748	9373	3749	2973	Exit Cave	
+3814	3061	3814	9464	Climb-down Staircase	
+3816	3062	3814	9464	Climb-down Staircase	
+3814	9464	3814	3061	Climb-up Staircase	
+3813	9463	3814	3061	Climb-up Staircase	
+3816	9463	3814	3061	Climb-up Staircase	
+3680	2963	3786	2824	Transport Brother Tranquility	
+3786	2824	3680	2963	Transport Brother Tranquility	
+3794	2844	3785	9254	Climb-down Statue	
+3785	9254	3796	2843	Climb Ladder	
+3788	2826	3788	9226	Climb-down Ladder	
+3788	9226	3788	2826	Climb-up Ladder	
+3829	3061	3829	9464	Climb-down Staircase	
+3829	9464	3829	3061	Climb-up Staircase	
+3828	9463	3829	3061	Climb-up Staircase	
+3829	3064	3829	9464	Climb-down Staircase	
+3495	3465	3477	9845	Open Trapdoor	
+3477	9845	3495	3465	Climb-up Ladder	
+3441	3232	3436	9637	Crawl-down Cart tunnel	
+3436	9637	3441	3232	Crawl-through Cart tunnel	
+3435	9635	2800	4429	Crawl-through Cart tunnel	
+2800	4429	3435	9635	Crawl-through Cart tunnel	
+2758	4454	2691	4437	Walk-up Stairs	
+2712	4593	2691	4437	Walk-up Stairs	
+2730	4563	2750	4437	Walk-up Stairs	
+2691	4437	2712	4593	Walk-down Stairs	
+2750	4437	2730	4563	Walk-down Stairs	
+2807	4493	2725	4452	Go-down Lift	
+2725	4452	2807	4493	Go-up Lift	
+2723	4452	2807	4493	Go-up Lift	
+2797	4529	2733	4529	Climb-up Ladder	
+2733	4529	2797	4529	Climb-down Ladder	
+2731	4529	2795	4529	Climb-down Ladder	
+2795	4529	2731	4529	Climb-up Ladder	
+2733	4534	2797	4598	Climb-up Ladder	
+2797	4598	2733	4534	Climb-down Ladder	
+2733	4536	2797	4600	Climb-up Ladder	
+2797	4600	2733	4536	Climb-down Ladder	
+2710	4539	2774	4539	Climb-down Ladder	
+2774	4539	2710	4539	Climb-up Ladder	
+2711	4540	2775	4540	Climb-down Ladder	
+2775	4540	2711	4540	Climb-up Ladder	
+2760	4496	2696	4496	Climb-up Ladder	
+2696	4496	2760	4496	Climb-down Ladder	
+2759	4497	2695	4497	Climb-up Ladder	
+2695	4497	2759	4497	Climb-down Ladder	
+2773	4578	3413	9634	Climb-up Ladder	
+3413	9634	2773	4578	Climb-down Ladder	
+3405	9631	3429	3233	Crawl-through Cart tunnel	
+3429	3233	3405	9631	Crawl-down Cart tunnel	
+3428	3225	3409	9623	Crawl-down Cart tunnel	
+3409	9623	3428	3225	Crawl-through Cart tunnel	
+3423	9625	2783	4569	Climb-down Ladder	
+2783	4569	3423	9625	Climb-up Ladder	
+2798	4568	2734	4504	Climb-down Ladder	
+2734	4504	2798	4568	Climb-up Ladder	
+2797	4567	2733	4503	Climb-down Ladder	
+2733	4503	2797	4567	Climb-up Ladder	
+2724	4486	2788	4486	Climb-down Ladder	
+2788	4486	2724	4486	Climb-up Ladder	
+3454	3242	2792	4592	Walk-down Stairs	
+2792	4592	3454	3242	Walk-up Stairs	
+2791	4592	3454	3242	Walk-up Stairs	
+2811	4454	2750	4437	Walk-up Stairs	
+2750	4438	2811	4454	Walk-down Stairs	
+2691	4438	2758	4454	Walk-down Stairs	
+3424	9660	3166	4547	Enter Entrance	
+3166	4547	3424	9660	Enter Passageway	
+3185	4601	3149	4644	Enter Passageway	
+3149	4644	3185	4601	Enter Passageway	
+3440	3337	3442	9734	Enter Grotto	
+3442	9734	3440	3337	Exit Grotto	
+3439	3337	3442	9734	Enter Grotto	
+3405	3506	3405	9906	Climb-down Trapdoor	
+3405	9906	3405	3506	Climb-up Ladder	
+3360	9904	3440	9899	Climb-up Ladder	
+3440	9899	3360	9904	Climb-down Trapdoor	
+3440	9887	3423	3485	Pass-through Holy barrier	
+3423	3485	3440	9887	Climb-down Trapdoor	
+3194	2926	3124	9328	Climb-down Secret entrance	
+3124	9328	3194	2926	Climb Sand pile	
+3121	9288	3189	2889	Climb Sand pile	
+3189	2889	3120	9288	Climb-down Secret entrance	
+3189	2887	3120	9288	Climb-down Secret entrance	
+3088	9335	3148	2938	Climb Sand pile	
+3148	2938	3086	9333	Climb-down Secret entrance	
+3086	9333	3148	2938	Climb Sand pile	
+3147	2937	3086	9333	Climb-down Secret entrance	
+3080	9306	3146	2909	Climb Sand pile	
+3146	2909	3080	9306	Climb-down Secret entrance	
+3146	2907	3080	9306	Climb-down Secret entrance	
+2465	4010	2461	10417	Enter Cave	
+2461	10417	2465	4010	Exit Steps	
+2509	3847	2509	10245	Climb-down Ladder	
+2509	10245	2510	3846	Climb-up Ladder	
+2618	10266	2620	3864	Climb-up Exit	
+2620	3864	2619	10265	Climb-down Hole	
+2619	3865	2619	10265	Climb-down Hole	
+2247	4078	2259	10482	Enter Cave	
+2259	10482	2247	4078	Enter Cave Entrance	
+2399	3812	2405	10188	Climb-down Staircase	
+2405	10188	2399	3812	Climb-up Staircase	
+2406	10187	2399	3812	Climb-up Staircase	
+2398	3811	2405	10188	Climb-down Staircase	
+2408	10189	2399	3812	Climb-up Staircase	
+2317	3893	2420	10279	Open Cave	
+2421	10278	2319	3892	Climb-up Stone ladder	
+2315	3894	2420	10279	Open Cave	
+2400	3889	2394	10300	Open Cave	
+2393	10300	2401	3888	Exit Cave opening	
+2630	4013	2656	10423	Use A crack	
+2656	10423	2631	4013	Use Chasm	
+2858	3968	2854	3941	Enter Cave entrance	
+2855	3941	2859	3968	Descend Hole	
+2860	3968	2854	3941	Enter Cave entrance	
+2856	3941	2859	3968	Descend Hole	
+2869	3941	2845	10351	Descend Stairs	
+2845	10351	2869	3941	Climb Steps	
+2855	10334	2845	3960	Enter Smelly hole	
+2856	10335	2845	3960	Enter Smelly hole	
+2744	3830	2707	10205	Enter Cave	
+2707	10205	2744	3830	Exit Cave	
+2730	3714	2773	10162	Enter Tunnel	
+2773	10162	2730	3713	Enter Tunnel	
+2731	3711	2773	10162	Enter Tunnel	
+2780	10161	2838	10124	Go-through Cave entrance	
+2838	10124	2778	10161	Go-through Entrance	
+2799	10134	2797	3719	Enter Tunnel	
+2797	3719	2799	10134	Enter Tunnel	
+2800	10134	2797	3719	Enter Tunnel	
+2795	3719	2799	10134	Enter Tunnel	
+2914	10187	1943	4705	Climb-down Stairs	
+1943	4705	2914	10187	Climb-up Stairs	
+2931	10197	1940	4958	Climb-down Stairs	
+1940	4958	2931	10196	Climb-up Stairs	
+1939	4958	2931	10196	Climb-up Stairs	
+2941	10179	2438	5535	Enter Doorway	Another Slice of H.A.M.
+2435	5535	2941	10179	Enter Doorway	Another Slice of H.A.M.
+2488	5536	2696	5277	Enter Doorway	
+2696	5277	2488	5536	Enter Doorway	
+2796	3616	2808	10002	Enter Cave Entrance	
+2808	10002	2796	3615	Enter Tunnel	
+2796	3615	2808	10002	Enter Cave Entrance	
+2905	3643	2907	10019	Enter Cave Entrance	
+2907	10019	2904	3643	Exit Cave Exit	
+2908	10019	2904	3643	Exit Cave Exit	
+2903	3643	2907	10019	Enter Cave Entrance	
+2908	10035	2908	3654	Exit Cave Exit	
+2908	3654	2907	10035	Enter Cave Entrance	
+2907	10035	2908	3654	Exit Cave Exit	
+2907	3654	2907	10035	Enter Cave Entrance	
+2827	3646	2823	10050	Open Secret Door	
+2823	10050	2827	3646	Open Exit	
+2828	3646	2823	10050	Open Secret Door	
+2824	10050	2827	3646	Open Exit	
+2831	10076	2831	3676	Climb-up Troll ladder	
+2831	3676	2831	10076	Climb-down Troll ladder	
+2832	3677	2831	10076	Climb-down Troll ladder	
+2840	3690	2837	10090	Enter Stronghold	
+2837	10090	2840	3690	Leave Exit	
+2892	3671	2893	10074	Enter Cave Entrance	
+2895	3672	2893	10074	Enter Cave Entrance	
+2892	10074	2893	3671	Exit Cave Exit	
+2916	3748	2882	5311	Climb-down Hole	
+2880	5311	2916	3745	Climb Rope	
+2916	3745	2882	5311	Climb-down Hole	
+2920	3744	2882	5311	Climb-down Hole	
+2920	3749	2882	5311	Climb-down Hole	
+2620	9797	2623	3391	Climb-over Mud pile	
+2623	3391	2619	9797	Enter Cave Entrance	
+2624	3391	2619	9797	Enter Cave Entrance	
+2621	9795	2623	3391	Climb-over Mud pile	
+2777	3214	2834	2951	Board Travel cart	
+2776	3211	2834	2951	Board Travel cart	
+2830	2953	2776	3214	Board Travel cart	
+2832	2954	2776	3214	Board Travel cart	
+2831	2951	2776	3214	Board Travel cart	
+2832	2951	2776	3214	Board Travel cart	
+2832	9657	2834	3258	Climb Climbing rope	
+2832	3255	2833	9658	Enter Hole	
+2832	3256	2833	9658	Enter Hole	
+2836	3255	2833	9658	Enter Hole	
+2836	3256	2833	9658	Enter Hole	
+2452	4473	3201	3169	Use Fairy ring	
+3202	3169	2452	4473	Open Door	
+2486	4471	3260	3171	Use Fairy ring	
+1795	3106	1799	9506	Enter Colosseum entrance	
+1799	9506	1795	3106	Exit Stairs	
+1401	3536	1275	3559	Travel Mountain Guide	
+1401	3536	1272	3475	Travel Mountain Guide	
+1275	3559	1401	3536	Travel Mountain Guide	
+1275	3559	1272	3475	Travel Mountain Guide	
+1272	3475	1401	3536	Travel Mountain Guide	
+1272	3475	1275	3559	Travel Mountain Guide	
+1486	3232	1361	3309	Follow Mountain Guide	
+1361	3309	1486	3232	Follow Mountain Guide	
+3280	3412	1700	3141	Travel Primio	Children of the Sun
+1703	3140	3280	3412	Travel Primio	Children of the Sun
+2744	3152	2713	9564	Enter Dungeon entrance	
+2713	9564	2745	3152	Leave exit	
+2760	3064	2734	9478	Climb Rope	
+2761	3063	2734	9478	Climb Rope	
+2734	9478	2760	3061	Use Crevice	
+2569	3121	2569	9525	Climb-down Staircase	
+2569	9525	2569	3121	Climb-up Staircase	
+2572	9499	2588	9573	Pray-at Altar	
+2579	9583	2567	9524	Climb-up Staircase	
+2594	3085	2594	9485	Climb-down Ladder	
+2594	9486	2594	3085	Climb-up Ladder	
+1702	3575	1830	9973	Climb-down Ladder	
+1829	9974	1702	3575	Climb-up Ladder	
+1798	9969	1670	3569	Climb-up Staircase	
+1800	9968	1670	3569	Climb-up Staircase	
+1800	9967	1670	3569	Climb-up Staircase	
+1799	9966	1670	3569	Climb-up Staircase	
+1670	3569	1800	9968	Climb-down Staircase	
+1671	3567	1800	9968	Climb-down Staircase	
+1803	9968	1726	9994	Enter Strange passage	
+1803	9967	1726	9994	Enter Strange passage	
+1469	3653	1650	9987	Enter Hole	
+1562	3791	1617	10101	Enter Hole	
+1563	3792	1617	10101	Enter Hole	
+1564	3791	1617	10101	Enter Hole	
+1695	3865	1719	10101	Enter Hole	
+1696	3864	1719	10101	Enter Hole	
+1726	9994	1803	9968	Climb-up Vine	
+1649	9986	1469	3653	Climb-up Vine	
+1616	10102	1562	3791	Climb-up Vine	
+1718	10102	1696	3864	Climb-up Vine	
+1720	10102	1696	3864	Climb-up Vine	
+1638	10047	1461	9879	Climb-up Vine	
+1639	10048	1461	9879	Climb-up Vine	
+1640	10047	1461	9879	Climb-up Vine	
+1461	9879	1639	10046	Enter Strange passage	
+1420	3588	1432	9913	Enter Cave	
+1432	9913	1420	3588	Exit Cave	
+1665	10051	1639	3673	Climb-up Vine ladder	
+1666	10052	1639	3673	Climb-up Vine ladder	
+1639	3673	1666	10050	Investigate Statue	
+2485	3045	2477	9437	Climb-down Stairs	
+2477	9437	2485	3045	Climb-up Stairs	
+2511	3511	1768	5366	Jump-into Whirlpool	
+2512	3511	1768	5366	Jump-into Whirlpool	
+1742	5352	2531	3446	Ride Aged log	
+1761	5362	2531	3446	Ride Aged log	
+1558	3047	1558	9451	Climb-down Stairs	
+1558	9451	1558	3047	Climb-up Stairs	
+1533	3051	1533	9446	Enter Cave	
+1533	9447	1533	3051	Exit Cave	
+1646	9848	1643	3450	Climb Sand pile	
+1646	3449	1646	9848	Enter Cave	
+1643	3450	1646	9848	Enter Cave	
+1673	9800	1677	9747	Climb-down Tunnel entrance	
+1677	9747	1673	9800	Climb-down Tunnel entrance	
+2822	3745	2803	10187	Enter Cave entrance	
+2822	3743	2803	10187	Enter Cave entrance	
+2804	10187	2822	3745	Enter Tunnel	
+2803	10187	2822	3745	Enter Tunnel	
+2772	10232	2778	3869	Enter Crevasse	
+2778	3869	2772	10232	Enter Tunnel	
+2780	3871	2772	10232	Enter Tunnel	
+2781	3867	2772	10232	Enter Tunnel	
+2779	3867	2772	10232	Enter Tunnel	
+2772	3836	2790	3794	Slide Slope	
+2786	3772	2794	3719	Slide Slope	
+2484	3486	2649	4516	Travel Daero	
+2649	4518	2894	2726	Travel Waydar	
+2654	4495	2393	3466	Operate Teleportation Device	
+2896	2727	2393	3465	Travel Waydar	
+2724	2747	2770	2793		
+2762	2989	2760	9389	Search Well stacked rocks	
+2764	9376	2765	2976	Climb Climbing rocks	
+2844	3516	2844	9916	Climb-down Ladder	
+2845	3515	2845	9915	Climb-down Ladder	
+2844	9916	2844	3516	Climb-up Ladder	
+2845	9915	2845	3515	Climb-up Ladder	
+2848	3520	2848	9920	Climb-down Ladder	
+2849	3519	2849	9919	Climb-down Ladder	
+2848	9920	2848	3520	Climb-up Ladder	
+2849	9919	2849	3519	Climb-up Ladder	
+2848	3514	2848	9914	Climb-down Ladder	
+2848	9914	2848	3514	Climb-up Ladder	
+2837	9926	2837	3526	Climb-up Ladder	
+2837	9928	2837	3528	Climb-up Ladder	
+2845	9924	2845	3524	Climb-up Ladder	
+2823	9907	2823	3507	Climb-up Ladder	
+2824	9908	2824	3508	Climb-up Ladder	
+2825	9907	2825	3507	Climb-up Ladder	
+2823	3507	2823	9907	Climb-down Ladder	
+2824	3508	2824	9908	Climb-down Ladder	
+2825	3507	2825	9907	Climb-down Ladder	
+2828	9910	2828	3510	Climb-up Ladder	
+2828	3510	2828	9910	Climb-down Ladder	
+2822	9913	2822	3513	Climb-up Ladder	
+2824	9913	2824	3513	Climb-up Ladder	
+2822	3513	2822	9913	Climb-down Ladder	
+2824	3513	2824	9913	Climb-down Ladder	
+2823	9931	2823	3531	Climb-up Ladder	
+2824	9930	2824	3530	Climb-up Ladder	
+2857	9918	2857	3518	Climb-up Ladder	
+2857	3518	2857	9918	Climb-down Ladder	
+2859	9920	2859	3520	Climb-up Ladder	
+2860	9919	2860	3519	Climb-up Ladder	
+2859	3520	2859	9920	Climb-down Ladder	
+2860	3519	2860	9919	Climb-down Ladder	
+3009	3150	3009	9550	Climb-down Trapdoor	
+3009	9550	3009	3150	Climb-up Ladder	
+3007	9550	3007	3150	Climb-up Ladder	
+3106	3559	3035	4852	Teleport Mage of Zamorak	Enter the Abyss
+3021	4843	3039	4844	Go-through Passage	
+3018	4834	3039	4844	Go-through Passage	
+3018	4822	3039	4844	Go-through Passage	
+3030	4812	3039	4844	Go-through Passage	
+3042	4811	3039	4844	Go-through Passage	
+3050	4813	3039	4844	Go-through Passage	
+3058	4822	3039	4844	Go-through Passage	
+3059	4840	3039	4844	Go-through Passage	
+3034	4793	3221	3219	Operate Appendage	
+3044	4842	2269	4840	Exit-through Chaos rift	
+2281	4837	3056	3594	Use Portal	
+2275	4847	3060	3585	Use Portal	
+2273	4855	3066	3591	Use Portal	
+3049	4839	2464	4826	Exit-through Law rift	Troll Stronghold
+2464	4818	2858	3378	Enter Portal	
+3050	4837	2205	4838	Exit-through Death rift	Mourning's End Part II
+2208	4830	1862	4639	Enter Portal	
+3051	4833	2714	4838	Exit-through Water rift	
+2726	4832	3182	3162	Enter Portal	
+3050	4829	1816	3856	Exit-through Soul rift	
+3047	4825	2846	4836	Exit-through Air rift	
+2842	4828	2983	3288	Enter Portal	
+3044	4822	2784	4843	Exit-through Mind rift	
+2792	4827	2980	3511	Enter Portal	
+3039	4821	2520	4848	Exit-through Body rift	
+2521	4834	3050	3442	Enter Portal	
+3031	4825	2660	4843	Exit-through Earth rift	
+2655	4830	3302	3477	Use Portal	
+3029	4830	2587	4836	Exit-through Fire rift	
+2575	4849	3310	3252	Use Portal	
+3027	4834	3229	4834	Exit-through Blood rift	Sins of the Father
+3240	4832	3559	9779	Use Portal	
+3224	4832	3559	9779	Use Portal	
+3028	4837	2142	4836	Exit-through Cosmic rift	Lost City
+2122	4833	2405	4381	Use Portal	
+2142	4853	2405	4381	Use Portal	
+2162	4833	2405	4381	Use Portal	
+2142	4813	2405	4381	Use Portal	
+3035	4842	2400	4844	Exit-through Nature rift	
+2400	4835	2865	3022	Use Portal	
+2824	10169	2615	4966	Talk-to Dondakan the Dwarf	Between a Rock...
+1627	3963	1630	3979	Enter Door of Dinh	
+1628	3963	1630	3979	Enter Door of Dinh	
+1632	3963	1630	3979	Enter Door of Dinh	
+3230	9609	3313	9613	Mines Kazgar	The Lost Tribe
+3230	9609	3245	9648	Watermill Kazgar	Death to the Dorgeshuun
+3317	9612	3232	9610	Cellar Mistag	The Lost Tribe
+3317	9612	3245	9648	Watermill Mistag	Death to the Dorgeshuun
+3246	9646	3313	9613	Mines Dartog	Death to the Dorgeshuun
+3246	9646	3232	9610	Cellar Dartog	Death to the Dorgeshuun
+2709	3498	2716	9888	Climb-down Staircase	
+2716	9888	2709	3497	Climb-up Staircase	
+2547	3422	2630	5071	Climb-down Ladder	Desert Treasure I
+2548	3421	2630	5071	Climb-down Ladder	Desert Treasure I
+2629	5073	2547	3422	Climb-up Ladder	Desert Treasure I
+2629	5071	2547	3422	Climb-up Ladder	Desert Treasure I
+2427	4446	2591	4319	Enter Centre of crop circle	
+1435	3128	1439	9509	Pass-through Entrance	Perilous Moons
+1436	3128	1439	9509	Pass-through Entrance	Perilous Moons
+1439	9509	1435	3128	Pass-through Entrance	Perilous Moons
+1440	9509	1435	3128	Pass-through Entrance	Perilous Moons
+2457	3186	2355	9394	Climb-down Stairs	
+2355	9394	2458	3185	Climb-up Stairs	
+2335	9350	2439	3164	Climb-up Stairs	
+2439	3164	2335	9350	Climb-down Stairs	
+2438	3163	2335	9350	Climb-down Stairs	
+2826	2998	2838	9387	Climb-down Ladder	
+2838	9387	2826	2998	Climb-up Ladder	
+2839	9388	2826	2998	Climb-up Ladder	
+2523	2860	2012	9004	Enter Hole	
+2012	9004	2523	2860	Climb Vine ladder	
+2483	2889	1971	9035	Enter Cave	
+2484	2889	1971	9035	Enter Cave	
+1971	9035	2483	2889	Enter Cave	
+2457	2849	1936	9009	Enter Mythic Statue	Dragon Slayer II
+1936	9009	2457	2849	Climb-up Ladder	Dragon Slayer II
+2238	3386	3262	6135	Enter City Gate	Song of the Elves
+2240	3386	3264	6135	Enter City Gate	Song of the Elves
+3262	6135	2238	3386	Exit City Gate	Song of the Elves
+3264	6135	2240	3386	Exit City Gate	Song of the Elves
+2238	3269	3262	6024	Enter City Gate	Song of the Elves
+2240	3269	3264	6024	Enter City Gate	Song of the Elves
+3262	6024	2238	3269	Exit City Gate	Song of the Elves
+3264	6024	2240	3269	Exit City Gate	Song of the Elves
+2181	3326	3208	6078	Enter City Gate	Song of the Elves
+2181	3328	3208	6080	Enter City Gate	Song of the Elves
+3208	6078	2181	3326	Exit City Gate	Song of the Elves
+3208	6080	2181	3328	Exit City Gate	Song of the Elves
+2298	3326	3319	6078	Enter City Gate	Song of the Elves
+2298	3328	3319	6080	Enter City Gate	Song of the Elves
+3319	6078	2298	3326	Exit City Gate	Song of the Elves
+3319	6080	2298	3328	Exit City Gate	Song of the Elves
+2763	9103	2763	2703	Climb-up Bamboo Ladder	
+2763	2703	2763	9103	Climb-down Bamboo Ladder	
+2893	3507	2893	9907	Climb-down Ladder	
+2893	9907	2893	3507	Climb-up Ladder	
+1812	3745	1813	10145	Climb-down Manhole	
+1813	10145	1813	3744	Climb-up Ladder	
+3088	3572	3088	9972	Climb-down Ladder	
+3089	3571	3089	9971	Climb-down Ladder	
+3087	3571	3087	9971	Climb-down Ladder	
+3088	9972	3088	3572	Climb-down Ladder	
+3089	9971	3089	3571	Climb-down Ladder	
+3087	9971	3087	3571	Climb-down Ladder	
+1706	10078	1716	10056	Squeeze-through Crack	
+1716	10056	1706	10078	Squeeze-through Crack	
+3268	3166	3284	3166	Swing-across Cable	
+2991	9546	2969	9551	Enter Tunnel	
+2991	9548	2969	9551	Enter Tunnel	
+2968	9550	2992	9547	Enter Tunnel	
+2615	9503	2616	9571	Climb-down Pile of rubble	
+2616	9503	2616	9571	Climb-down Pile of rubble	
+2614	9504	2616	9571	Climb-down Pile of rubble	
+2616	9506	2616	9571	Climb-down Pile of rubble	
+2616	9571	2615	9506	Climb-up Pile of rubble	
+2899	9902	2915	9894	Use Crevice	
+2915	9895	2898	9902	Use Crevice	

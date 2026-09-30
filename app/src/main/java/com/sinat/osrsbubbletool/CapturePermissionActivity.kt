@@ -13,10 +13,15 @@ class CapturePermissionActivity : Activity() {
 
     companion object {
         private const val REQUEST_CAPTURE = 1
+
+        // true while the question is on screen, so it isn't asked a second time on top
+        @Volatile var showing = false
+            private set
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        showing = true
         if (savedInstanceState != null) return   // already asking (the screen was rebuilt)
         val manager = getSystemService(MediaProjectionManager::class.java)
         // Ask for the whole screen. (Android 14+ otherwise offers "a single app", which
@@ -41,5 +46,10 @@ class CapturePermissionActivity : Activity() {
             )
         }
         finish()
+    }
+
+    override fun onDestroy() {
+        if (isFinishing) showing = false
+        super.onDestroy()
     }
 }

@@ -38,7 +38,10 @@ class CaptureManager(
         }
         waiting.add(onResult)
         val now = SystemClock.uptimeMillis()
-        if (waiting.size == 1 || now - lastAskedAt > RETRY_ASK_MS) {
+        // Not while the question is already on screen, or it would be asked twice
+        // (unless it's been a while: it may have been left behind in the background)
+        val questionUp = CapturePermissionActivity.showing && now - lastAskedAt < 30_000
+        if (!questionUp && (waiting.size == 1 || now - lastAskedAt > RETRY_ASK_MS)) {
             lastAskedAt = now
             context.startActivity(
                 Intent(context, CapturePermissionActivity::class.java)
@@ -64,6 +67,7 @@ class CaptureManager(
                 ok = true
                 lastError = null
             } catch (e: Exception) {
+                capturer.stop()   // don't leave a half-started capture running
                 onActiveChanged(false)
                 lastError = e.message ?: "unknown error"
             }

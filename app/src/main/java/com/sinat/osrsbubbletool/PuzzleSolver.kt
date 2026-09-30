@@ -31,7 +31,9 @@ object PuzzleSolver {
     fun solve(board: IntArray): List<Int>? {
         if (board.size != SIZE || !TileMatcher.isSolvable(board)) return null
         if (heuristic(board) == 0) return emptyList()
-        return idaStar(board)
+        // The shortest-solution search only finishes in time on nearly solved boards (like a re-plan
+        // near the end); on a fresh scramble it would just burn a second or more first.
+        return (if (heuristic(board) <= 30) idaStar(board) else null)
             ?: weightedAStar(board, 2.0)
             ?: weightedAStar(board, 5.0)
     }

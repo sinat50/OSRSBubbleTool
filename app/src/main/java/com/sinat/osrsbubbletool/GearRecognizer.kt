@@ -50,6 +50,8 @@ class GearRecognizer(private val context: Context) {
             "hands" to (-118 to 333), "feet" to (0 to 333), "ring" to (119 to 333)
         )
         private const val REF_SIZE = 72f
+        private val OFFSET_X = OFFSETS.values.map { it.first }.toIntArray()   // the same, as plain arrays for speed
+        private val OFFSET_Y = OFFSETS.values.map { it.second }.toIntArray()
 
         // Where the head slot normally sits inside the equipment window, as fractions of the
         // window's width and height, and a slot's size as a fraction of the window's width.
@@ -388,7 +390,7 @@ class GearRecognizer(private val context: Context) {
             }
             return Result(results, score, slots, notes, gamma)
         } finally {
-            pool.shutdown()
+            pool.shutdownNow()   // if one slot failed, don't leave the others running for nothing
             synchronized(shadedCache) { shadedCache.clear() }
             synchronized(enlargedCache) { enlargedCache.clear() }
         }
@@ -438,14 +440,22 @@ class GearRecognizer(private val context: Context) {
                 }
             }
         }
-        // dark pixels and total pixels in a rectangle (clipped to the picture)
-        fun count(ax0: Int, ay0: Int, ax1: Int, ay1: Int): Pair<Int, Int> {
+        // Dark pixels, and total pixels, in a rectangle (clipped to the picture).
+        // Two plain functions rather than one returning a pair: the slot search calls them
+        // hundreds of thousands of times, and pairs would each be a new object.
+        fun dark(ax0: Int, ay0: Int, ax1: Int, ay1: Int): Int {
             val x0 = ax0.coerceIn(0, w); val x1 = ax1.coerceIn(0, w)
             val y0 = ay0.coerceIn(0, h); val y1 = ay1.coerceIn(0, h)
-            if (x1 <= x0 || y1 <= y0) return 0 to 0
-            val s = sums[y1 * (w + 1) + x1] - sums[y0 * (w + 1) + x1] -
+            if (x1 <= x0 || y1 <= y0) return 0
+            return sums[y1 * (w + 1) + x1] - sums[y0 * (w + 1) + x1] -
                 sums[y1 * (w + 1) + x0] + sums[y0 * (w + 1) + x0]
-            return s to (x1 - x0) * (y1 - y0)
+        }
+
+        fun area(ax0: Int, ay0: Int, ax1: Int, ay1: Int): Int {
+            val x0 = ax0.coerceIn(0, w); val x1 = ax1.coerceIn(0, w)
+            val y0 = ay0.coerceIn(0, h); val y1 = ay1.coerceIn(0, h)
+            if (x1 <= x0 || y1 <= y0) return 0
+            return (x1 - x0) * (y1 - y0)
         }
     }
 
@@ -455,12 +465,12 @@ class GearRecognizer(private val context: Context) {
         val t = max(2, (s * 3 / REF_SIZE).roundToInt())   // outline thickness
         val b = max(2, (s * 5 / REF_SIZE).roundToInt())   // light bevel just inside
         var total = 0f
-        for ((ox, oy) in OFFSETS.values) {
-            val x = hx + (ox * s / REF_SIZE).roundToInt()
-            val y = hy + (oy * s / REF_SIZE).roundToInt()
-            val (c, ca) = g.count(x - t, y - t, x + s + t, y + s + t)
-            val (d, da) = g.count(x, y, x + s, y + s)
-            val (e, ea) = g.count(x + b, y + b, x + s - b, y + s - b)
+        for (k in OFFSET_X.indices) {
+            val x = hx + (OFFSET_X[k] * s / REF_SIZE).roundToInt()
+            val y = hy + (OFFSET_Y[k] * s / REF_SIZE).roundToInt()
+            val c = g.dark(x - t, y - t, x + s + t, y + s + t); val ca = g.area(x - t, y - t, x + s + t, y + s + t)
+            val d = g.dark(x, y, x + s, y + s); val da = g.area(x, y, x + s, y + s)
+            val e = g.dark(x + b, y + b, x + s - b, y + s - b); val ea = g.area(x + b, y + b, x + s - b, y + s - b)
             val outline = (c - d).toFloat() / max(ca - da, 1)   // should be dark
             val bevel = (d - e).toFloat() / max(da - ea, 1)     // should not be dark
             total += outline - 0.5f * bevel

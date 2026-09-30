@@ -71,6 +71,12 @@ object PanelFinder {
             // Where both edges overlap (something dark beside a line can make it look longer)
             val from = maxOf(top.start, bottom.start)
             val to = minOf(top.start + top.length, bottom.start + bottom.length)
+            // Quick checks before the slower search for side edges (dark scenes give hundreds of rows):
+            // the width can't be more than the overlap (plus a little), nor under 0.8 × the shorter edge
+            val span = to - from
+            if (span < 30) continue
+            if (height > maxAspect * (span + 10)) continue
+            if (height < minAspect * 0.8f * minOf(top.length, bottom.length)) continue
             // Side edges: long black lines that run from the top edge down to the bottom edge
             val sides = cols.filter {
                 it.at in (from - 5)..(to + 5) &&

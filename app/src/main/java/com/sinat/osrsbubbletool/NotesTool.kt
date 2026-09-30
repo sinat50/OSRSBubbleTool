@@ -266,13 +266,20 @@ class NotesTool(private val context: Context) {
 
     private fun load(): MutableList<Note> {
         val text = prefs.getString("notes", null) ?: return mutableListOf()
-        return try {
-            val a = JSONArray(text)
-            MutableList(a.length()) { i ->
+        val a = try { JSONArray(text) } catch (e: Exception) {
+            // unreadable: keep a copy before anything overwrites it, so the notes aren't lost for good
+            prefs.edit().putString("notes_backup_" + System.currentTimeMillis(), text).apply()
+            return mutableListOf()
+        }
+        // each note on its own, so one damaged note doesn't lose the others
+        val list = mutableListOf<Note>()
+        for (i in 0 until a.length()) {
+            try {
                 val o = a.getJSONObject(i)
-                Note(o.getLong("id"), o.optString("title"), o.optString("body"), o.optLong("updated"))
-            }
-        } catch (e: Exception) { mutableListOf() }
+                list.add(Note(o.getLong("id"), o.optString("title"), o.optString("body"), o.optLong("updated")))
+            } catch (e: Exception) { }
+        }
+        return list
     }
 
     // ---------------- Keyboard ----------------

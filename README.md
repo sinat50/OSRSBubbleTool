@@ -23,6 +23,7 @@ Tool windows are two inches wide in landscape. Drag the bar at the top to move a
 
 | Tool | What it does |
 | --- | --- |
+| **WikiSync** | Enter your RuneScape name once and see your quests done, quest points, combat level and total level from [WikiSync](https://oldschool.runescape.wiki/w/RuneScape:WikiSync). The Quest Helper, Hunter Rumours and Teleport Finder read your progress from here and show a green ✓ WikiSync or red ✗ WikiSync tag. Tap the tag to open this tool. |
 | **OSRS Wiki** | The wiki in a window over the game, shrunk to fit. Can also open the game's own wiki links (the wiki button) in the bubble instead of your browser. |
 | **Puzzle Box Solver** | Finds the clue puzzle box on screen by itself, reads the tiles and shows your next moves on top of it, with "Move 3 of 42" above the puzzle. Choose colour-coded boxes or shrinking dots. Follows your moves as you slide tiles, and re-plans if you make a different move. |
 | **Light Box Solver** | Finds the light box by itself, asks you to press each button once to learn what it does, then outlines the buttons that turn every bulb on. Instructions appear right on the light box. |
@@ -34,9 +35,11 @@ Tool windows are two inches wide in landscape. Drag the bar at the top to move a
 | **Timers** | Farming and birdhouse timers. Tap **Planted** after a run and get a notification when it's ready. Covers herbs, trees, fruit trees, hardwoods, allotments, hops, seaweed and more. Growth times follow the game's growth ticks, and timers survive closing the app and restarting the phone. |
 | **GE Prices** | The OSRS Wiki [Real-time Prices](https://prices.runescape.wiki/osrs/) site. |
 | **Quest Helper (Beta)** | Step-by-step guides for 195 quests and miniquests, with the dialogue options to pick, the items for each step and the enemies you'll face. Every quest's requirements are ticked off against your account through [WikiSync](https://oldschool.runescape.wiki/w/RuneScape:WikiSync), including the quests they need in turn. Includes the achievement diaries, and solutions for 50 quest puzzles: drawn maps for the Song of the Elves light puzzles, tap-in solvers for riddles and locks, and trackers for the trial-and-error ones. |
+| **Hunter Rumours** | Pick your tier and guild hunter, then the rumour you're on, to see where the creature lives, the fastest ways there and exactly what to bring. Rumours above your Hunter level are faded. |
+| **Teleport Finder (Beta)** | Type any NPC, monster or place and see the teleports that land closest to it, from about 500 teleports. Distances are real walking routes over the game's walking map, counting walls, doors, ladders, cave entrances, boats and levers, and each result names its key step, like "Then: Climb-down Trapdoor". Location buttons show monster levels, and teleports your quests or levels don't allow yet are faded. |
 | **Calculator** | A basic calculator that understands OSRS shorthand like 1.5m and 250k. |
 | **Notepad** | Write, save and read notes without leaving the game. |
-| **Game Room** | Games for while you wait. **Higher or Lower**: guess whether the next item is worth more or less on the Grand Exchange, with live wiki prices and a best streak. **Loot Simulator**: kill any of 46 bosses or open any tier of clue casket as many times as you like, or until the pet drops, using the wiki's drop rates. **2048**: the classic sliding-tile puzzle, saved after every move. |
+| **Game Room** | Games for while you wait. **2048**: the classic sliding-tile puzzle, saved after every move. **Wing It**: tap to flap a little bird through the gaps between pillars, with a best score. |
 
 ## Battery and privacy
 
@@ -45,7 +48,8 @@ Tool windows are two inches wide in landscape. Drag the bar at the top to move a
 - Timers don't keep anything running. Android wakes the app once when a timer is due.
 - Screenshots are processed on the phone and thrown away. Only pictures you choose to keep, in Inventory Setups or with **Save picture to phone**, are stored.
 - The app has no ads, no analytics and no accounts. The website tools load those sites directly, the same as a browser would.
-- If you choose to enter your RuneScape name in the Quest Helper, it's used to read your public WikiSync data. That's the only personal thing the app ever sends.
+- If you choose to enter your RuneScape name in the WikiSync tool, it's used to read your public WikiSync data. That's the only personal thing the app ever sends.
+- Tools that look things up (like Teleport Finder searches) ask the OSRS Wiki for them directly.
 - Each time you open the app, it checks GitHub for a newer version. The button in the top right says **Up To Date** or **Update Available** and opens the latest release page. Nothing about you is sent.
 
 ## Permissions
@@ -73,16 +77,18 @@ The app only shows information and waits for you to tap. It never reads the game
 
 ## Credits
 
-- Item data and icons from the [OSRS Wiki DPS calculator](https://github.com/weirdgloop/osrs-dps-calc).
-- Solved puzzle pictures, wiki pages and Real-time Prices from the [Old School RuneScape Wiki](https://oldschool.runescape.wiki).
-- Zulrah rotation data and arena layout adapted from the [Zulrah Helper](https://github.com/while-loop/runelite-plugins) RuneLite plugin, © 2020 Anthony Alves and © 2026 Ron Young, used under the BSD 2-Clause License (the full notice is in `ZulrahTool.kt` and on the app's Legal screen).
-- Farming growth times based on [RuneLite](https://github.com/runelite/runelite)'s Time Tracking plugin.
-- Quest guides, requirements, achievement diary tasks and puzzle solutions adapted from the [Quest Helper](https://github.com/Zoinkwiz/quest-helper) RuneLite plugin, © 2020 Zoinkwiz and the Quest Helper contributors, used under the BSD 2-Clause License (the full notice and every contributor are listed on the app's Legal screen). Some puzzle answers come from the OSRS Wiki's quick guides.
+- Item data and icons from the [OSRS Wiki DPS calculator](https://github.com/weirdgloop/osrs-dps-calc)'s repository, licensed under the [GNU GPL v3.0](https://www.gnu.org/licenses/gpl-3.0.html). That list is itself made from the OSRS Wiki.
+- Content from the [Old School RuneScape Wiki](https://oldschool.runescape.wiki), used under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/): solved puzzle pictures and some quest puzzle answers, the Hunters' Rumours lists, travel and equipment, and the Teleport Finder's search suggestions, map positions, monster levels and some teleport destination descriptions. It has been shortened and reformatted, and anything adapted from it is shared under the same licence.
 - Quest progress and levels read with [WikiSync](https://oldschool.runescape.wiki/w/RuneScape:WikiSync) by the OSRS Wiki.
+- Zulrah rotation data and arena layout adapted from the [Zulrah Helper](https://github.com/while-loop/runelite-plugins) RuneLite plugin, © 2020 Anthony Alves and © 2026 Ron Young, used under the BSD 2-Clause License (the full notice is in `ZulrahTool.kt` and on the app's Legal screen).
+- Farming growth times based on [RuneLite](https://github.com/runelite/runelite)'s Time Tracking plugin, and newer teleport destinations and the list of dungeon entrances from RuneLite's world map, © 2016-2017 Adam, © 2018-2019 Abex, © 2018 NotFoxtrot, © 2018 Morgan Lewis and © 2020 Arman S, used under the BSD 2-Clause License.
+- Teleport destinations, the walking map, and the doors, ladders, cave entrances, boats, portals and levers used for walking distances, from the [Shortest Path](https://github.com/Skretzo/shortest-path) RuneLite plugin, © Skretzo and the Shortest Path contributors, used under the BSD 2-Clause License.
+- Quest guides, requirements, achievement diary tasks and puzzle solutions adapted from the [Quest Helper](https://github.com/Zoinkwiz/quest-helper) RuneLite plugin, © 2020 Zoinkwiz and the Quest Helper contributors, used under the BSD 2-Clause License (the full notice and every contributor are listed on the app's Legal screen).
+- 2048 is the app's own version of the game created by Gabriele Cirulli. Wing It is the app's own game.
 - XP calculators by [oldschool.tools](https://oldschool.tools), shooting star data by [07.gg](https://07.gg).
 
 ## Legal
 
 Created using intellectual property belonging to Jagex Limited under the terms of Jagex's Fan Content Policy. This content is not endorsed by or affiliated with Jagex.
 
-Old School RuneScape and RuneScape are trademarks of Jagex Limited.
+Old School RuneScape and RuneScape are trademarks of Jagex Limited. Item, monster and game pictures are © Jagex Limited.

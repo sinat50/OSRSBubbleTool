@@ -41,13 +41,18 @@ class WikiSync(context: Context) {
         get() = prefs.getString("username", "") ?: ""
         set(value) {
             prefs.edit().putString("username", value.trim()).remove("data").remove("fetched").apply()
+            memo = null
         }
 
-    // The last data fetched, if any (kept so it shows straight away, even offline)
+    // The last data fetched, if any (kept so it shows straight away, even offline).
+    // Read once and kept in memory, since the screens ask for it several times per redraw.
+    private var memo: Data? = null
     val cached: Data?
         get() {
+            val fetched = prefs.getLong("fetched", 0)
+            memo?.let { if (it.fetchedAt == fetched) return it }
             val text = prefs.getString("data", null) ?: return null
-            return try { parse(JSONObject(text), prefs.getLong("fetched", 0)) } catch (e: Exception) { null }
+            return (try { parse(JSONObject(text), fetched) } catch (e: Exception) { null }).also { memo = it }
         }
 
     val needsRefresh: Boolean
@@ -60,6 +65,7 @@ class WikiSync(context: Context) {
         loading = true
         Thread {
             var data: Data? = null
+            var body200: String? = null
             var error: String? = null
             for (attempt in 1..2) {   // WikiSync sometimes turns requests away when busy; try twice
                 try {
@@ -74,9 +80,8 @@ class WikiSync(context: Context) {
                         val body = (if (code < 400) connection.inputStream else connection.errorStream)
                             ?.bufferedReader()?.use { it.readText() } ?: ""
                         if (code == 200) {
-                            val now = System.currentTimeMillis()
-                            data = parse(JSONObject(body), now)
-                            prefs.edit().putString("data", body).putLong("fetched", now).apply()
+                            data = parse(JSONObject(body), System.currentTimeMillis())
+                            body200 = body
                             error = null
                             break
                         }
@@ -93,6 +98,13 @@ class WikiSync(context: Context) {
             }
             handler.post {
                 loading = false
+                // the name was changed while this was loading: throw it away and fetch the new player
+                if (username != name) { refresh(onDone); return@post }
+                val d = data
+                if (d != null && body200 != null) {
+                    prefs.edit().putString("data", body200).putLong("fetched", d.fetchedAt).apply()
+                    memo = d
+                }
                 onDone(data, error)
             }
         }.start()

@@ -32,7 +32,6 @@ class ScreenCapturer(
     private var reader: ImageReader? = null
     private var width = 0
     private var height = 0
-    private var lastFrame: Bitmap? = null
     private var paused = false
 
     // When no tool has looked at the screen for a few seconds, the capture is paused: Android
@@ -75,7 +74,7 @@ class ScreenCapturer(
             "OSRS Bubble Tool capture", w, h, dpi,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
             r.surface, null, handler
-        )
+        ) ?: throw IllegalStateException("couldn't start screen capture")
         paused = false
         touch()
     }
@@ -109,7 +108,6 @@ class ScreenCapturer(
             val old = try { r.acquireNextImage() } catch (e: Exception) { null } ?: break
             old.close()
         }
-        lastFrame = null
     }
 
     // Makes the capture match the screen again (after the phone turns), without starting over
@@ -130,7 +128,6 @@ class ScreenCapturer(
         reader = r
         width = w
         height = h
-        lastFrame = null
         old?.close()
     }
 
@@ -149,11 +146,18 @@ class ScreenCapturer(
             val rowStride = plane.rowStride
             val paddedWidth = rowStride / pixelStride   // rows can have extra padding at the end
             val padded = Bitmap.createBitmap(paddedWidth, image.height, Bitmap.Config.ARGB_8888)
-            padded.copyPixelsFromBuffer(plane.buffer)
-            val bitmap = if (paddedWidth == image.width) padded
+            val buffer = plane.buffer
+            if (buffer.remaining() < rowStride * image.height) {
+                // some phones leave out the padding after the last row: pad it so the copy fits
+                val full = java.nio.ByteBuffer.allocateDirect(rowStride * image.height)
+                full.put(buffer)
+                full.rewind()
+                padded.copyPixelsFromBuffer(full)
+            } else padded.copyPixelsFromBuffer(buffer)
+            return if (paddedWidth == image.width) padded
                 else Bitmap.createBitmap(padded, 0, 0, image.width, image.height).also { padded.recycle() }
-            lastFrame = bitmap
-            return bitmap
+        } catch (e: RuntimeException) {
+            return null   // an odd picture from the phone: skip it rather than crash
         } finally {
             image.close()
         }
@@ -212,7 +216,6 @@ class ScreenCapturer(
         reader?.close()
         reader = null
         projection = null
-        lastFrame = null
         width = 0
         height = 0
     }

@@ -234,24 +234,31 @@ class DpsTool(
                 .filter { picksPrefs.contains(it) }
                 .associateWith { picksPrefs.getInt(it, 0) }
             Thread {
-                // Find the side panel by itself; the area set by hand is only a backup
-                val area = PanelFinder.find(LightBoxReader.Pixels(shot))
-                    ?: equipmentArea.savedArea(shot.width, shot.height)
-                val r = area?.let { Rect(it) }
-                if (r == null || !r.intersect(0, 0, shot.width, shot.height) || r.width() < 40 || r.height() < 60) {
+                try {
+                    // Find the side panel by itself; the area set by hand is only a backup
+                    val area = PanelFinder.find(LightBoxReader.Pixels(shot))
+                        ?: equipmentArea.savedArea(shot.width, shot.height)
+                    val r = area?.let { Rect(it) }
+                    if (r == null || !r.intersect(0, 0, shot.width, shot.height) || r.width() < 40 || r.height() < 60) {
+                        shot.recycle()
+                        handler.post {
+                            busy = false
+                            showStatus("Couldn't find your equipment tab. Make sure it's open and not covered, " +
+                                "then try again. If it still isn't found, use Set area.")
+                        }
+                        return@Thread
+                    }
+                    val tab = Bitmap.createBitmap(shot, r.left, r.top, r.width(), r.height())
+                    if (tab !== shot) shot.recycle()   // the full screenshot isn't needed any more
+                    val result = try { recognizer.recognize(tab, preferred) } catch (e: Exception) { null }
                     handler.post {
                         busy = false
-                        showStatus("Couldn't find your equipment tab. Make sure it's open and not covered, " +
-                            "then try again. If it still isn't found, use Set area.")
+                        lastCapture = tab
+                        showRecognition(result, tab)
                     }
-                    return@Thread
-                }
-                val tab = Bitmap.createBitmap(shot, r.left, r.top, r.width(), r.height())
-                val result = try { recognizer.recognize(tab, preferred) } catch (e: Exception) { null }
-                handler.post {
-                    busy = false
-                    lastCapture = tab
-                    showRecognition(result, tab)
+                } catch (t: Throwable) {
+                    // e.g. out of memory on an older phone: say so, and let Import be tapped again
+                    handler.post { busy = false; showStatus("Couldn't read your gear. Try again.") }
                 }
             }.start()
         }, CAPTURE_DELAY_MS)
@@ -396,6 +403,7 @@ class DpsTool(
     private fun closeResults() {
         resultsPanel?.visibility = View.GONE
         resultsPanel?.removeAllViews()
+        lastCapture = null   // only "Save picture" (on the panel just closed) used it
         showStatus(null)
     }
 

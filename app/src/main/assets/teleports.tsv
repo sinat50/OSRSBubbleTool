@@ -1,0 +1,502 @@
+# Teleport destinations, from the Shortest Path RuneLite plugin (github.com/Skretzo/shortest-path), BSD 2-Clause.
+# Plus newer teleports from RuneLite's world map (github.com/runelite/runelite), BSD 2-Clause.
+# name	category	x	y	plane	requirements	how
+Ardougne cloak: Kandarin Monastery	Item	2607	3221	0		
+Ardougne cloak: Ardougne Farm	Item	2665	3374	0		
+Karamja gloves: Gem Mine	Item	2840	9387	0		
+Karamja gloves 4: Slayer Master	Item	2869	2982	1		
+Desert amulet 3: Teleport	Item	3420	2917	0		
+Desert amulet 4: Nardah	Item	3426	2927	0		
+Desert amulet 4: Kalphite cave	Item	3322	3122	0		
+Morytania legs: Slime Pit	Item	3683	9888	0		
+Morytania legs: Burgh de Rott	Item	3482	3230	0		
+Fremennik sea boots: Teleport	Item	2643	3675	0		
+Kandarin headgear 3: Teleport	Item	2730	3420	0		
+Kandarin headgear 4: Teleport	Item	2730	3420	0		
+Wilderness sword 3: Teleport	Item	3377	3890	0		
+Wilderness sword 4: Teleport	Item	3377	3890	0		
+Western banner 3: Teleport	Item	2332	3681	0		
+Western banner 4: Teleport	Item	2332	3681	0		
+Explorer's ring 2: Teleport	Item	3052	3291	0		
+Explorer's ring: Teleport	Item	3052	3291	0		
+Rada's blessing: Kourend Woodland	Item	1554	3461	0		
+Rada's blessing: Mount Karuulm	Item	1310	3796	0		
+Games necklace: Barbarian Outpost	Item	2520	3571	0		
+Games necklace: Burthorpe	Item	2899	3553	0		
+Games necklace: Corporeal Beast	Item	2965	4382	2		
+Games necklace: Tears of Guthix	Item	3245	9500	2		
+Games necklace: Wintertodt	Item	1631	3940	0		
+Ring of dueling: Emir's Arena	Item	3315	3235	0		
+Ring of dueling: Castle Wars	Item	2440	3090	0		
+Ring of dueling: Ferox Enclave	Item	3151	3635	0		
+Ring of dueling: Fortis Colosseum	Item	1793	3107	0		
+Combat bracelet: Warriors' Guild	Item	2882	3547	0		
+Combat bracelet: Champions' Guild	Item	3192	3368	0		
+Combat bracelet: Monastery	Item	3052	3490	0		
+Combat bracelet: Ranging Guild	Item	2653	3439	0		
+Skills necklace: Fishing Guild	Item	2611	3390	0		
+Skills necklace: Mining Guild	Item	3049	9763	0		
+Skills necklace: Crafting Guild	Item	2933	3295	0		
+Skills necklace: Cooking Guild	Item	3144	3438	0		
+Skills necklace: Woodcutting Guild	Item	1662	3505	0		
+Skills necklace: Farming Guild	Item	1248	3719	0		
+Amulet of glory: Edgeville	Item	3087	3496	0		
+Amulet of glory: Karamja	Item	2918	3176	0		
+Amulet of glory: Draynor Village	Item	3105	3251	0		
+Amulet of glory: Al Kharid	Item	3293	3163	0		
+Ring of wealth: Miscellania	Item	2534	3862	0	Throne of Miscellania	
+Ring of wealth: Grand Exchange	Item	3163	3478	0		
+Ring of wealth: Falador Park	Item	2995	3375	0		
+Ring of wealth: Dondakan	Item	2824	10168	0	Between a Rock...	
+Slayer ring: Stronghold	Item	2431	3422	0		
+Slayer ring: Slayer Tower	Item	3421	3537	0	Priest in Peril	
+Slayer ring: Fremennik	Item	2802	9999	0		
+Slayer ring: Tarn's Lair	Item	3185	4601	0	Haunted Mine	
+Slayer ring: Dark Beasts	Item	2028	4636	0	Mourning's End Part II	
+Digsite pendant: Digsite	Item	3341	3445	0		
+Digsite pendant: Fossil Island	Item	3763	3869	1	Bone Voyage	
+Digsite pendant: Lithkren	Item	3549	10456	0	Dragon Slayer II	
+Necklace of passage: Wizards' Tower	Item	3114	3179	0		
+Necklace of passage: The Outpost	Item	2430	3349	0		
+Necklace of passage: Eagle's Eyrie	Item	3405	3158	0		
+Burning amulet: Chaos Temple	Item	3234	3634	0		
+Burning amulet: Bandit Camp	Item	3038	3651	0		
+Burning amulet: Lava Maze	Item	3028	3842	0		
+Varrock tablet	Item	3213	3424	0		
+Varrock tablet: GE	Item	3165	3479	0		
+Falador tablet	Item	2964	3378	0		
+Lumbridge tablet	Item	3221	3218	0		
+Camelot tablet	Item	2757	3479	0		
+Ardougne tablet	Item	2662	3305	0	Plague City	
+Watchtower tablet	Item	2546	3112	0	Watchtower	
+Watchtower tablet: Yanille	Item	2584	3097	0	Watchtower	
+Rimmington tablet	Item	2953	3224	0		
+Taverley tablet	Item	2893	3465	0		
+Pollnivneach tablet	Item	3340	3004	0		
+Rellekka tablet	Item	2670	3631	0		
+Brimhaven tablet	Item	2757	3179	0		
+Yanille tablet	Item	2544	3096	0		
+Trollheim tablet	Item	2890	3679	0		
+Hosidius tablet	Item	1743	3517	0		
+Prifddinas tablet	Item	3239	6077	0		
+Paddewwa tablet	Item	3097	9881	0	Desert Treasure I	
+Senntisten tablet	Item	3320	3337	0	Desert Treasure I	
+Kharyrll tablet	Item	3494	3473	0	Desert Treasure I	
+Lassar tablet	Item	3004	3470	0	Desert Treasure I	
+Dareeyak tablet	Item	2968	3696	0	Desert Treasure I	
+Carrallanger tablet	Item	3158	3666	0	Desert Treasure I	
+Annakarl tablet	Item	3288	3888	0	Desert Treasure I	
+Ghorrock tablet	Item	2976	3875	0	Desert Treasure I	
+Moonclan tablet	Item	2113	3915	0	Lunar Diplomacy	
+Ourania tablet	Item	2468	3246	0	Lunar Diplomacy	
+Waterbirth tablet	Item	2546	3755	0		
+Barbarian tablet	Item	2543	3569	0		
+Khazard tablet	Item	2636	3167	0		
+Fishing guild tablet	Item	2613	3391	0		
+Catherby tablet	Item	2801	3449	0		
+Ice plateau tablet	Item	2975	3938	0		
+Arceuus Library tablet	Item	1632	3837	0		
+Draynor Manor tablet	Item	3109	3351	0		
+Battlefront tablet	Item	1347	3740	0		
+Mind Altar tablet	Item	2979	3510	0		
+Salve Graveyard tablet	Item	3433	3461	0	Priest in Peril	
+Fenkenstrain's Castle tablet	Item	3548	3529	0	Priest in Peril	
+West Ardougne tablet	Item	2500	3290	0	Biohazard	
+Harmony Island tablet	Item	3797	2866	0	The Great Brain Robbery	
+Cemetery tablet	Item	2981	3764	0		
+Barrows tablet	Item	3564	3315	0	Priest in Peril	
+Ape Atoll tablet	Item	2771	9102	0	Monkey Madness I	
+Volcanic Mine tablet	Item	3811	3813	0		
+Wilderness Crabs tablet	Item	3352	3782	0		
+Nardah teleport	Item	3419	2917	0		
+Master scroll book: Nardah teleport	Item	3419	2917	0		
+Digsite teleport	Item	3325	3412	0		
+Master scroll book: Digsite teleport	Item	3325	3412	0		
+Feldip hills teleport	Item	2541	2925	0		
+Master scroll book: Feldip hills teleport	Item	2541	2925	0		
+Lunar isle teleport	Item	2094	3913	0	Lunar Diplomacy	
+Master scroll book: Lunar isle teleport	Item	2094	3913	0	Lunar Diplomacy	
+Mort'ton teleport	Item	3488	3288	0	Priest in Peril	
+Master scroll book: Mort'ton teleport	Item	3488	3288	0	Priest in Peril	
+Pest control teleport	Item	2658	2659	0		
+Master scroll book: Pest control teleport	Item	2658	2659	0		
+Piscatoris teleport	Item	2339	3649	0		
+Master scroll book: Piscatoris teleport	Item	2339	3649	0		
+Tai bwo wannai teleport	Item	2789	3066	0	Tai Bwo Wannai Trio	
+Master scroll book: Tai bwo wannai teleport	Item	2789	3066	0	Tai Bwo Wannai Trio	
+Iorwerth camp teleport	Item	2194	3258	0	Regicide	
+Master scroll book: Iorwerth camp teleport	Item	2194	3258	0	Regicide	
+Mos le'harmless teleport	Item	3701	2996	0	Cabin Fever	
+Master scroll book: Mos le'harmless teleport	Item	3701	2996	0	Cabin Fever	
+Lumberyard teleport	Item	3302	3487	0		
+Master scroll book: Lumberyard teleport	Item	3302	3487	0		
+Zul-andra teleport	Item	2196	3056	0	Regicide	
+Master scroll book: Zul-andra teleport	Item	2196	3056	0	Regicide	
+Key master teleport	Item	1310	1250	0		
+Master scroll book: Key master teleport	Item	1310	1250	0		
+Revenant cave teleport	Item	3128	3832	0		
+Master scroll book: Revenant cave teleport	Item	3128	3832	0		
+Watson teleport	Item	1645	3580	0		
+Master scroll book: Watson teleport	Item	1645	3580	0		
+Crafting cape: Teleport	Item	2931	3286	0	99 Crafting	
+Construction cape: Home	Item	2952	3224	0		
+Construction cape: Rimmington	Item	2952	3224	0	99 Construction	
+Construction cape: Taverley	Item	2892	3465	0	99 Construction	
+Construction cape: Pollnivneach	Item	3339	3001	0	99 Construction	
+Construction cape: Hosidius	Item	1743	3517	0	99 Construction	
+Construction cape: Rellekka	Item	2669	3629	0	99 Construction	
+Construction cape: Brimhaven	Item	2756	3176	0	99 Construction	
+Construction cape: Yanille	Item	2545	3097	0	99 Construction	
+Construction cape: Prifddinas	Item	3239	6077	0	99 Construction	
+Fishing cape: Fishing Guild	Item	2604	3401	0	99 Fishing	
+Fishing cape: Otto's Grotto	Item	2504	3484	0	99 Fishing	
+Farming cape: Teleport	Item	1248	3725	0	99 Farming	
+Hunter cape: Feldip Hills	Item	2556	2917	0	99 Hunter	
+Hunter cape: Black chinchompa	Item	3144	3772	0	99 Hunter	
+Hunter cape: Hunter Guild	Item	1558	3046	0	99 Hunter	
+Strength cape: Teleport	Item	2865	3546	0	99 Strength	
+Max cape: POH Portals: Rimmington	Item	2952	3224	0	Max Total	
+Max cape: POH Portals: Taverley	Item	2892	3465	0	Max Total	
+Max cape: POH Portals: Pollnivneach	Item	3339	3001	0	Max Total	
+Max cape: POH Portals: Hosidius	Item	1743	3517	0	Max Total	
+Max cape: POH Portals: Rellekka	Item	2669	3629	0	Max Total	
+Max cape: POH Portals: Brimhaven	Item	2756	3176	0	Max Total	
+Max cape: POH Portals: Yanille	Item	2545	3097	0	Max Total	
+Max cape: POH Portals: Prifddinas	Item	3239	6077	0	Max Total	
+Max cape: Warriors' Guild	Item	2865	3546	0	Max Total	
+Max cape: Fishing Teleports: Fishing Guild	Item	2604	3401	0	Max Total	
+Max cape: Fishing Teleports: Otto's Grotto	Item	2504	3484	0	Max Total	
+Max cape: Crafting Guild	Item	2931	3286	0	Max Total	
+Max cape: Other Teleports: Feldip Hills	Item	2556	2917	0	Max Total	
+Max cape: Other Teleports: Black chinchompa	Item	3144	3772	0	Max Total	
+Max cape: Other Teleports: Hunter Guild	Item	1558	3046	0	Max Total	
+Max cape: Other Teleports: Farming Guild	Item	1248	3725	0	Max Total	
+Max cape: Other Teleports: The Pandemonium	Item	3048	2972	0	Max Total	
+Quest point cape: Teleport	Item	2729	3348	0	Max Quest	
+Music cape: Teleport	Item	2689	3547	0		
+Achievement diary cape: 1. Two-pints	Item	2574	3323	0		
+Achievement diary cape: 2. Jarr	Item	3302	3122	0		
+Achievement diary cape: 3. Sir Rebral	Item	2689	3547	0		
+Achievement diary cape: 4. Thorodin	Item	2689	3547	0		
+Achievement diary cape: 5. Flax keeper	Item	2744	3443	0		
+Achievement diary cape: 6. Pirate Jackie the Fruit	Item	2808	3192	0		
+Achievement diary cape: 7. Kaleb Paramaya	Item	2862	2997	0		
+Achievement diary cape: 8. Jungle forester	Item	2795	2945	0		
+Achievement diary cape: 9. TzHaar-Mej	Item	2455	5133	0		
+Achievement diary cape: A. Elise	Item	1648	3665	0		
+Achievement diary cape: B. Hatius Cosaintus	Item	3234	3214	0		
+Achievement diary cape: C. Le-sabrè	Item	3465	3478	0		
+Achievement diary cape: D. Toby	Item	3225	3415	0		
+Achievement diary cape: E. Lesser Fanatic	Item	3121	3516	0		
+Achievement diary cape: F. Elder Gnome child	Item	2467	3459	0		
+Achievement diary cape: G. Twiggy O'Korn	Item	3096	3227	0		
+Ectophial	Item	3660	3522	0		
+Teleport crystal: Lletya	Item	2330	3171	0		
+Teleport crystal: Prifddinas	Item	3264	6066	0	Song of the Elves	
+Eternal teleport crystal: Lletya	Item	2330	3171	0		
+Eternal teleport crystal: Prifddinas	Item	3264	6066	0	Song of the Elves	
+Royal seed pod	Item	2465	3495	0		
+Grand seed pod	Item	2465	3495	0		
+Enchanted lyre: Rellekka	Item	2662	3644	0		
+Enchanted lyre: Waterbirth Island	Item	2551	3755	0		
+Enchanted lyre: Jatizso	Item	2409	3809	0		
+Enchanted lyre: Neitiznot	Item	2336	3802	0		
+Enchanted lyre (i): Rellekka	Item	2662	3644	0		
+Enchanted lyre (i): Waterbirth Island	Item	2551	3755	0		
+Enchanted lyre (i): Jatizso	Item	2409	3809	0		
+Enchanted lyre (i): Neitiznot	Item	2336	3802	0		
+Camulet: Enakhra's Temple	Item	3105	9315	0		
+Camulet: Bandit Camp Quarry	Item	3191	2924	0		
+Kharedst's memoirs: Lunch by the Lancalliums	Item	1714	3611	0		
+Kharedst's memoirs: The Fisher's Flute	Item	1803	3748	0		
+Kharedst's memoirs: History and Hearsay	Item	1478	3576	0		
+Kharedst's memoirs: Jewelry of Jubilation	Item	1544	3761	0		
+Kharedst's memoirs: A Dark Disposition	Item	1681	3746	0		
+Book of the dead: Lunch by the Lancalliums	Item	1714	3611	0		
+Book of the dead: The Fisher's Flute	Item	1803	3748	0		
+Book of the dead: History and Hearsay	Item	1478	3576	0		
+Book of the dead: Jewelry of Jubilation	Item	1544	3761	0		
+Book of the dead: A Dark Disposition	Item	1681	3746	0		
+Drakan's medallion: Ver Sinhaza	Item	3649	3230	0		
+Drakan's medallion: Darkmeyer	Item	3592	3337	0	Sins of the Father	
+Drakan's medallion: Slepe	Item	3808	9700	1		
+Mythical cape	Item	2457	2850	0		
+Stony basalt	Item	2845	3694	0		
+Stony basalt: Roof	Item	2837	3695	0	73 Agility	
+Icy basalt	Item	2846	3938	0		
+Pharaoh's sceptre: Jalsavrah	Item	1934	4428	3		
+Pharaoh's sceptre: Jaleustrophos	Item	3341	2827	0		
+Pharaoh's sceptre: Jaldraocht	Item	3232	2897	0		
+Pharaoh's sceptre: Jaltevas	Item	3313	2718	0		
+Skull sceptre	Item	3081	3421	0		
+Xeric's talisman: 1. Xeric's Lookout	Item	1579	3530	0		
+Xeric's talisman: 2. Xeric's Glade	Item	1752	3566	0		
+Xeric's talisman: 3. Xeric's Inferno	Item	1504	3815	0		
+Xeric's talisman: 4. Xeric's Heart	Item	1644	3673	0		
+Xeric's talisman: 5. Xeric's Honour	Item	1254	3560	0		
+Chronicle	Item	3200	3355	0		
+Amulet of the eye	Item	3615	9461	0		
+Ring of the elements: Air	Item	2981	3276	0		
+Ring of the elements: Water	Item	3170	3155	0		
+Ring of the elements: Earth	Item	3288	3468	0		
+Ring of the elements: Fire	Item	3314	3279	0		
+Hallowed crystal shard	Item	2400	5982	0		
+Ring of shadows: Ancient Vault	Item	3296	6436	0		
+Ring of shadows: Ghorrock Dungeon	Item	2912	10336	0		
+Ring of shadows: The Scar	Item	2019	6434	0		
+Ring of shadows: Lassar Undercity	Item	2588	6435	0		
+Ring of shadows: The Stranglewood	Item	1175	3424	0		
+Pendant of ates: 1. The Darkfrost	Item	1491	3283	0		
+Pendant of ates: 2. Twilight Temple	Item	1668	3223	0		
+Pendant of ates: 3. Ralos' Rise	Item	1459	3138	0		
+Pendant of ates: 4. North Aldarin	Item	1426	2995	0		
+Pendant of ates: 5. Kastori	Item	1367	3086	0		
+Pendant of ates: 6. Nemus Retreat	Item	1365	3276	0		
+Giantsoul amulet: 1. Bryophyta	Item	3174	9898	0		
+Giantsoul amulet: 2. Obor	Item	3096	9833	0		
+Giantsoul amulet: 3. Branda and Eldric	Item	2952	9574	0		
+Sailors' amulet: The Pandemonium	Item	3058	2975	0		
+Sailors' amulet: Port Roberts	Item	1889	3292	0		
+Sailors' amulet: Red Rock	Item	2797	2521	0		
+Sailors' amulet: Deepfin Point	Item	1943	2757	0		
+Cowbell amulet	Item	3259	3277	0		
+Varrock Teleport	Spell	3213	3424	0	25 Magic	
+Varrock Teleport: Grand Exchange	Spell	3165	3479	0	25 Magic	
+Lumbridge Teleport	Spell	3221	3218	0	31 Magic	
+Falador Teleport	Spell	2964	3378	0	37 Magic	
+Camelot Teleport	Spell	2757	3479	0	45 Magic	
+Camelot Teleport: Seers'	Spell	2726	3487	0	45 Magic	
+Kourend Castle Teleport	Spell	1641	3673	0	48 Magic; Client of Kourend	
+Ardougne Teleport	Spell	2662	3305	0	51 Magic; Plague City	
+Civitas illa Fortis Teleport	Spell	1681	3136	0	54 Magic; Twilight's Promise	
+Watchtower Teleport	Spell	2546	3112	0	58 Magic; Watchtower	
+Watchtower Teleport: Yanille	Spell	2584	3097	0	58 Magic; Watchtower	
+Trollheim Teleport	Spell	2890	3679	0	61 Magic; Eadgar's Ruse	
+Ape Atoll Teleport	Spell	2797	2798	1	64 Magic; Recipe for Disaster - King Awowogei	
+Paddewwa Teleport	Spell	3097	9881	0	54 Magic; Desert Treasure I	
+Senntisten Teleport	Spell	3320	3337	0	60 Magic; Desert Treasure I	
+Kharyrll Teleport	Spell	3494	3473	0	66 Magic; Desert Treasure I	
+Lassar Teleport	Spell	3004	3470	0	72 Magic; Desert Treasure I	
+Dareeyak Teleport	Spell	2968	3696	0	78 Magic; Desert Treasure I	
+Carrallanger Teleport	Spell	3158	3666	0	84 Magic; Desert Treasure I	
+Annakarl Teleport	Spell	3288	3888	0	90 Magic; Desert Treasure I	
+Ghorrock Teleport	Spell	2976	3875	0	96 Magic; Desert Treasure I	
+Moonclan Teleport	Spell	2113	3915	0	69 Magic; Lunar Diplomacy	
+Ourania Teleport	Spell	2468	3246	0	71 Magic; Lunar Diplomacy	
+Waterbirth Teleport	Spell	2546	3755	0	72 Magic; Lunar Diplomacy	
+Barbarian Teleport	Spell	2543	3569	0	75 Magic; Lunar Diplomacy	
+Khazard Teleport	Spell	2636	3167	0	78 Magic; Lunar Diplomacy	
+Fishing Guild Teleport	Spell	2613	3391	0	85 Magic; Lunar Diplomacy	
+Catherby Teleport	Spell	2801	3449	0	87 Magic; Lunar Diplomacy	
+Ice Plateau Teleport	Spell	2975	3938	0	89 Magic; Lunar Diplomacy	
+Arceuus Library Teleport	Spell	1632	3837	0	6 Magic	
+Draynor Manor Teleport	Spell	3109	3351	0	17 Magic	
+Battlefront Teleport	Spell	1347	3740	0	23 Magic	
+Mind Altar Teleport	Spell	2979	3510	0	28 Magic	
+Salve Graveyard Teleport	Spell	3433	3459	0	40 Magic; Priest in Peril	
+Fenkenstrain's Castle Teleport	Spell	3548	3529	0	48 Magic; Priest in Peril	
+West Ardougne Teleport	Spell	2500	3290	0	61 Magic; Biohazard	
+Harmony Island Teleport	Spell	3797	2866	0	65 Magic; The Great Brain Robbery	
+Cemetery Teleport	Spell	2981	3762	0	71 Magic	
+Barrows Teleport	Spell	3564	3315	0	83 Magic	
+Lumbridge Home Teleport	Home teleport	3221	3218	0		
+Edgeville Home Teleport	Home teleport	3087	3504	0	Desert Treasure I	
+Lunar Home Teleport	Home teleport	2113	3915	0	Lunar Diplomacy	
+Arceuus Home Teleport	Home teleport	1700	3882	0		
+Barbarian Assault Minigame Teleport	Minigame teleport	2531	3569	0		Grouping (minigame) teleport
+Blast Furnace Minigame Teleport	Minigame teleport	2934	10184	0	The Giant Dwarf	Grouping (minigame) teleport
+Burthorpe Games Room Minigame Teleport	Minigame teleport	2899	3553	0		Grouping (minigame) teleport
+Castle Wars Minigame Teleport	Minigame teleport	2442	3093	0		Grouping (minigame) teleport
+Clan Wars Minigame Teleport	Minigame teleport	3150	3635	0		Grouping (minigame) teleport
+Fishing Trawler Minigame Teleport	Minigame teleport	2658	3157	0	15 Fishing	Grouping (minigame) teleport
+Giant's Foundry Minigame Teleport	Minigame teleport	3361	3149	0		Grouping (minigame) teleport
+Guardians of the Rift Minigame Teleport	Minigame teleport	3614	9477	0	Temple of the Eye	Grouping (minigame) teleport
+Last Man Standing Minigame Teleport	Minigame teleport	3150	3635	0		Grouping (minigame) teleport
+Mage Training Arena Minigame Teleport	Minigame teleport	3363	3295	0		Grouping (minigame) teleport
+Nightmare Zone Minigame Teleport	Minigame teleport	2609	3114	0		Grouping (minigame) teleport
+Pest Control Minigame Teleport	Minigame teleport	2658	2663	0	40 Combat	Grouping (minigame) teleport
+Rat Pits Minigame Teleport: 1. Ardougne	Minigame teleport	2561	3319	0	Ratcatchers	Grouping (minigame) teleport
+Rat Pits Minigame Teleport: 2. Varrock	Minigame teleport	3262	3405	0	Ratcatchers	Grouping (minigame) teleport
+Rat Pits Minigame Teleport: 3. Keldagrim	Minigame teleport	2914	10193	0	Ratcatchers	Grouping (minigame) teleport
+Rat Pits Minigame Teleport: 4. Port Sarim	Minigame teleport	3018	3231	0	Ratcatchers	Grouping (minigame) teleport
+Shades of Mort'ton Minigame Teleport	Minigame teleport	3506	3304	0	Shades of Mort'ton	Grouping (minigame) teleport
+Soul Wars Minigame Teleport	Minigame teleport	2018	5929	0		Grouping (minigame) teleport
+Tithe Farm Minigame Teleport	Minigame teleport	1792	3501	0	34 Farming	Grouping (minigame) teleport
+Trouble Brewing Minigame Teleport	Minigame teleport	3801	3015	0	40 Cooking; Cabin Fever	Grouping (minigame) teleport
+TzHaar Fight Pit Minigame Teleport	Minigame teleport	2399	5177	0		Grouping (minigame) teleport
+Quetzal whistle: Aldarin	Item	1389	2901	0	Twilight's Promise	
+Quetzal whistle: Auburnvale	Item	1411	3361	0	Twilight's Promise	
+Quetzal whistle: Civitas illa Fortis	Item	1697	3140	0	Twilight's Promise	
+Quetzal whistle: Hunter Guild	Item	1585	3053	0	Twilight's Promise	
+Quetzal whistle: Quetzacalli Gorge	Item	1510	3222	0	Twilight's Promise	
+Quetzal whistle: Sunset Coast	Item	1548	2995	0	Twilight's Promise	
+Quetzal whistle: Tal Teklan	Item	1226	3091	0	Twilight's Promise	
+Quetzal whistle: The Teomat	Item	1437	3171	0	Twilight's Promise	
+Quetzal whistle: Fortis Colosseum	Item	1779	3111	0	Twilight's Promise	
+Quetzal whistle: Kastori	Item	1344	3022	0	Twilight's Promise	
+Quetzal whistle: Outer Fortis	Item	1700	3037	0	Twilight's Promise	
+Quetzal whistle: Colossal Wyrm Remains	Item	1670	2933	0	Twilight's Promise	
+Quetzal whistle: Cam Torum	Item	1446	3108	0	Twilight's Promise	
+Quetzal whistle: Salvager Overlook	Item	1613	3300	0	Twilight's Promise	
+Fairy ring: Zanaris	Fairy ring	2412	4434	0		From any fairy ring
+Fairy ring AIQ	Fairy ring	2996	3114	0		From any fairy ring
+Fairy ring AIR	Fairy ring	2700	3247	0		From any fairy ring
+Fairy ring AIS	Fairy ring	1429	3324	0		From any fairy ring
+Fairy ring AJP	Fairy ring	1651	3010	0	Children of the Sun	From any fairy ring
+Fairy ring AJQ	Fairy ring	2735	5221	0	Death to the Dorgeshuun	From any fairy ring
+Fairy ring AJR	Fairy ring	2780	3613	0		From any fairy ring
+Fairy ring AJS	Fairy ring	2500	3896	0		From any fairy ring
+Fairy ring AKP	Fairy ring	3284	2706	0		From any fairy ring
+Fairy ring AKQ	Fairy ring	2319	3619	0		From any fairy ring
+Fairy ring AKR	Fairy ring	1826	3540	0		From any fairy ring
+Fairy ring AKS	Fairy ring	2571	2956	0		From any fairy ring
+Fairy ring ALP	Fairy ring	2503	3636	0		From any fairy ring
+Fairy ring ALQ	Fairy ring	3597	3495	0		From any fairy ring
+Fairy ring ALR	Fairy ring	3059	4875	0		From any fairy ring
+Fairy ring ALS	Fairy ring	2644	3495	0		From any fairy ring
+Fairy ring BIP	Fairy ring	3410	3324	0		From any fairy ring
+Fairy ring BIQ	Fairy ring	3251	3095	0		From any fairy ring
+Fairy ring BIS	Fairy ring	2635	3266	0		From any fairy ring
+Fairy ring BJP	Fairy ring	2264	2976	0		From any fairy ring
+Fairy ring BJR	Fairy ring	2650	4730	0	Holy Grail	From any fairy ring
+Fairy ring BJS	Fairy ring	2150	3070	0	Regicide	From any fairy ring
+Fairy ring BKP	Fairy ring	2385	3035	0		From any fairy ring
+Fairy ring BKQ	Fairy ring	3041	4532	0		From any fairy ring
+Fairy ring BKR	Fairy ring	3469	3431	0		From any fairy ring
+Fairy ring BKS	Fairy ring	2412	4434	0		From any fairy ring
+Fairy ring BLP	Fairy ring	2437	5126	0		From any fairy ring
+Fairy ring BLQ	Fairy ring	3572	4372	0		From any fairy ring
+Fairy ring BLR	Fairy ring	2740	3351	0		From any fairy ring
+Fairy ring BLS	Fairy ring	1295	3493	0		From any fairy ring
+Fairy ring CIP	Fairy ring	2513	3884	0	The Fremennik Trials	From any fairy ring
+Fairy ring CIQ	Fairy ring	2528	3127	0		From any fairy ring
+Fairy ring CIR	Fairy ring	1302	3762	0		From any fairy ring
+Fairy ring CIS	Fairy ring	1639	3868	0		From any fairy ring
+Fairy ring CJQ	Fairy ring	3178	2447	0	Troubled Tortugans	From any fairy ring
+Fairy ring CJR	Fairy ring	2705	3576	0		From any fairy ring
+Fairy ring CKP	Fairy ring	2075	4848	0		From any fairy ring
+Fairy ring CKQ	Fairy ring	1359	2941	0	Children of the Sun	From any fairy ring
+Fairy ring CKR	Fairy ring	2801	3003	0		From any fairy ring
+Fairy ring CKS	Fairy ring	3447	3470	0		From any fairy ring
+Fairy ring CLP	Fairy ring	3082	3206	0		From any fairy ring
+Fairy ring CLR	Fairy ring	2740	2738	0	Monkey Madness I	From any fairy ring
+Fairy ring CLS	Fairy ring	2682	3081	0		From any fairy ring
+Fairy ring DIP	Fairy ring	3037	4763	0		From any fairy ring
+Fairy ring DIR	Fairy ring	3038	5348	0		From any fairy ring
+Fairy ring DIS	Fairy ring	3108	3149	0		From any fairy ring
+Fairy ring DJP	Fairy ring	2658	3230	0		From any fairy ring
+Fairy ring DJR	Fairy ring	1455	3658	0		From any fairy ring
+Fairy ring DKP	Fairy ring	2900	3111	0		From any fairy ring
+Fairy ring DKR	Fairy ring	3129	3496	0		From any fairy ring
+Fairy ring DKS	Fairy ring	2744	3719	0		From any fairy ring
+Fairy ring DLQ	Fairy ring	3423	3016	0		From any fairy ring
+Fairy ring DLR	Fairy ring	2213	3099	0		From any fairy ring
+Fairy ring DLS	Fairy ring	3447	9824	0	In Search of the Myreque	From any fairy ring
+Spirit tree: Tree Gnome Village	Spirit tree	2542	3170	0	Tree Gnome Village	From any spirit tree
+Spirit tree: Gnome Stronghold	Spirit tree	2461	3444	0	Tree Gnome Village	From any spirit tree
+Spirit tree: Battlefield of Khazard	Spirit tree	2555	3259	0	Tree Gnome Village	From any spirit tree
+Spirit tree: Grand Exchange	Spirit tree	3185	3508	0	Tree Gnome Village	From any spirit tree
+Spirit tree: Feldip Hills	Spirit tree	2488	2850	0	Tree Gnome Village	From any spirit tree
+Spirit tree: Prifddinas	Spirit tree	3274	6123	0	Tree Gnome Village; Song of the Elves	From any spirit tree
+Spirit tree: Port Sarim	Spirit tree	3058	3257	0	Tree Gnome Village	From any spirit tree
+Spirit tree: Etceteria	Spirit tree	2613	3855	0	Tree Gnome Village	From any spirit tree
+Spirit tree: Brimhaven	Spirit tree	2800	3203	0	Tree Gnome Village	From any spirit tree
+Spirit tree: A: Hosidius	Spirit tree	1693	3540	0	Tree Gnome Village	From any spirit tree
+Spirit tree: B: Farming Guild	Spirit tree	1251	3750	0	Tree Gnome Village	From any spirit tree
+Spirit tree: D: Poison Waste	Spirit tree	2339	3109	0	The Path of Glouphrie	From any spirit tree
+Spirit tree: E: Laguna Aurorae	Spirit tree	1202	2785	0	Pandemonium	From any spirit tree
+Gnome glider: Ta Quir Priw	Gnome glider	2465	3501	3	The Grand Tree	From any gnome glider
+Gnome glider: Gandius	Gnome glider	2971	2968	0	The Grand Tree	From any gnome glider
+Gnome glider: Kar-Hewo	Gnome glider	3284	3210	0	The Grand Tree	From any gnome glider
+Gnome glider: Sindarpos	Gnome glider	2850	3498	0	The Grand Tree	From any gnome glider
+Gnome glider: Lemanto Andra	Gnome glider	3321	3429	0	The Grand Tree	From any gnome glider
+Gnome glider: Lemantolly Undri	Gnome glider	2550	2970	0	The Grand Tree; One Small Favour	From any gnome glider
+Gnome glider: Ookookolly Undri	Gnome glider	2711	2803	0	The Grand Tree; Monkey Madness II	From any gnome glider
+Quetzal: Aldarin	Quetzal	1389	2901	0	Twilight's Promise	From any quetzal landing site
+Quetzal: Auburnvale	Quetzal	1411	3361	0	Twilight's Promise	From any quetzal landing site
+Quetzal: Civitas illa Fortis	Quetzal	1697	3140	0	Twilight's Promise	From any quetzal landing site
+Quetzal: Hunter Guild	Quetzal	1585	3053	0	Twilight's Promise	From any quetzal landing site
+Quetzal: Quetzacalli Gorge	Quetzal	1510	3222	0	Twilight's Promise	From any quetzal landing site
+Quetzal: Sunset Coast	Quetzal	1548	2995	0	Twilight's Promise	From any quetzal landing site
+Quetzal: Tal Teklan	Quetzal	1226	3091	0	Twilight's Promise	From any quetzal landing site
+Quetzal: The Teomat	Quetzal	1437	3171	0	Twilight's Promise	From any quetzal landing site
+Quetzal: Fortis Colosseum	Quetzal	1779	3111	0	Twilight's Promise	From any quetzal landing site
+Quetzal: Kastori	Quetzal	1344	3022	0	Twilight's Promise	From any quetzal landing site
+Quetzal: Outer Fortis	Quetzal	1700	3037	0	Twilight's Promise	From any quetzal landing site
+Quetzal: Colossal Wyrm Remains	Quetzal	1670	2933	0	Twilight's Promise	From any quetzal landing site
+Quetzal: Cam Torum	Quetzal	1446	3108	0	Twilight's Promise	From any quetzal landing site
+Quetzal: Salvager Overlook	Quetzal	1613	3300	0	Twilight's Promise	From any quetzal landing site
+Charter ship: Brimhaven	Charter ship	2760	3238	0		From a charter ship port
+Charter ship: Catherby	Charter ship	2792	3414	0		From a charter ship port
+Charter ship: Civitas illa Fortis	Charter ship	1743	3136	0	Children of the Sun	From a charter ship port
+Charter ship: Corsair Cove	Charter ship	2589	2851	0		From a charter ship port
+Charter ship: Deepfin Point	Charter ship	1943	2757	0	67 Sailing	From a charter ship port
+Charter ship: Shipyard	Charter ship	3001	3032	0	Monkey Madness I	From a charter ship port
+Charter ship: Land's End	Charter ship	1496	3403	0		From a charter ship port
+Charter ship: Mos Le'Harmless	Charter ship	3671	2931	0	Cabin Fever	From a charter ship port
+Charter ship: Musa Point	Charter ship	2954	3158	0		From a charter ship port
+Charter ship: Port Khazard	Charter ship	2674	3144	0		From a charter ship port
+Charter ship: Port Phasmatys	Charter ship	3702	3503	0	Priest in Peril	From a charter ship port
+Charter ship: Port Piscarilius	Charter ship	1808	3679	0		From a charter ship port
+Charter ship: Port Roberts	Charter ship	1889	3292	0	50 Sailing	From a charter ship port
+Charter ship: Port Sarim	Charter ship	3038	3192	0		From a charter ship port
+Charter ship: Port Tyras	Charter ship	2142	3122	0	Regicide	From a charter ship port
+Charter ship: Prifddinas	Charter ship	2157	3330	0	Song of the Elves	From a charter ship port
+Charter ship: Red Rock	Charter ship	2805	2502	0	The Red Reef	From a charter ship port
+Charter ship: The Pandemonium	Charter ship	3058	2975	0	Pandemonium	From a charter ship port
+Charter ship: The Summer Shore	Charter ship	3155	2415	0	Troubled Tortugans	From a charter ship port
+Charter ship: Aldarin	Charter ship	1455	2968	0	Children of the Sun	From a charter ship port
+Charter ship: Sunset Coast	Charter ship	1514	2971	0	Children of the Sun	From a charter ship port
+Magic carpet: Uzer	Magic carpet	3467	3110	0		From a magic carpet
+Magic carpet: Shantay Pass	Magic carpet	3311	3109	0		From a magic carpet
+Magic carpet: Bedabin Camp	Magic carpet	3182	3043	0		From a magic carpet
+Magic carpet: Pollnivneach	Magic carpet	3350	3001	0		From a magic carpet
+Magic carpet: Nardah	Magic carpet	3401	2918	0		From a magic carpet
+Magic carpet: Sophanem	Magic carpet	3287	2813	0		From a magic carpet
+Magic carpet: Menaphos	Magic carpet	3243	2813	0		From a magic carpet
+Balloon: Entrana	Hot air balloon	2808	3354	0		From a balloon
+Balloon: Taverley	Hot air balloon	2941	3420	0		From a balloon
+Balloon: Crafting Guild	Hot air balloon	2923	3302	0		From a balloon
+Balloon: Varrock	Hot air balloon	3299	3482	0		From a balloon
+Balloon: Castle Wars	Hot air balloon	2459	3110	0		From a balloon
+Balloon: Grand Tree	Hot air balloon	2478	3456	0		From a balloon
+Mushtree: 1. House on the Hill	Magic mushtree	3764	3879	1		From a magic mushtree on Fossil Island
+Mushtree: 2. Verdant Valley	Magic mushtree	3760	3758	0		From a magic mushtree on Fossil Island
+Mushtree: 3. Sticky Swamp	Magic mushtree	3676	3755	0		From a magic mushtree on Fossil Island
+Mushtree: 4. Mushroom Meadow	Magic mushtree	3676	3871	0		From a magic mushtree on Fossil Island
+Minecart: Arceuus	Minecart	1670	3833	0		From a minecart station
+Minecart: Farming Guild	Minecart	1218	3737	0		From a minecart station
+Minecart: Hosidius South	Minecart	1808	3479	0		From a minecart station
+Minecart: Hosidius West	Minecart	1655	3543	0		From a minecart station
+Minecart: Kingstown	Minecart	1699	3660	0		From a minecart station
+Minecart: Kourend Woodland	Minecart	1572	3466	0		From a minecart station
+Minecart: Lovakengj	Minecart	1518	3733	0		From a minecart station
+Minecart: Mount Quidamortem	Minecart	1255	3548	0		From a minecart station
+Minecart: Northern Tundras	Minecart	1648	3931	0		From a minecart station
+Minecart: A: Port Piscarilius	Minecart	1761	3710	0		From a minecart station
+Minecart: B: Shayzien East	Minecart	1590	3620	0		From a minecart station
+Minecart: C: Shayzien West	Minecart	1415	3577	0		From a minecart station
+Canoe: Barbarian Village	Canoe	3109	3415	0	12 Woodcutting	From a canoe station
+Canoe: Champions Guild	Canoe	3199	3344	0	27 Woodcutting	From a canoe station
+Canoe: Lumbridge	Canoe	3240	3242	0	42 Woodcutting	From a canoe station
+Canoe: Ferox Enclave	Canoe	3154	3638	0	57 Woodcutting	From a canoe station
+Canoe: Wilderness Pond	Canoe	3141	3796	0	57 Woodcutting	From a canoe station
+Canoe: Edgeville	Canoe	3128	3503	0	12 Woodcutting	From a canoe station
+Canoe: Tree Gnome Village	Canoe	2483	3188	0	12 Woodcutting	From a canoe station
+Canoe: The Clock Tower	Canoe	2577	3261	0	27 Woodcutting	From a canoe station
+Canoe: Chaos Druid Tower	Canoe	2571	3360	0	42 Woodcutting	From a canoe station
+Canoe: Tree Gnome Stronghold	Canoe	2523	3408	0	57 Woodcutting	From a canoe station
+Canoe: Castle Wars	Canoe	2436	3134	0	12 Woodcutting	From a canoe station
+Spider cave teleport	Item	3658	3403	0	Priest in Peril	Scroll. Lands at the Morytania Spider Cave entrance (Araxxor)
+Colossal wyrm teleport scroll	Item	1641	2921	0	Children of the Sun	Scroll
+Chasm teleport scroll	Item	1311	9882	0		Scroll. Lands by the Voice of Yama at the bottom of the Chasm of Fire
+Ghommal's hilt: God Wars Dungeon	Item	2898	3709	0		Combat Achievements reward, 3 a day
+Ghommal's hilt: Mor Ul Rek	Item	2554	5130	0		Combat Achievements reward
+Ape Atoll Teleport (Arceuus)	Spell	2771	9102	0	90 Magic	Arceuus spellbook. Lands in the Ape Atoll Dungeon
+Ape Atoll tablet (Arceuus)	Item	2771	9102	0		Lands in the Ape Atoll Dungeon
+Lumbridge Graveyard Teleport	Spell	3241	3194	0	6 Magic	Arceuus spellbook
+Lumbridge Graveyard tablet	Item	3241	3194	0		
+Slayer ring: Wyrmscraig Cavern	Item	2581	8633	0	Fallen From Grace	
+Necklace of passage: Wyrmscraig	Item	2591	2221	0	Fallen From Grace	
+Ardeaglais teleport	Item	2543	2216	0	Fallen From Grace	Scroll dropped by the Mad Angel
+Drakan's medallion: Castle Drakan	Item	3557	3358	0		Unlock by inspecting the shrine by the castle's front door (during The Blood Moon Rises)

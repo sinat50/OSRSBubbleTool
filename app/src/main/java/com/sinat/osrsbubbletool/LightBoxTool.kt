@@ -107,11 +107,14 @@ class LightBoxTool(
             return
         }
         status?.text = "Looking for the light box..."
+        val id = ++session   // a second tap, a rotation or Stop meanwhile makes this search out of date
         capture.matchScreenSize()
         setOverlaysVisible(false)
         handler.postDelayed({
+            if (destroyed) return@postDelayed
             val shot = capture.grab()
             setOverlaysVisible(true)
+            if (id != session) return@postDelayed
             if (shot == null) {
                 status?.text = "Couldn't capture the screen. Try again."
                 return@postDelayed
@@ -123,7 +126,7 @@ class LightBoxTool(
                     ?: LightBoxReader.locate(pixels)
                 val reading = found?.let { LightBoxReader.read(pixels, it) }
                 handler.post {
-                    if (destroyed) return@post
+                    if (destroyed || id != session) return@post
                     if (found == null || reading == null) {
                         status?.text = "Couldn't find the light box. Make sure it's open, not covered by " +
                             "anything, and at least one bulb is lit, then try again."
@@ -154,6 +157,7 @@ class LightBoxTool(
         startButton?.text = "Stop"
         expecting = 0
         update()
+        handler.removeCallbacks(trackRunnable)   // never two tracking loops at once
         handler.postDelayed(trackRunnable, TRACK_INTERVAL_MS)
         hideWindow()   // out of the way; tap the bubble to bring it back
     }
@@ -273,13 +277,15 @@ class LightBoxTool(
     fun onWindowClosed() {}
 
     fun onRotated() {
+        session++   // a search still running was for the old layout
         if (tracking || guide.isShowing) stop("Screen rotated. Tap Solve light box to start again.")
     }
 
     fun destroy() {
         destroyed = true
         tracking = false
-        handler.removeCallbacks(trackRunnable)
+        session++
+        handler.removeCallbacksAndMessages(null)
         guide.hide()
     }
 }
