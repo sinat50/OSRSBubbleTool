@@ -24,10 +24,11 @@ class CapturePermissionActivity : Activity() {
         showing = true
         if (savedInstanceState != null) return   // already asking (the screen was rebuilt)
         val manager = getSystemService(MediaProjectionManager::class.java)
-        // Ask for the whole screen. (Android 14+ otherwise offers "a single app", which
-        // captures a different area and can end on its own when you switch apps.)
+        // Android 14+ lets you choose "A single app" (pick Old School RuneScape, so only the game
+        // is captured) or the entire screen. Both work: the capturer lines a single app's
+        // pictures up with the screen, and skips them while the game is hidden.
         val ask = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-            manager.createScreenCaptureIntent(MediaProjectionConfig.createConfigForDefaultDisplay())
+            manager.createScreenCaptureIntent(MediaProjectionConfig.createConfigForUserChoice())
             else manager.createScreenCaptureIntent()
         @Suppress("DEPRECATION")
         startActivityForResult(ask, REQUEST_CAPTURE)

@@ -15,7 +15,11 @@ import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.WindowManager
 
-// Takes screenshots of the whole screen after you allow screen capture once.
+// Takes screenshots of the screen after you allow screen capture once.
+//
+// On Android 14+ you can choose to share only one app (Old School RuneScape). Its pictures are
+// then just the game's window: they're placed where the game sits on the screen, so every tool
+// still works in screen positions, and they're skipped while the game is hidden.
 //
 // Android only lets an app use each "allow" once: one projection, and one capture display
 // on it. Making a second capture display (for example after the screen rotates) makes
@@ -33,6 +37,12 @@ class ScreenCapturer(
     private var width = 0
     private var height = 0
     private var paused = false
+
+    // Android 14+: the size of what's being captured (0 until Android says), and whether it's
+    // on screen. When sharing one app, it's hidden while you're in another app.
+    private var contentW = 0
+    private var contentH = 0
+    private var visible = true
 
     // When no tool has looked at the screen for a few seconds, the capture is paused: Android
     // stops copying the screen, which costs nothing, but the permission stays so there's no
@@ -52,7 +62,19 @@ class ScreenCapturer(
 
         // Android 14+: the captured area changed size (for example the screen rotated)
         override fun onCapturedContentResize(width: Int, height: Int) {
-            handler.post { resizeTo(width, height) }
+            handler.post {
+                contentW = width
+                contentH = height
+                resizeTo(width, height)
+            }
+        }
+
+        // Android 14+: the shared app was hidden or shown again
+        override fun onCapturedContentVisibilityChanged(isVisible: Boolean) {
+            handler.post {
+                visible = isVisible
+                if (!isVisible) drain()   // don't keep the last picture from before it was hidden
+            }
         }
     }
 
@@ -102,7 +124,11 @@ class ScreenCapturer(
         val d = display ?: return
         d.surface = null   // stops screen copying without ending the capture
         paused = true
-        // throw away any old pictures so the next one is fresh
+        drain()
+    }
+
+    // Throws away any old pictures so the next one is fresh
+    private fun drain() {
         val r = reader ?: return
         while (true) {
             val old = try { r.acquireNextImage() } catch (e: Exception) { null } ?: break
@@ -113,8 +139,44 @@ class ScreenCapturer(
     // Makes the capture match the screen again (after the phone turns), without starting over
     fun matchScreenSize() {
         touch()
+        if (singleApp()) return   // Android tells us the game's size itself
         val (w, h, _) = screenSize()
         resizeTo(w, h)
+    }
+
+    // True when only one app is shared and its window is smaller than the screen. (A single app
+    // that fills the screen is treated just like the whole screen.)
+    private fun singleApp(): Boolean {
+        if (contentW <= 0 || contentH <= 0) return false
+        val (w, h, _) = screenSize()
+        return !((contentW == w && contentH == h) || (contentW == h && contentH == w))
+    }
+
+    // Where the shared app's top-left corner is on the screen. Android doesn't say, so it's
+    // worked out from the gap: a game moved aside for the camera cutout sits next to it,
+    // otherwise it's centred.
+    private fun contentOffset(cw: Int, ch: Int): Pair<Int, Int> {
+        val (w, h, _) = screenSize()
+        val dx = (w - cw).coerceAtLeast(0)
+        val dy = (h - ch).coerceAtLeast(0)
+        var left = 0; var right = 0; var top = 0; var bottom = 0
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                val cut = context.getSystemService(DisplayManager::class.java)
+                    .getDisplay(android.view.Display.DEFAULT_DISPLAY)?.cutout
+                if (cut != null) { left = cut.safeInsetLeft; right = cut.safeInsetRight; top = cut.safeInsetTop; bottom = cut.safeInsetBottom }
+            } catch (e: Exception) {
+                // no cutout information: centre it
+            }
+        }
+        fun place(gap: Int, before: Int, after: Int) = when {
+            gap == 0 -> 0
+            before > 0 && kotlin.math.abs(gap - before) <= 2 -> gap          // gap is on the cutout side before it
+            after > 0 && kotlin.math.abs(gap - after) <= 2 -> 0               // gap is after it
+            before + after > 0 && kotlin.math.abs(gap - before - after) <= 2 -> before
+            else -> gap / 2
+        }
+        return Pair(place(dx, left, right), place(dy, top, bottom))
     }
 
     private fun resizeTo(w: Int, h: Int) {
@@ -134,6 +196,7 @@ class ScreenCapturer(
     // The newest picture of the screen, or null if nothing has changed since the last one
     fun grab(): Bitmap? {
         touch()
+        if (!visible) { drain(); return null }   // the shared game is hidden
         val r = reader ?: return null
         val image = try {
             r.acquireLatestImage()
@@ -154,8 +217,9 @@ class ScreenCapturer(
                 full.rewind()
                 padded.copyPixelsFromBuffer(full)
             } else padded.copyPixelsFromBuffer(buffer)
-            return if (paddedWidth == image.width) padded
+            val shot = if (paddedWidth == image.width) padded
                 else Bitmap.createBitmap(padded, 0, 0, image.width, image.height).also { padded.recycle() }
+            return if (singleApp()) onScreen(shot) else shot
         } catch (e: RuntimeException) {
             return null   // an odd picture from the phone: skip it rather than crash
         } finally {
@@ -163,17 +227,39 @@ class ScreenCapturer(
         }
     }
 
+    // Places a picture of just the game where the game is on the screen, so the tools can use
+    // screen positions. The rest is left black.
+    private fun onScreen(shot: Bitmap): Bitmap {
+        val (w, h, _) = screenSize()
+        if (shot.width > w || shot.height > h) return shot   // the phone is mid-turn: use it as it is
+        val (ox, oy) = contentOffset(shot.width, shot.height)
+        val full = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        full.eraseColor(android.graphics.Color.BLACK)
+        android.graphics.Canvas(full).drawBitmap(shot, ox.toFloat(), oy.toFloat(), null)
+        shot.recycle()
+        return full
+    }
+
     // The newest screen image, read straight from the capture without making a picture.
     // Much quicker when only a few pixels are needed. Null if nothing changed.
+    // When only the game is shared, (offsetX, offsetY) is where its picture sits on the screen:
+    // width and height are the screen's, and anything outside the game reads as black.
     class Frame(
         private val buffer: java.nio.ByteBuffer,
         private val rowStride: Int,
         private val pixelStride: Int,
         override val width: Int,
-        override val height: Int
+        override val height: Int,
+        private val offsetX: Int = 0,
+        private val offsetY: Int = 0,
+        private val imageW: Int = width,
+        private val imageH: Int = height
     ) : LightBoxReader.PixelSource {
         override fun rgb(x: Int, y: Int): Int {
-            val i = y * rowStride + x * pixelStride
+            val px = x - offsetX
+            val py = y - offsetY
+            if (px < 0 || py < 0 || px >= imageW || py >= imageH) return 0
+            val i = py * rowStride + px * pixelStride
             return ((buffer.get(i).toInt() and 0xFF) shl 16) or
                 ((buffer.get(i + 1).toInt() and 0xFF) shl 8) or
                 (buffer.get(i + 2).toInt() and 0xFF)
@@ -182,6 +268,7 @@ class ScreenCapturer(
 
     fun <T> sample(block: (Frame) -> T): T? {
         touch()
+        if (!visible) { drain(); return null }
         val r = reader ?: return null
         val image = try {
             r.acquireLatestImage()
@@ -190,6 +277,13 @@ class ScreenCapturer(
         } ?: return null
         try {
             val plane = image.planes[0]
+            if (singleApp()) {
+                val (w, h, _) = screenSize()
+                if (image.width <= w && image.height <= h) {
+                    val (ox, oy) = contentOffset(image.width, image.height)
+                    return block(Frame(plane.buffer, plane.rowStride, plane.pixelStride, w, h, ox, oy, image.width, image.height))
+                }
+            }
             return block(Frame(plane.buffer, plane.rowStride, plane.pixelStride, image.width, image.height))
         } finally {
             image.close()
@@ -218,6 +312,9 @@ class ScreenCapturer(
         projection = null
         width = 0
         height = 0
+        contentW = 0
+        contentH = 0
+        visible = true
     }
 
     private fun newReader(w: Int, h: Int): ImageReader =

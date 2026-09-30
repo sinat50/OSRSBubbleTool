@@ -46,6 +46,7 @@ Tool windows are two inches wide in landscape. Drag the bar at the top to move a
 - The screen is only captured when you use a tool that needs it (the Puzzle Box and Light Box Solvers, Inventory Setups and DPS gear import). Capture pauses itself whenever no tool is using it.
 - Website tools pause while their window is closed.
 - Timers don't keep anything running. Android wakes the app once when a timer is due.
+- On Android 14 and newer you can share just the game instead of the whole screen, so your notifications and other apps are never captured.
 - Screenshots are processed on the phone and thrown away. Only pictures you choose to keep, in Inventory Setups or with **Save picture to phone**, are stored.
 - The app has no ads, no analytics and no accounts. The website tools load those sites directly, the same as a browser would.
 - If you choose to enter your RuneScape name in the WikiSync tool, it's used to read your public WikiSync data. That's the only personal thing the app ever sends.
@@ -61,7 +62,7 @@ The app's **Permissions** screen explains each one and has a button to turn it o
 | Display over other apps | Shows the bubble and tool windows on top of the game. Required. |
 | Notifications | Timer alerts, and the small notification Android requires while the bubble runs. |
 | Alarms & reminders | Makes timer alerts arrive on time instead of a few minutes late. |
-| Screen capture | Asked by Android the first time you use a tool that reads the screen, once each time you start the bubble. |
+| Screen capture | Asked by Android the first time you use a tool that reads the screen, once each time you start the bubble. On Android 14 and newer you can pick **A single app → Old School RuneScape**, so only the game is captured. |
 | Open wiki links | Optional. Lets the game's wiki button open pages in the bubble. Other apps' wiki links still go to your browser. |
 
 ## Building it yourself

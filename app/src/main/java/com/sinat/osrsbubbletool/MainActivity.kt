@@ -226,7 +226,7 @@ class MainActivity : Activity() {
 
         addView(permissionCard(
             "Screen capture",
-            "Used by the Puzzle Box Solver, Inventory Setups and the DPS Calculator's \"Import my gear\" to look at the game screen. Android doesn't allow apps to turn this on ahead of time, so it asks the first time you use one of those tools, once each time the bubble is started. Pictures stay on your phone.",
+            "Used by the Puzzle Box and Light Box Solvers, Inventory Setups and the DPS Calculator's \"Import my gear\" to look at the game screen. Android doesn't allow apps to turn this on ahead of time, so it asks the first time you use one of those tools, once each time the bubble is started. On Android 14 and newer you can choose \"A single app\" and pick Old School RuneScape, so only the game is ever captured. Pictures stay on your phone.",
             allowed = null, onAllow = null
         ), matchWidth(10))
     }
