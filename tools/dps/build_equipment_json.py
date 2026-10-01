@@ -6,7 +6,8 @@ commit pinned in GearIcons.kt (COMMIT). Clone it and check out that commit first
 
 Each item keeps id, name, version, slot, and "icon" (its picture's file name in cdn/equipment/). Items whose
 picture is missing from the repository are left out. Pictures listed in wiki_icons.txt are marked "wiki": the
-repository's copy is out of date, so the app downloads those from the OSRS Wiki instead.
+repository's copy is out of date, so fetch_pictures.py gets those from the OSRS Wiki instead. Run fetch_pictures.py
+afterwards to update the pictures that come with the app.
 
 If you move to a newer commit: update COMMIT in GearIcons.kt, rebuild this file, and check whether the
 pictures in wiki_icons.txt are still out of date in the repository (compare them with the wiki's).

@@ -3,10 +3,11 @@ package com.sinat.osrsbubbletool
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import org.json.JSONObject
+import androidx.core.content.edit
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import org.json.JSONObject
 
 // Reads a player's quest progress and levels from WikiSync, the OSRS Wiki's service.
 // WikiSync only has data if the player has played on RuneLite with the WikiSync plugin on;
@@ -40,7 +41,7 @@ class WikiSync(context: Context) {
     var username: String
         get() = prefs.getString("username", "") ?: ""
         set(value) {
-            prefs.edit().putString("username", value.trim()).remove("data").remove("fetched").apply()
+            prefs.edit { putString("username", value.trim()).remove("data").remove("fetched") }
             memo = null
         }
 
@@ -102,7 +103,7 @@ class WikiSync(context: Context) {
                 if (username != name) { refresh(onDone); return@post }
                 val d = data
                 if (d != null && body200 != null) {
-                    prefs.edit().putString("data", body200).putLong("fetched", d.fetchedAt).apply()
+                    prefs.edit { putString("data", body200).putLong("fetched", d.fetchedAt) }
                     memo = d
                 }
                 onDone(data, error)

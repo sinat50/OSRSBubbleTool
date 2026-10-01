@@ -3,7 +3,6 @@ package com.sinat.osrsbubbletool
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
@@ -17,6 +16,8 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
 import kotlin.math.max
 import kotlin.math.min
 
@@ -85,15 +86,15 @@ class PuzzleAreaOverlay(private val context: Context, private val windowManager:
         val location = IntArray(2)
         v.getLocationOnScreen(location)
         val screen = realScreenSize()
-        prefs.edit()
-            .putInt("left", location[0])
-            .putInt("top", location[1])
-            .putInt("size", v.width)
-            .putInt("winX", p.x)
-            .putInt("winY", p.y)
-            .putInt("screenW", screen.x)
-            .putInt("screenH", screen.y)
-            .apply()
+        prefs.edit {
+            putInt("left", location[0])
+            putInt("top", location[1])
+            putInt("size", v.width)
+            putInt("winX", p.x)
+            putInt("winY", p.y)
+            putInt("screenW", screen.x)
+            putInt("screenH", screen.y)
+        }
         hide()
     }
 
@@ -121,19 +122,20 @@ class PuzzleAreaOverlay(private val context: Context, private val windowManager:
     @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
     private inner class FrameView : View(context) {
         private val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#E8C766")
+            color = "#E8C766".toColorInt()
             style = Paint.Style.STROKE
             strokeWidth = 3 * density
         }
         private val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#CCE8C766")
+            color = "#CCE8C766".toColorInt()
             style = Paint.Style.STROKE
             strokeWidth = 1.5f * density
         }
         private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#E8C766")
+            color = "#E8C766".toColorInt()
         }
         private val handleSize = 32 * density
+        private val corner = Path()   // the resize triangle, reused on every redraw
         private val minSize = (80 * density).toInt()
 
         private var downX = 0f
@@ -153,7 +155,8 @@ class PuzzleAreaOverlay(private val context: Context, private val windowManager:
             }
             val half = border.strokeWidth / 2
             canvas.drawRect(half, half, w - half, h - half, border)
-            val corner = Path().apply {
+            corner.apply {
+                reset()
                 moveTo(w, h - handleSize)
                 lineTo(w, h)
                 lineTo(w - handleSize, h)

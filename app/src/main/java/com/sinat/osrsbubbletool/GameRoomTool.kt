@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
@@ -14,6 +13,8 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
 import java.io.File
 
 // The Game Room: small games to play while you wait in the game: 2048 and Wing It.
@@ -22,14 +23,14 @@ import java.io.File
 class GameRoomTool(private val context: Context) {
 
     companion object {
-        private val PARCHMENT = Color.parseColor("#F2E3C0")
-        private val DARK_BROWN = Color.parseColor("#3E2C12")
-        private val BUTTON_BROWN = Color.parseColor("#8B6B3E")
-        private val ROW_BROWN = Color.parseColor("#E3CFA2")
-        private val PAPER = Color.parseColor("#FFF8E6")
-        private val GO_GREEN = Color.parseColor("#3E7A2E")
-        private val STOP_RED = Color.parseColor("#B03A2E")
-        private val FADED = Color.parseColor("#8C7B5E")
+        private val PARCHMENT = "#F2E3C0".toColorInt()
+        private val DARK_BROWN = "#3E2C12".toColorInt()
+        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
+        private val ROW_BROWN = "#E3CFA2".toColorInt()
+        private val PAPER = "#FFF8E6".toColorInt()
+        private val GO_GREEN = "#3E7A2E".toColorInt()
+        private val STOP_RED = "#B03A2E".toColorInt()
+        private val FADED = "#8C7B5E".toColorInt()
     }
 
     private val HELP_2048 = "Swipe up, down, left or right to slide all the tiles. When two tiles with the same number touch, " +
@@ -136,11 +137,11 @@ class GameRoomTool(private val context: Context) {
 
     private fun save2048() {
         val best = maxOf(prefs.getInt("g2048_best", 0), g2048.score)
-        prefs.edit()
-            .putString("g2048_cells", g2048.cells.joinToString(","))
-            .putInt("g2048_score", g2048.score)
-            .putInt("g2048_best", best)
-            .apply()
+        prefs.edit {
+            putString("g2048_cells", g2048.cells.joinToString(","))
+            putInt("g2048_score", g2048.score)
+            putInt("g2048_best", best)
+        }
     }
 
     // Not scrolling: swipes are for the tiles. The board shrinks to fit whatever space is left.
@@ -154,7 +155,7 @@ class GameRoomTool(private val context: Context) {
             gravity = Gravity.CENTER
             setPadding(dp(8), dp(2), dp(8), dp(3))
             background = GradientDrawable().apply { setColor(BUTTON_BROWN); cornerRadius = dp(5).toFloat() }
-            addView(label(title, 9f).apply { setTextColor(Color.parseColor("#F2E3C0")); gravity = Gravity.CENTER })
+            addView(label(title, 9f).apply { setTextColor("#F2E3C0".toColorInt()); gravity = Gravity.CENTER })
             addView(label("", 13f, bold = true).apply { setTextColor(Color.WHITE); gravity = Gravity.CENTER })
         }
         val scoreBox = box("SCORE")
@@ -164,7 +165,7 @@ class GameRoomTool(private val context: Context) {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             isClickable = true   // swipes don't reach the board while it's covered
-            background = GradientDrawable().apply { setColor(Color.parseColor("#CCF2E3C0")); cornerRadius = dp(8).toFloat() }
+            background = GradientDrawable().apply { setColor("#CCF2E3C0".toColorInt()); cornerRadius = dp(8).toFloat() }
         }
 
         fun update() {
@@ -180,13 +181,13 @@ class GameRoomTool(private val context: Context) {
                 over.addView(label("No more moves!", 16f, bold = true).apply { gravity = Gravity.CENTER })
                 over.addView(label("Score: " + "%,d".format(game.score), 12f).apply { gravity = Gravity.CENTER }, full(2))
                 over.addView(button("Try again", GO_GREEN) {
-                    game.newGame(); prefs.edit().putBoolean("g2048_won_seen", false).apply()
+                    game.newGame(); prefs.edit { putBoolean("g2048_won_seen", false) }
                     save2048(); board.refresh(); update()
                 }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
             } else if (won) {
-                over.addView(label("You made 2048!", 16f, bold = true).apply { gravity = Gravity.CENTER; setTextColor(Color.parseColor("#9C6A10")) })
+                over.addView(label("You made 2048!", 16f, bold = true).apply { gravity = Gravity.CENTER; setTextColor("#9C6A10".toColorInt()) })
                 over.addView(button("Keep going", GO_GREEN) {
-                    prefs.edit().putBoolean("g2048_won_seen", true).apply(); update()
+                    prefs.edit { putBoolean("g2048_won_seen", true) }; update()
                 }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
             }
         }
@@ -197,13 +198,13 @@ class GameRoomTool(private val context: Context) {
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(label("2048", 18f, bold = true).apply { setTextColor(Color.parseColor("#C8900E")) })
+            addView(label("2048", 18f, bold = true).apply { setTextColor("#C8900E".toColorInt()) })
             addView(helpButton("2048", HELP_2048), LinearLayout.LayoutParams(dp(22), dp(22)).apply { leftMargin = dp(5) })
             addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
             addView(scoreBox, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(4) })
             addView(bestBox, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(4) })
             addView(button("New", STOP_RED) {
-                game.newGame(); prefs.edit().putBoolean("g2048_won_seen", false).apply()
+                game.newGame(); prefs.edit { putBoolean("g2048_won_seen", false) }
                 save2048(); board.refresh(); update()
             }.apply { textSize = 11f; setPadding(dp(8), dp(6), dp(8), dp(6)) })
         }, full())
@@ -229,7 +230,7 @@ class GameRoomTool(private val context: Context) {
             gravity = Gravity.CENTER
             setPadding(dp(8), dp(2), dp(8), dp(3))
             background = GradientDrawable().apply { setColor(BUTTON_BROWN); cornerRadius = dp(5).toFloat() }
-            addView(label(title, 9f).apply { setTextColor(Color.parseColor("#F2E3C0")); gravity = Gravity.CENTER })
+            addView(label(title, 9f).apply { setTextColor("#F2E3C0".toColorInt()); gravity = Gravity.CENTER })
             addView(label("", 13f, bold = true).apply { setTextColor(Color.WHITE); gravity = Gravity.CENTER })
         }
         val scoreBox = box("SCORE")
@@ -241,14 +242,14 @@ class GameRoomTool(private val context: Context) {
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(label("Wing It", 17f, bold = true).apply { setTextColor(Color.parseColor("#C8900E")) })
+            addView(label("Wing It", 17f, bold = true).apply { setTextColor("#C8900E".toColorInt()) })
             addView(helpButton("Wing It", HELP_FLYER), LinearLayout.LayoutParams(dp(22), dp(22)).apply { leftMargin = dp(5) })
             addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
             addView(scoreBox, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(4) })
             addView(bestBox)
         }, full())
         val game = FlyerView(context, best = { prefs.getInt("flyer_best", 0) }) { score, over ->
-            if (over && score > prefs.getInt("flyer_best", 0)) prefs.edit().putInt("flyer_best", score).apply()
+            if (over && score > prefs.getInt("flyer_best", 0)) prefs.edit { putInt("flyer_best", score) }
             showScores(score)
         }
         flyerView = game
@@ -274,7 +275,7 @@ class GameRoomTool(private val context: Context) {
     private fun showHelp(title: String, help: String) {
         openHelp = title to help
         val cover = FrameLayout(context).apply {
-            setBackgroundColor(Color.parseColor("#993E2C12"))
+            setBackgroundColor("#993E2C12".toColorInt())
             isClickable = true
         }
         val close = { openHelp = null; holder.removeView(cover) }
@@ -327,7 +328,9 @@ class GameRoomTool(private val context: Context) {
     }
 }
 
-// The little pictures on the Game Room menu, drawn in code so they're sharp at any size
+// The little pictures on the Game Room menu, drawn in code so they're sharp at any size.
+// (Only ever made in code, so it doesn't need the extra setup Android Studio's layout designer uses.)
+@android.annotation.SuppressLint("ViewConstructor")
 class GameIcon(context: Context, private val kind: Int) : View(context) {
 
     companion object {
@@ -336,6 +339,7 @@ class GameIcon(context: Context, private val kind: Int) : View(context) {
     }
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -343,8 +347,8 @@ class GameIcon(context: Context, private val kind: Int) : View(context) {
         canvas.translate((width - s) / 2, (height - s) / 2)
         // dark rounded square behind
         paint.style = Paint.Style.FILL
-        paint.color = Color.parseColor("#4A3518")
-        canvas.drawRoundRect(RectF(0f, 0f, s, s), s * 0.18f, s * 0.18f, paint)
+        paint.color = "#4A3518".toColorInt()
+        canvas.drawRoundRect(0f, 0f, s, s, s * 0.18f, s * 0.18f, paint)
         when (kind) {
             G2048 -> tiles(canvas, s)
             FLYER -> flyer(canvas, s)
@@ -353,7 +357,6 @@ class GameIcon(context: Context, private val kind: Int) : View(context) {
 
     // four little 2048 tiles
     private fun tiles(canvas: Canvas, s: Float) {
-        val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = Typeface.DEFAULT_BOLD }
         val values = intArrayOf(2, 8, 64, 2048)
         val gap = s * 0.08f
         val cell = (s - gap * 3) / 2
@@ -361,9 +364,9 @@ class GameIcon(context: Context, private val kind: Int) : View(context) {
             val x = gap + (i % 2) * (cell + gap)
             val y = gap + (i / 2) * (cell + gap)
             paint.color = Game2048View.colorOf(values[i])
-            canvas.drawRoundRect(RectF(x, y, x + cell, y + cell), cell * 0.15f, cell * 0.15f, paint)
+            canvas.drawRoundRect(x, y, x + cell, y + cell, cell * 0.15f, cell * 0.15f, paint)
             val label = values[i].toString()
-            text.color = if (values[i] <= 4) Color.parseColor("#3E2C12") else Color.WHITE
+            text.color = if (values[i] <= 4) "#3E2C12".toColorInt() else Color.WHITE
             text.textSize = cell * if (label.length >= 4) 0.3f else 0.5f
             canvas.drawText(label, x + cell / 2, y + cell / 2 - (text.descent() + text.ascent()) / 2, text)
         }
@@ -371,21 +374,21 @@ class GameIcon(context: Context, private val kind: Int) : View(context) {
 
     // a little bird between two pillars
     private fun flyer(canvas: Canvas, s: Float) {
-        paint.color = Color.parseColor("#F2E3C0")
-        canvas.drawRoundRect(RectF(s * 0.08f, s * 0.08f, s * 0.92f, s * 0.92f), s * 0.1f, s * 0.1f, paint)
-        paint.color = Color.parseColor("#6B4B24")
+        paint.color = "#F2E3C0".toColorInt()
+        canvas.drawRoundRect(s * 0.08f, s * 0.08f, s * 0.92f, s * 0.92f, s * 0.1f, s * 0.1f, paint)
+        paint.color = "#6B4B24".toColorInt()
         canvas.drawRect(s * 0.62f, s * 0.08f, s * 0.80f, s * 0.32f, paint)
         canvas.drawRect(s * 0.62f, s * 0.64f, s * 0.80f, s * 0.92f, paint)
-        paint.color = Color.parseColor("#C9A24A")
+        paint.color = "#C9A24A".toColorInt()
         canvas.drawRect(s * 0.59f, s * 0.29f, s * 0.83f, s * 0.35f, paint)
         canvas.drawRect(s * 0.59f, s * 0.61f, s * 0.83f, s * 0.67f, paint)
-        paint.color = Color.parseColor("#D8573A")
-        canvas.drawOval(RectF(s * 0.18f, s * 0.38f, s * 0.46f, s * 0.60f), paint)
-        paint.color = Color.parseColor("#E8A62C")
+        paint.color = "#D8573A".toColorInt()
+        canvas.drawOval(s * 0.18f, s * 0.38f, s * 0.46f, s * 0.60f, paint)
+        paint.color = "#E8A62C".toColorInt()
         canvas.drawRect(s * 0.44f, s * 0.46f, s * 0.52f, s * 0.51f, paint)
         paint.color = Color.WHITE
         canvas.drawCircle(s * 0.38f, s * 0.45f, s * 0.04f, paint)
-        paint.color = Color.parseColor("#3E2C12")
+        paint.color = "#3E2C12".toColorInt()
         canvas.drawCircle(s * 0.39f, s * 0.45f, s * 0.02f, paint)
     }
 }

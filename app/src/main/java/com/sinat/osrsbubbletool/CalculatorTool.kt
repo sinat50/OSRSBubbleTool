@@ -9,6 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.graphics.toColorInt
 import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
@@ -19,13 +20,13 @@ import java.text.DecimalFormat
 class CalculatorTool(private val context: Context) {
 
     companion object {
-        private val PARCHMENT = Color.parseColor("#F2E3C0")
-        private val DARK_BROWN = Color.parseColor("#3E2C12")
-        private val KEY = Color.parseColor("#8B6B3E")
-        private val OPERATOR = Color.parseColor("#5A4220")
-        private val EQUALS = Color.parseColor("#3E7A2E")
-        private val CLEAR = Color.parseColor("#B03A2E")
-        private val FADED = Color.parseColor("#8C7B5E")
+        private val PARCHMENT = "#F2E3C0".toColorInt()
+        private val DARK_BROWN = "#3E2C12".toColorInt()
+        private val KEY = "#8B6B3E".toColorInt()
+        private val OPERATOR = "#5A4220".toColorInt()
+        private val EQUALS = "#3E7A2E".toColorInt()
+        private val CLEAR = "#B03A2E".toColorInt()
+        private val FADED = "#8C7B5E".toColorInt()
     }
 
     private var expression = ""      // what's been typed, e.g. "1.5m*3"
@@ -54,7 +55,7 @@ class CalculatorTool(private val context: Context) {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(6), dp(1), dp(6), dp(2))
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#FFF8E6")); setStroke(dp(1), KEY); cornerRadius = dp(6).toFloat()
+                setColor("#FFF8E6".toColorInt()); setStroke(dp(1), KEY); cornerRadius = dp(6).toFloat()
             }
             sumView = text(9f, FADED)
             expressionView = text(13f, DARK_BROWN)

@@ -7,11 +7,12 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.view.MotionEvent
 import android.view.View
+import androidx.core.graphics.toColorInt
+import androidx.core.graphics.withRotation
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.random.Random
@@ -52,17 +53,19 @@ class FlyerView(context: Context, private val best: () -> Int, private val onSco
     private var sky: LinearGradient? = null
 
     companion object {
-        private val SKY_TOP = Color.parseColor("#F6E7C4")
-        private val SKY_BOTTOM = Color.parseColor("#E9D3A0")
-        private val PILLAR = Color.parseColor("#6B4B24")
-        private val PILLAR_EDGE = Color.parseColor("#3E2C12")
-        private val PILLAR_CAP = Color.parseColor("#C9A24A")
-        private val GROUND = Color.parseColor("#8B6B3E")
-        private val GROUND_DARK = Color.parseColor("#5E4424")
-        private val BIRD = Color.parseColor("#D8573A")
-        private val BIRD_BELLY = Color.parseColor("#F2C9A0")
-        private val BEAK = Color.parseColor("#E8A62C")
-        private val INK = Color.parseColor("#3E2C12")
+        private val SKY_TOP = "#F6E7C4".toColorInt()
+        private val SKY_BOTTOM = "#E9D3A0".toColorInt()
+        private val PILLAR = "#6B4B24".toColorInt()
+        private val PILLAR_EDGE = "#3E2C12".toColorInt()
+        private val PILLAR_CAP = "#C9A24A".toColorInt()
+        private val GROUND = "#8B6B3E".toColorInt()
+        private val GROUND_DARK = "#5E4424".toColorInt()
+        private val BIRD = "#D8573A".toColorInt()
+        private val BIRD_BELLY = "#F2C9A0".toColorInt()
+        private val WING = "#A8402A".toColorInt()
+        private val BEAK = "#E8A62C".toColorInt()
+        private val MESSAGE_BG = "#E6FFF8E6".toColorInt()
+        private val INK = "#3E2C12".toColorInt()
     }
 
     // How the game feels, as parts of the window's height (and width for the sideways parts)
@@ -219,36 +222,35 @@ class FlyerView(context: Context, private val best: () -> Int, private val onSco
     }
 
     private fun drawBird(canvas: Canvas) {
-        canvas.save()
         // tilt: nose up just after a flap, down when falling
         val tilt = (speedY / (h * 1.2f) * 55f).coerceIn(-25f, 70f)
-        canvas.rotate(if (state == State.READY) 0f else tilt, birdX, birdY)
-        paint.color = BIRD
-        canvas.drawOval(RectF(birdX - r * 1.15f, birdY - r, birdX + r * 1.15f, birdY + r), paint)
-        paint.color = BIRD_BELLY
-        canvas.drawOval(RectF(birdX - r * 0.6f, birdY, birdX + r * 0.9f, birdY + r * 0.85f), paint)
-        // wing: up for a moment after each flap
-        val up = state == State.PLAYING && System.nanoTime() - flapAt < 150_000_000L
-        paint.color = Color.parseColor("#A8402A")
-        path.reset()
-        path.moveTo(birdX - r * 0.9f, birdY)
-        path.lineTo(birdX + r * 0.2f, birdY)
-        path.lineTo(birdX - r * 0.5f, if (up) birdY - r * 1.2f else birdY + r * 0.9f)
-        path.close()
-        canvas.drawPath(path, paint)
-        // eye and beak
-        paint.color = Color.WHITE
-        canvas.drawCircle(birdX + r * 0.45f, birdY - r * 0.35f, r * 0.32f, paint)
-        paint.color = INK
-        canvas.drawCircle(birdX + r * 0.55f, birdY - r * 0.35f, r * 0.15f, paint)
-        paint.color = BEAK
-        path.reset()
-        path.moveTo(birdX + r * 1.0f, birdY - r * 0.15f)
-        path.lineTo(birdX + r * 1.65f, birdY + r * 0.05f)
-        path.lineTo(birdX + r * 1.0f, birdY + r * 0.3f)
-        path.close()
-        canvas.drawPath(path, paint)
-        canvas.restore()
+        canvas.withRotation(if (state == State.READY) 0f else tilt, birdX, birdY) {
+            paint.color = BIRD
+            canvas.drawOval(birdX - r * 1.15f, birdY - r, birdX + r * 1.15f, birdY + r, paint)
+            paint.color = BIRD_BELLY
+            canvas.drawOval(birdX - r * 0.6f, birdY, birdX + r * 0.9f, birdY + r * 0.85f, paint)
+            // wing: up for a moment after each flap
+            val up = state == State.PLAYING && System.nanoTime() - flapAt < 150_000_000L
+            paint.color = WING
+            path.reset()
+            path.moveTo(birdX - r * 0.9f, birdY)
+            path.lineTo(birdX + r * 0.2f, birdY)
+            path.lineTo(birdX - r * 0.5f, if (up) birdY - r * 1.2f else birdY + r * 0.9f)
+            path.close()
+            canvas.drawPath(path, paint)
+            // eye and beak
+            paint.color = Color.WHITE
+            canvas.drawCircle(birdX + r * 0.45f, birdY - r * 0.35f, r * 0.32f, paint)
+            paint.color = INK
+            canvas.drawCircle(birdX + r * 0.55f, birdY - r * 0.35f, r * 0.15f, paint)
+            paint.color = BEAK
+            path.reset()
+            path.moveTo(birdX + r * 1.0f, birdY - r * 0.15f)
+            path.lineTo(birdX + r * 1.65f, birdY + r * 0.05f)
+            path.lineTo(birdX + r * 1.0f, birdY + r * 0.3f)
+            path.close()
+            canvas.drawPath(path, paint)
+        }
     }
 
     private fun message(canvas: Canvas, title: String, sub: String) {
@@ -256,10 +258,10 @@ class FlyerView(context: Context, private val best: () -> Int, private val onSco
         val big = h * 0.075f; val small = h * 0.042f
         val boxH = big + small * lines.size * 1.35f + h * 0.05f
         val top = ground * 0.42f - boxH / 2
-        paint.color = Color.parseColor("#E6FFF8E6")
-        canvas.drawRoundRect(RectF(w * 0.08f, top, w * 0.92f, top + boxH), r, r, paint)
+        paint.color = MESSAGE_BG
+        canvas.drawRoundRect(w * 0.08f, top, w * 0.92f, top + boxH, r, r, paint)
         paint.style = Paint.Style.STROKE; paint.strokeWidth = max(2f, r * 0.15f); paint.color = PILLAR
-        canvas.drawRoundRect(RectF(w * 0.08f, top, w * 0.92f, top + boxH), r, r, paint)
+        canvas.drawRoundRect(w * 0.08f, top, w * 0.92f, top + boxH, r, r, paint)
         paint.style = Paint.Style.FILL
         text.color = INK
         text.textSize = min(big, w * 0.1f)

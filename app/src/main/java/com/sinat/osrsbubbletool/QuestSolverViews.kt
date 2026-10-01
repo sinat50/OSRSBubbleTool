@@ -14,6 +14,8 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
 import com.sinat.osrsbubbletool.QuestSolvers as S
 
 // The screens for the puzzle solvers where you enter what you see. What you've entered is kept
@@ -21,14 +23,14 @@ import com.sinat.osrsbubbletool.QuestSolvers as S
 class QuestSolverViews(private val context: Context, private val refresh: () -> Unit) {
 
     companion object {
-        private val DARK_BROWN = Color.parseColor("#3E2C12")
-        private val BUTTON_BROWN = Color.parseColor("#8B6B3E")
-        private val SELECTED = Color.parseColor("#3E7A2E")
-        private val ROW_BROWN = Color.parseColor("#E3CFA2")
-        private val ANSWER = Color.parseColor("#FFF4D6")
-        private val SAY_BLUE = Color.parseColor("#1F4E8C")
-        private val FADED = Color.parseColor("#8C7B5E")
-        private val MISSING_RED = Color.parseColor("#B03A2E")
+        private val DARK_BROWN = "#3E2C12".toColorInt()
+        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
+        private val SELECTED = "#3E7A2E".toColorInt()
+        private val ROW_BROWN = "#E3CFA2".toColorInt()
+        private val ANSWER = "#FFF4D6".toColorInt()
+        private val SAY_BLUE = "#1F4E8C".toColorInt()
+        private val FADED = "#8C7B5E".toColorInt()
+        private val MISSING_RED = "#B03A2E".toColorInt()
     }
 
     private val choices = HashMap<String, Int>()          // which option is picked in each question
@@ -205,7 +207,7 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
                         row.forEach { on ->
                             addView(View(context).apply {
                                 background = GradientDrawable().apply {
-                                    setColor(if (on) SELECTED else Color.parseColor("#D8C69C")); cornerRadius = dp(3).toFloat()
+                                    setColor(if (on) SELECTED else "#D8C69C".toColorInt()); cornerRadius = dp(3).toFloat()
                                 }
                             }, LinearLayout.LayoutParams(dp(30), dp(30)).apply { setMargins(dp(2), dp(2), dp(2), dp(2)) })
                         }
@@ -233,7 +235,7 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
             S.KEY_SPOTS.forEachIndexed { i, spot ->
                 val found = prefs.getBoolean("key_found_$i", false)
                 c.addView(button((if (found) "☑ " else "☐ ") + spot.name, if (found) SELECTED else BUTTON_BROWN) {
-                    prefs.edit().putBoolean("key_found_$i", !found).apply(); refresh()
+                    prefs.edit { putBoolean("key_found_$i", !found) }; refresh()
                 }.apply { textSize = 11f; gravity = Gravity.START or Gravity.CENTER_VERTICAL }, full(2))
             }
             spots = S.KEY_SPOTS.filterIndexed { i, _ -> !prefs.getBoolean("key_found_$i", false) }
@@ -283,7 +285,10 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
         val order = (prefs.getString("${key}_order", "") ?: "").split(",").filter { it.isNotEmpty() }
         val wrong = (prefs.getString("${key}_wrong", "") ?: "").split(",").filter { it.isNotEmpty() }   // wrong for the next one
         fun save(o: List<String>, w: List<String>) {
-            prefs.edit().putString("${key}_order", o.joinToString(",")).putString("${key}_wrong", w.joinToString(",")).apply()
+            prefs.edit {
+                putString("${key}_order", o.joinToString(","))
+                putString("${key}_wrong", w.joinToString(","))
+            }
             refresh()
         }
 
@@ -334,9 +339,11 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
                     val i = row * 4 + col
                     val state = cells[i]
                     addView(button(when (state) { '1' -> "✓"; '2' -> "✗"; else -> "" },
-                        when (state) { '1' -> SELECTED; '2' -> MISSING_RED; else -> Color.parseColor("#B8A882") }) {
+                        when (state) { '1' -> SELECTED; '2' -> MISSING_RED; else -> "#B8A882".toColorInt() }) {
                         val next = when (state) { '0' -> '1'; '1' -> '2'; else -> '0' }
-                        prefs.edit().putString("cloud_tiles", cells.substring(0, i) + next + cells.substring(i + 1)).apply()
+                        prefs.edit {
+                            putString("cloud_tiles", cells.substring(0, i) + next + cells.substring(i + 1))
+                        }
                         refresh()
                     }.apply { setPadding(0, 0, 0, 0) }, LinearLayout.LayoutParams(dp(44), dp(34)).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
                 }
@@ -357,7 +364,7 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
                         orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
                         for (col in 0 until 4) addView(View(context).apply {
                             background = GradientDrawable().apply {
-                                setColor(if (path[row * 4 + col] == '1') SELECTED else Color.parseColor("#D8C69C")); cornerRadius = dp(3).toFloat()
+                                setColor(if (path[row * 4 + col] == '1') SELECTED else "#D8C69C".toColorInt()); cornerRadius = dp(3).toFloat()
                             }
                         }, LinearLayout.LayoutParams(dp(30), dp(22)).apply { setMargins(dp(2), dp(2), dp(2), dp(2)) })
                     })
@@ -375,7 +382,9 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
                 }
             }
         }, full(4))
-        c.addView(button("Clear the grid") { prefs.edit().remove("cloud_tiles").apply(); refresh() }.apply { textSize = 11f }, full(8))
+        c.addView(button("Clear the grid") { prefs.edit {
+            remove("cloud_tiles")
+        }; refresh() }.apply { textSize = 11f }, full(8))
     }
 
     // The Eyes of Glouphrie and The Path of Glouphrie: which discs make a value
@@ -429,7 +438,10 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
             .takeIf { it.size == 4 } ?: listOf(1, 1, 1, 1)
         val green = (prefs.getString("kr_green", null) ?: "0000").map { it == '1' }.takeIf { it.size == 4 } ?: listOf(false, false, false, false)
         fun save(h: List<Int>, g: List<Boolean>) {
-            prefs.edit().putString("kr_heights", h.joinToString(",")).putString("kr_green", g.joinToString("") { if (it) "1" else "0" }).apply()
+            prefs.edit {
+                putString("kr_heights", h.joinToString(","))
+                putString("kr_green", g.joinToString("") { if (it) "1" else "0" })
+            }
             refresh()
         }
         c.addView(card(ANSWER) {
@@ -452,7 +464,10 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
                 save(heights.mapIndexed { i, h -> if (green[i]) h else h + 1 }, green)
             }, full(8))
         }
-        c.addView(button("Start over") { prefs.edit().remove("kr_heights").remove("kr_green").apply(); refresh() }.apply { textSize = 11f }, full(10))
+        c.addView(button("Start over") { prefs.edit {
+            remove("kr_heights")
+            remove("kr_green")
+        }; refresh() }.apply { textSize = 11f }, full(10))
     }
 
     // ---------------- Small building blocks ----------------

@@ -24,8 +24,10 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import org.json.JSONObject
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
 import java.util.Locale
+import org.json.JSONObject
 
 // The DPS Calculator tool: the wiki's calculator, plus "Import my gear", which reads
 // your equipment tab from the screen and loads it into the calculator.
@@ -37,10 +39,10 @@ class DpsTool(
 ) {
     companion object {
         const val CAPTURE_DELAY_MS = 500L
-        private val PARCHMENT = Color.parseColor("#F2E3C0")
-        private val DARK_BROWN = Color.parseColor("#3E2C12")
-        private val BUTTON_BROWN = Color.parseColor("#8B6B3E")
-        private val ROW_BROWN = Color.parseColor("#E3CFA2")
+        private val PARCHMENT = "#F2E3C0".toColorInt()
+        private val DARK_BROWN = "#3E2C12".toColorInt()
+        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
+        private val ROW_BROWN = "#E3CFA2".toColorInt()
 
         // Puts gear into the calculator's saved session, then reloads the page to show it.
         // __GEAR__ is replaced with {"head": 1234, "cape": null, ...}
@@ -222,37 +224,9 @@ class DpsTool(
 
     // ---------------- Importing ----------------
 
-    // The item pictures aren't part of the app (they're Jagex's artwork). The main screen offers to
-    // download them when the app first opens; if that was put off, the first import gets them (along with
-    // the rest of the tools' pictures, once). See AssetDownloader.
-    private fun downloadPictures() {
-        busy = true
-        showStatus(if (AssetDownloader.onlyAFew(context)) "Getting the pictures of new items..."
-            else "Getting the game pictures the tools compare with (about ${AssetDownloader.ZIP_SIZE_MB} MB, only the first time)...")
-        val listener = object : AssetDownloader.Listener {
-            override fun progress(fraction: Float, line: String, url: String) {
-                if (busy) showStatus(line + if (fraction >= 0) " (${(fraction * 100).toInt()}%)" else "")
-            }
-            override fun finished(failed: Int) {
-                AssetDownloader.removeListener(this)
-                Thread {
-                    try { recognizer.warmUp() } catch (_: Exception) { }
-                    handler.post {
-                        busy = false
-                        showStatus(if (recognizer.iconsReady()) "Item pictures ready. Open your equipment tab in the game and tap Import my gear."
-                            else "Couldn't get $failed pictures. Check your internet connection, then tap Import my gear to finish.")
-                    }
-                }.start()
-            }
-        }
-        AssetDownloader.addListener(listener)
-        AssetDownloader.start(context)
-    }
-
     private fun importGear() {
         if (busy) return
         finishAreaSetup()
-        if (!recognizer.iconsReady()) { downloadPictures(); return }
         if (!capture.isActive) {
             showStatus("Waiting for screen-capture permission...")
             capture.request { ok ->
@@ -313,7 +287,7 @@ class DpsTool(
         val out = tab.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(out)
         val paint = Paint().apply {
-            color = Color.parseColor("#E8C766")
+            color = "#E8C766".toColorInt()
             style = Paint.Style.STROKE
             strokeWidth = maxOf(2f, out.width / 150f)
         }
@@ -422,7 +396,7 @@ class DpsTool(
                 addView(TextView(context).apply {
                     text = note
                     textSize = 11f
-                    setTextColor(Color.parseColor("#C0600A"))
+                    setTextColor("#C0600A".toColorInt())
                     setTypeface(typeface, Typeface.BOLD)
                 })
             }
@@ -481,15 +455,15 @@ class DpsTool(
 
     private fun loadIntoCalculator() {
         val gear = JSONObject()
-        val remember = picksPrefs.edit()
-        for ((slot, options) in choices) {
-            val index = picked[slot] ?: 0
-            val item = options[index].item
-            gear.put(slot, item?.id ?: JSONObject.NULL)
-            // you switched this slot to another guess: remember it for next time
-            if (index != 0 && item != null) remember.putInt(slot, item.id)
+        picksPrefs.edit {
+            for ((slot, options) in choices) {
+                val index = picked[slot] ?: 0
+                val item = options[index].item
+                gear.put(slot, item?.id ?: JSONObject.NULL)
+                // you switched this slot to another guess: remember it for next time
+                if (index != 0 && item != null) putInt(slot, item.id)
+            }
         }
-        remember.apply()
         closeResults()
         showStatus("Loading your gear into the calculator...")
         web?.evaluateJavascript(LOAD_GEAR_JS.replace("__GEAR__", gear.toString()), null)

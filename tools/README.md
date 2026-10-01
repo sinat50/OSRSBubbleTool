@@ -39,8 +39,9 @@ cd osrs-dps-calc && git checkout <GearIcons.COMMIT>
 | Script | Makes | Notes |
 | --- | --- | --- |
 | `build_equipment_json.py` | `dps/equipment.json` | `python3 build_equipment_json.py osrs-dps-calc equipment.json` |
+| `fetch_pictures.py` | `dps/icons/`, `puzzles/`, `quest_images/` | `python3 fetch_pictures.py app/src/main/assets` (from the project folder). Downloads every game picture the app comes with: item pictures from the repository at `GearIcons.COMMIT` (the "wiki" ones from the OSRS Wiki), and the solved puzzle and quest pictures from the wiki. Skips ones already there and removes ones no longer needed, so run it after rebuilding `equipment.json`. About 30 seconds. |
 
-`wiki_icons.txt` lists the item pictures the repository has out of date at the pinned version; the app
-downloads those from the OSRS Wiki instead. If you move to a newer version, update `COMMIT` in
-`GearIcons.kt` (the app downloads its pictures from that exact version), rebuild `equipment.json`, and check
-whether those pictures are still out of date.
+`wiki_icons.txt` lists the item pictures the repository has out of date at the pinned version;
+`fetch_pictures.py` gets those from the OSRS Wiki instead. If you move to a newer version, update `COMMIT` in
+`GearIcons.kt`, rebuild `equipment.json`, check whether those pictures are still out of date, then run
+`fetch_pictures.py`.

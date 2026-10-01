@@ -27,6 +27,8 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
 import kotlin.math.abs
 
 class BubbleService : Service() {
@@ -277,6 +279,7 @@ class BubbleService : Service() {
             if (!destroyed) updateForeground(capturing)
         }
         createBubble()
+        addStatusProbe()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -439,17 +442,17 @@ class BubbleService : Service() {
             orientation = LinearLayout.VERTICAL
             for (tool in Tool.values()) {
                 // the active tool shows in gold
-                val color = if (tool == currentTool) Color.parseColor("#E8C766") else Color.WHITE
+                val color = if (tool == currentTool) "#E8C766".toColorInt() else Color.WHITE
                 addView(menuItem(tool.label, color) { openTool(tool) })
             }
-            addView(menuItem("✕  Close bubble", Color.parseColor("#E08A7A")) { stopSelf() })
+            addView(menuItem("✕  Close bubble", "#E08A7A".toColorInt()) { stopSelf() })
         }
 
         // The list scrolls when there are more tools than fit on the screen
         val scroll = ScrollView(this).apply {
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#3E2C12"))
-                setStroke(dp(1), Color.parseColor("#C9A24A"))
+                setColor("#3E2C12".toColorInt())
+                setStroke(dp(1), "#C9A24A".toColorInt())
                 cornerRadius = dp(8).toFloat()
             }
             setPadding(dp(1), dp(1), dp(1), dp(1))
@@ -569,6 +572,9 @@ class BubbleService : Service() {
     private fun showToolWindow() {
         val window = toolWindows.getOrPut(currentTool) { buildToolWindow(currentTool) }
         val params = makeWindowParams()
+        shownWantY = params.y
+        shownWantH = params.height
+        placeBelowStatusBar(params)
         windowManager.addView(window, params)
         shownWindow = window
         shownParams = params
@@ -614,7 +620,7 @@ class BubbleService : Service() {
         val size = dp(BUBBLE_SIZE_DP)
         val across = bubbleParams.x.toFloat() / maxOf(1, screenWidth() - size)
         val down = bubbleParams.y.toFloat() / maxOf(1, screenHeight() - size)
-        bubblePlace.edit().putFloat("x_" + placeKey(), across).putFloat("y_" + placeKey(), down).apply()
+        bubblePlace.edit { putFloat("x_" + placeKey(), across).putFloat("y_" + placeKey(), down) }
     }
 
     private fun restoreBubblePlace() {
@@ -631,7 +637,80 @@ class BubbleService : Service() {
     private fun clampBubble() {
         val size = dp(BUBBLE_SIZE_DP)
         bubbleParams.x = bubbleParams.x.coerceIn(0, maxOf(0, screenWidth() - size))
-        bubbleParams.y = bubbleParams.y.coerceIn(0, maxOf(0, screenHeight() - size))
+        // (never under the status bar while it's showing, where it couldn't be touched)
+        bubbleParams.y = bubbleParams.y.coerceIn(minOf(statusBarTop, screenHeight() - size).coerceAtLeast(0),
+            maxOf(0, screenHeight() - size))
+    }
+
+    // ---------------- Keeping clear of the status bar ----------------
+
+    // Android draws the status bar on top of everything, so anything under it can't be touched. While the
+    // game is open the phone hides the status bar and you can use the whole screen; elsewhere (the app's
+    // own screen, the home screen) it shows, and windows and the bubble are kept just below it.
+    private var statusBarTop = 0     // how far down the status bar reaches right now (0 = hidden)
+    private var shownWantY = 0       // where you put the open window; it goes back there when the status bar hides
+    private var shownWantH = 0       // and how tall you made it (it may be shorter for a while to fit below the status bar)
+
+    // Overlay windows aren't told when the status bar comes and goes, so this watches for it: an invisible strip,
+    // one pixel wide, from the top of the screen to the bottom. Android keeps it clear of the status bar like a
+    // normal window, so when the status bar appears the strip gets pushed down, and where its top lands is how far
+    // down the status bar reaches. Taps go straight through it.
+    private var statusProbe: View? = null
+
+    private fun addStatusProbe() {
+        val probe = View(this)
+        val p = WindowManager.LayoutParams(
+            1, ViewGroup.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            alpha = 0f   // fully see-through, so Android lets taps through to the game
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                fitInsetsTypes = android.view.WindowInsets.Type.statusBars()   // only the status bar pushes it
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS   // not the camera cutout
+            }
+        }
+        // the strip changes height whenever the status bar appears or hides
+        probe.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
+            val loc = IntArray(2)
+            v.getLocationOnScreen(loc)
+            onStatusBarChanged(loc[1])
+        }
+        windowManager.addView(probe, p)
+        statusProbe = probe
+    }
+
+    // The status bar appeared (top = how far down it reaches) or hid (top = 0)
+    private fun onStatusBarChanged(top: Int) {
+        if (top == statusBarTop) return
+        statusBarTop = top
+        // move things just after this, not while Android is in the middle of laying out windows
+        bubble.post {
+            if (destroyed) return@post
+            // the bubble: below the status bar while it shows, back where you left it when it hides
+            if (top == 0) restoreBubblePlace() else clampBubble()
+            windowManager.updateViewLayout(bubble, bubbleParams)
+            val params = shownParams ?: return@post
+            placeBelowStatusBar(params)
+            shownWindow?.let { windowManager.updateViewLayout(it, params) }
+        }
+    }
+
+    // Puts the open window where you left it (shownWantY, shownWantH), but clear of the status bar if that's
+    // showing: moved down below it, and if it's then too tall to fit, made shorter for now. It goes back to
+    // its own place and size when the status bar hides again.
+    private fun placeBelowStatusBar(params: WindowManager.LayoutParams) {
+        val screenH = screenHeight()
+        params.y = maxOf(shownWantY, statusBarTop)
+        if (shownWantH <= 0) return   // a window that sizes itself to what's in it (Light Box, Puzzle Box)
+        params.height = shownWantH
+        if (params.y + params.height > screenH) {
+            // too low to fit: move it up as far as the status bar allows, then trim what still doesn't fit
+            params.y = maxOf(statusBarTop, screenH - params.height)
+            params.height = minOf(params.height, screenH - params.y)
+        }
     }
 
     private fun buildToolWindow(tool: Tool): LinearLayout {
@@ -716,9 +795,9 @@ class BubbleService : Service() {
         val dragHandle = TextView(this).apply {
             text = "↔"
             textSize = 15f
-            setTextColor(Color.parseColor("#D8C8A8"))
+            setTextColor("#D8C8A8".toColorInt())
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#54401F"))
+            setBackgroundColor("#54401F".toColorInt())
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
         }
 
@@ -743,8 +822,10 @@ class BubbleService : Service() {
                     if (currentTool != Tool.LIGHT_BOX && currentTool != Tool.PUZZLE_BOX) windowX = params.x  // others share one position
                     if (isResizable(currentTool)) {
                         val maxY = maxOf(0, screenHeight() - params.height)
-                        params.y = (startWindowY + (event.rawY - downRawY).toInt()).coerceIn(0, maxY)
+                        // not up under the status bar while it's showing (you couldn't grab the window there)
+                        params.y = (startWindowY + (event.rawY - downRawY).toInt()).coerceIn(minOf(statusBarTop, maxY), maxY)
                         windowY = params.y
+                        shownWantY = params.y
                     }
                     shownWindow?.let { windowManager.updateViewLayout(it, params) }
                 }
@@ -754,7 +835,7 @@ class BubbleService : Service() {
 
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(Color.parseColor("#3E2C12"))
+            setBackgroundColor("#3E2C12".toColorInt())
             addView(backButton)
             addView(dragHandle)
             addView(closeButton)
@@ -776,8 +857,8 @@ class BubbleService : Service() {
 
     // ---------------- Resizing windows ----------------
 
-    // The Light Box and Puzzle Box Solvers are already small, and the Notepad is sized around the keyboard
-    private fun isResizable(tool: Tool) = tool != Tool.LIGHT_BOX && tool != Tool.PUZZLE_BOX && tool != Tool.NOTES
+    // The Light Box and Puzzle Box Solvers are already small
+    private fun isResizable(tool: Tool) = tool != Tool.LIGHT_BOX && tool != Tool.PUZZLE_BOX
 
     // Each tool remembers its own size, separately for landscape and portrait
     private fun sizeKey(tool: Tool): String {
@@ -795,12 +876,12 @@ class BubbleService : Service() {
             strokeWidth = dp(2).toFloat()
             strokeCap = android.graphics.Paint.Cap.ROUND
         }
-        private val back = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#B33E2C12") }
+        private val back = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = "#B33E2C12".toColorInt() }
         override fun onDraw(canvas: android.graphics.Canvas) {
             val w = width.toFloat(); val h = height.toFloat()
             // a dark quarter-circle in the corner with three diagonal lines, like a window's resize grip
             canvas.drawCircle(w, h, w * 0.95f, back)
-            paint.color = Color.parseColor("#F2E3C0")
+            paint.color = "#F2E3C0".toColorInt()
             for (i in 1..3) {
                 val d = w * 0.22f * i
                 canvas.drawLine(w - d, h - dp(3), w - dp(3), h - d, paint)
@@ -826,27 +907,30 @@ class BubbleService : Service() {
                     if (moved) {
                         params.width = (startW + dx).coerceIn(minWindowWidth, maxOf(minWindowWidth, screenWidth() - params.x))
                         params.height = (startH + dy).coerceIn(minWindowHeight, maxOf(minWindowHeight, screenHeight() - params.y))
+                        shownWantH = params.height
                         shownWindow?.let { windowManager.updateViewLayout(it, params) }
                     }
                 }
                 MotionEvent.ACTION_UP -> {
                     if (moved) {
-                        sizes.edit()
-                            .putInt(sizeKey(currentTool) + "_w", params.width)
-                            .putInt(sizeKey(currentTool) + "_h", params.height)
-                            .apply()
+                        sizes.edit {
+                            putInt(sizeKey(currentTool) + "_w", params.width)
+                            putInt(sizeKey(currentTool) + "_h", params.height)
+                        }
                         refitWebPages()
                     } else {
                         val now = System.currentTimeMillis()
                         if (now - lastTap < 350) {
                             // double-tap: back to the normal size
-                            sizes.edit().remove(sizeKey(currentTool) + "_w").remove(sizeKey(currentTool) + "_h").apply()
+                            sizes.edit { remove(sizeKey(currentTool) + "_w").remove(sizeKey(currentTool) + "_h") }
                             windowY = null   // and back to the middle of the screen
                             val fresh = makeWindowParams()
                             params.width = fresh.width
                             params.height = fresh.height
                             params.x = fresh.x
-                            params.y = fresh.y
+                            shownWantY = fresh.y
+                            shownWantH = fresh.height
+                            placeBelowStatusBar(params)
                             shownWindow?.let { windowManager.updateViewLayout(it, params) }
                             refitWebPages()
                             lastTap = 0
@@ -902,7 +986,11 @@ class BubbleService : Service() {
         }.coerceAtMost(screenW)
 
         var w = width
-        var h = (screenH * 0.9f).toInt()
+        // The Notepad starts at the top, only as tall as the space above the keyboard (about the top half),
+        // so the keyboard doesn't cover what you're typing
+        val notesTop = NotesTool.topOffset(this)
+        var h = if (currentTool == Tool.NOTES) ((screenH * 0.48f).toInt() - notesTop).coerceAtLeast(minWindowHeight)
+                else (screenH * 0.9f).toInt()
         // a size you've dragged this tool to
         if (isResizable(currentTool)) {
             val key = sizeKey(currentTool)
@@ -912,7 +1000,6 @@ class BubbleService : Service() {
             }
         }
         windowX = windowX.coerceIn(0, maxOf(0, screenW - w))
-        val resizable = isResizable(currentTool)
 
         return WindowManager.LayoutParams(
             w,
@@ -921,13 +1008,12 @@ class BubbleService : Service() {
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, // touches outside still reach the game
             PixelFormat.TRANSLUCENT
         ).apply {
-            // the Notepad sits at the top of the screen, so the keyboard (bottom half) doesn't cover the note
-            gravity = Gravity.START or if (currentTool == Tool.NOTES || resizable) Gravity.TOP else Gravity.CENTER_VERTICAL
+            gravity = Gravity.START or Gravity.TOP
             x = windowX
-            // resizable windows sit where you last dragged them (centred to start with)
-            if (resizable) y = (windowY ?: (screenH - h) / 2).coerceIn(0, maxOf(0, screenH - h))
-            // …but below the status bar, which catches touches at the very top outside the game
-            if (currentTool == Tool.NOTES) y = NotesTool.topOffset(this@BubbleService)
+            // windows sit where you last dragged them. To start with they're centred, except the Notepad,
+            // which starts at the top, just below the status bar (it catches touches at the very top).
+            val start = if (currentTool == Tool.NOTES) notesTop else (screenH - h) / 2
+            y = (windowY ?: start).coerceIn(0, maxOf(0, screenH - h))
             allowScreenEdges(this)
         }
     }
@@ -989,6 +1075,9 @@ class BubbleService : Service() {
         toolParts.values.forEach { it.onRotated() }
         if (shownWindow != null) {
             val params = makeWindowParams()
+            shownWantY = params.y
+            shownWantH = params.height
+            placeBelowStatusBar(params)
             shownParams = params
             shownWindow?.let { windowManager.updateViewLayout(it, params) }
         }
@@ -1003,6 +1092,7 @@ class BubbleService : Service() {
         toolParts.values.forEach { it.onDestroy() }
         capture.shutdown()
         windowManager.removeView(bubble)
+        statusProbe?.let { windowManager.removeView(it) }
         webViews.forEach { (it.parent as? ViewGroup)?.removeView(it); it.destroy() }
         super.onDestroy()
     }

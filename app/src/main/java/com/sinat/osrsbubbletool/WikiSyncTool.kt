@@ -14,20 +14,21 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.graphics.toColorInt
 
 // WikiSync: set your RuneScape name once, and the tools that use your quests, levels and diaries
 // (Quest Helper, Hunter Rumours, Teleport Finder) all read it from here.
 class WikiSyncTool(private val context: Context) {
 
     companion object {
-        private val PARCHMENT = Color.parseColor("#F2E3C0")
-        private val DARK_BROWN = Color.parseColor("#3E2C12")
-        private val BUTTON_BROWN = Color.parseColor("#8B6B3E")
-        private val ROW_BROWN = Color.parseColor("#E3CFA2")
-        private val PAPER = Color.parseColor("#FFF8E6")
-        private val GO_GREEN = Color.parseColor("#3E7A2E")
-        private val FADED = Color.parseColor("#8C7B5E")
-        private val WARN = Color.parseColor("#9C4A10")
+        private val PARCHMENT = "#F2E3C0".toColorInt()
+        private val DARK_BROWN = "#3E2C12".toColorInt()
+        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
+        private val ROW_BROWN = "#E3CFA2".toColorInt()
+        private val PAPER = "#FFF8E6".toColorInt()
+        private val GO_GREEN = "#3E7A2E".toColorInt()
+        private val FADED = "#8C7B5E".toColorInt()
+        private val WARN = "#9C4A10".toColorInt()
     }
 
     private val sync = WikiSync(context)
@@ -205,8 +206,8 @@ class WikiSyncTool(private val context: Context) {
 // The little "✓ WikiSync" (green, synced) or "✗ WikiSync" (red, not set up) tag shown by the tools that use it.
 // Tapping it opens the WikiSync tool.
 object WikiSyncBadge {
-    private val GREEN = Color.parseColor("#3E7A2E")
-    private val RED = Color.parseColor("#B03A2E")
+    private val GREEN = "#3E7A2E".toColorInt()
+    private val RED = "#B03A2E".toColorInt()
 
     fun isSynced(sync: WikiSync) = sync.username.isNotEmpty() && sync.cached != null
 

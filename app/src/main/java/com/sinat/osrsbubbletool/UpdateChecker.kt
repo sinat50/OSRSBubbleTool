@@ -3,9 +3,10 @@ package com.sinat.osrsbubbletool
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import org.json.JSONObject
+import androidx.core.content.edit
 import java.net.HttpURLConnection
 import java.net.URL
+import org.json.JSONObject
 
 // Checks GitHub for a newer release of the app. It checks each time you open the app's main screen
 // (never in the background), and sends nothing about you or your phone.
@@ -47,7 +48,7 @@ object UpdateChecker {
                         val j = JSONObject(c.inputStream.bufferedReader().use { it.readText() })
                         val tag = j.optString("tag_name")
                         if (tag.isNotEmpty() && !j.optBoolean("draft") && !j.optBoolean("prerelease")) {
-                            prefs(app).edit().putString("latest", tag).apply()
+                            prefs(app).edit { putString("latest", tag) }
                         }
                     }
                 } finally { c.disconnect() }

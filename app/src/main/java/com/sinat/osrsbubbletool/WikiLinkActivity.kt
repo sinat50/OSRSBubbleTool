@@ -7,6 +7,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
+import androidx.core.content.edit
+import androidx.core.net.toUri
 
 // Catches OSRS Wiki links. Links from the game (its wiki button) open in the bubble's Wiki
 // window, so you stay in the game. Links from any other app are passed straight on to your
@@ -32,11 +34,11 @@ class WikiLinkActivity : Activity() {
                 else -> false                              // another app: its links go to the browser
             }
             // remembered so the Permissions screen can show what happened
-            getSharedPreferences("wiki_links", MODE_PRIVATE).edit()
-                .putString("from", from ?: "unknown app")
-                .putBoolean("to_bubble", toBubble)
-                .putLong("time", System.currentTimeMillis())
-                .apply()
+            getSharedPreferences("wiki_links", MODE_PRIVATE).edit {
+                putString("from", from ?: "unknown app")
+                putBoolean("to_bubble", toBubble)
+                putLong("time", System.currentTimeMillis())
+            }
             if (toBubble) openInBubble(uri.toString()) else openInBrowser(uri)
         }
         finish()
@@ -78,7 +80,7 @@ class WikiLinkActivity : Activity() {
 
     // The phone's default browser, or failing that any browser that isn't this app
     private fun browserPackage(): String? {
-        val any = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.example.com"))
+        val any = Intent(Intent.ACTION_VIEW, "https://www.example.com".toUri())
         val default = packageManager.resolveActivity(any, PackageManager.MATCH_DEFAULT_ONLY)
             ?.activityInfo?.packageName
         if (default != null && default != packageName && default != "android") return default

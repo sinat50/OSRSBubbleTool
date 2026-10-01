@@ -11,21 +11,23 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
 
 // Hunters' Rumours: pick your tier (and guild hunter), pick the rumour you're on, and see where the
 // creature is, how to get there and what to bring. Everything is built in, so it works offline.
 class HunterRumourTool(private val context: Context, private val openWikiSync: () -> Unit = {}) {
 
     companion object {
-        private val PARCHMENT = Color.parseColor("#F2E3C0")
-        private val DARK_BROWN = Color.parseColor("#3E2C12")
-        private val BUTTON_BROWN = Color.parseColor("#8B6B3E")
-        private val LIGHT_BUTTON = Color.parseColor("#B89A63")
-        private val ROW_BROWN = Color.parseColor("#E3CFA2")
-        private val PAPER = Color.parseColor("#FFF8E6")
-        private val GO_GREEN = Color.parseColor("#3E7A2E")
-        private val FADED = Color.parseColor("#8C7B5E")
-        private val WARN = Color.parseColor("#9C4A10")
+        private val PARCHMENT = "#F2E3C0".toColorInt()
+        private val DARK_BROWN = "#3E2C12".toColorInt()
+        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
+        private val LIGHT_BUTTON = "#B89A63".toColorInt()
+        private val ROW_BROWN = "#E3CFA2".toColorInt()
+        private val PAPER = "#FFF8E6".toColorInt()
+        private val GO_GREEN = "#3E7A2E".toColorInt()
+        private val FADED = "#8C7B5E".toColorInt()
+        private val WARN = "#9C4A10".toColorInt()
     }
 
     private val prefs = context.getSharedPreferences("hunter_rumours", Context.MODE_PRIVATE)
@@ -35,15 +37,15 @@ class HunterRumourTool(private val context: Context, private val openWikiSync: (
     // What you picked, remembered for next time
     private var tier: String
         get() = prefs.getString("tier", null)?.takeIf { it in HunterRumours.TIERS } ?: "Novice"
-        set(v) { prefs.edit().putString("tier", v).apply() }
+        set(v) { prefs.edit { putString("tier", v) } }
     private var hunter: HunterRumours.Hunter
         get() = HunterRumours.huntersFor(tier).let { list ->
             list.firstOrNull { it.name == prefs.getString("hunter_$tier", null) } ?: list.first()
         }
-        set(v) { prefs.edit().putString("hunter_$tier", v.name).apply() }
+        set(v) { prefs.edit { putString("hunter_$tier", v.name) } }
     private var current: HunterRumours.Rumour?   // the rumour you're on
         get() = prefs.getString("current", null)?.let { HunterRumours.byName(it) }
-        set(v) { prefs.edit().putString("current", v?.name).apply() }
+        set(v) { prefs.edit { putString("current", v?.name) } }
 
     private var showing: HunterRumours.Rumour? = null   // null = the list
 

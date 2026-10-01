@@ -12,21 +12,24 @@ import android.os.Build
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import androidx.core.graphics.toColorInt
 
 // Drawn on top of the light box in the game: instructions in its title bar,
 // and outlines around the buttons to press. Taps pass straight through to the game.
 class LightBoxGuideOverlay(private val context: Context, private val windowManager: WindowManager) {
 
     companion object {
-        val GREEN = Color.parseColor("#3DDC5A")
-        val YELLOW = Color.parseColor("#FFD60A")
-        private val BANNER_BG = Color.parseColor("#E6201A10")
+        val GREEN = "#3DDC5A".toColorInt()
+        val YELLOW = "#FFD60A".toColorInt()
+        private val BANNER_BG = "#E6201A10".toColorInt()
     }
 
     private var view: GuideView? = null
     private var params: WindowManager.LayoutParams? = null
     private var layout: LightBoxReader.Layout? = null
     private var area = Rect()
+    private var buttonBoxes: List<RectF> = emptyList()   // the 8 buttons, in overlay pixels
+    private var titleBox = RectF()                        // the title bar, in overlay pixels
 
     private var message = ""
     private var messageColor = Color.WHITE
@@ -40,6 +43,9 @@ class LightBoxGuideOverlay(private val context: Context, private val windowManag
         hide()
         this.layout = layout
         area = layout.windowRect()
+        // where the buttons and the title bar are inside the overlay, worked out once rather than on every redraw
+        buttonBoxes = List(8) { RectF(layout.buttonRect(it)).apply { offset(-area.left.toFloat(), -area.top.toFloat()) } }
+        titleBox = RectF(layout.titleRect()).apply { offset(-area.left.toFloat(), -area.top.toFloat()) }
         val p = WindowManager.LayoutParams(
             area.width(), area.height(),
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -107,23 +113,20 @@ class LightBoxGuideOverlay(private val context: Context, private val windowManag
                 }
             }
             val l = layout ?: return
-            val ox = area.left.toFloat()
-            val oy = area.top.toFloat()
 
             // button outlines
             box.color = buttonColor
             box.strokeWidth = l.spacing * 0.07f
+            val half = box.strokeWidth / 2
             for (b in buttons) {
-                val r = l.buttonRect(b)
-                r.offset(-ox, -oy)
-                r.inset(box.strokeWidth / 2, box.strokeWidth / 2)
-                canvas.drawRoundRect(r, l.spacing * 0.05f, l.spacing * 0.05f, box)
+                val r = buttonBoxes.getOrNull(b) ?: continue
+                canvas.drawRoundRect(r.left + half, r.top + half, r.right - half, r.bottom - half,
+                    l.spacing * 0.05f, l.spacing * 0.05f, box)
             }
 
             // message in the title bar
             if (message.isNotEmpty()) {
-                val t = RectF(l.titleRect())
-                t.offset(-ox, -oy)
+                val t = titleBox
                 fill.color = BANNER_BG
                 canvas.drawRoundRect(t, l.spacing * 0.08f, l.spacing * 0.08f, fill)
                 text.color = messageColor

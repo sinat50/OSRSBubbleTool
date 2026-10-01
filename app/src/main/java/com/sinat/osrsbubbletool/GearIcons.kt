@@ -1,60 +1,38 @@
 package com.sinat.osrsbubbletool
 
 import android.content.Context
-import org.json.JSONArray
-import java.io.File
-import java.net.URLEncoder
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 
-// Where the item pictures "Import my gear" compares your equipment with are kept and downloaded from.
-// They're Jagex's artwork, so the app doesn't come with them: AssetDownloader gets them once and they're
-// kept on the phone.
+// The item pictures "Import my gear" compares your equipment with. They come with the app
+// (assets/dps/icons/, one per "icon" in dps/equipment.json), put there by tools/dps/fetch_pictures.py.
 //
-// Most are unpacked from the OSRS Wiki DPS calculator's repository (github.com/weirdgloop/osrs-dps-calc),
-// downloaded as one ZIP at the exact version the app's item list was made from, so they never change
-// underneath it. A few that the repository has out of date (marked "wiki" in the item list) come
-// straight from the OSRS Wiki instead, falling back to the repository's copy.
+// Most are from the OSRS Wiki DPS calculator's repository (github.com/weirdgloop/osrs-dps-calc), at the
+// exact version the app's item list was made from (COMMIT), so they always match it. A few that the
+// repository has out of date (marked "wiki" in the item list) are the OSRS Wiki's instead.
+// They're Jagex's artwork, included under Jagex's Fan Content Policy (see the Legal screen).
 class GearIcons(context: Context) {
 
     companion object {
+        // The version of the DPS calculator's repository the item list and pictures come from
+        // (tools/dps/build_equipment_json.py and fetch_pictures.py read it from here)
         const val COMMIT = "89c3e25b344aea90d0189746e4b5f73dde0f0383"
-        private const val WIKI = "https://oldschool.runescape.wiki/images/"
-
-        // A path part with spaces as %20 (URLEncoder gives "+", which is only right in a query)
-        private fun encode(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
-
-        fun folder(context: Context) = File(context.filesDir, "dps_icons")
-        fun file(context: Context, name: String) = File(folder(context), name.replace('/', '_'))
-
-        // Every item picture (its name in the repository, and whether to get it from the wiki), from the
-        // bundled item list. Read once.
-        @Volatile private var iconList: List<Pair<String, Boolean>>? = null
-        fun icons(context: Context): List<Pair<String, Boolean>> {
-            iconList?.let { return it }
-            val text = context.assets.open("dps/equipment.json").bufferedReader().use { it.readText() }
-            val array = JSONArray(text)
-            val seen = LinkedHashMap<String, Boolean>()
-            for (i in 0 until array.length()) {
-                val o = array.getJSONObject(i)
-                val name = o.getString("icon")
-                seen[name] = (seen[name] ?: false) || o.optBoolean("wiki", false)
-            }
-            return seen.toList().also { iconList = it }
-        }
-
-        // An item picture the repository has out of date, from the OSRS Wiki
-        fun wikiJob(context: Context, name: String) =
-            AssetDownloader.Job(WIKI + encode(name.replace(' ', '_')), file(context, name))
-
-        // One item picture from the repository, at the same version as the ZIP. Used when only a few are
-        // missing (new items in an app update), so there's no need to download the whole ZIP for them.
-        fun repoJob(context: Context, name: String) = AssetDownloader.Job(
-            "https://raw.githubusercontent.com/weirdgloop/osrs-dps-calc/$COMMIT/cdn/equipment/" + encode(name),
-            file(context, name))
+        private const val FOLDER = "dps/icons"
     }
 
-    private val appContext = context.applicationContext
+    private val assets = context.applicationContext.assets
 
-    fun file(name: String) = file(appContext, name)
+    // Every picture that came with the app, listed once
+    private val names: Set<String> by lazy { assets.list(FOLDER)?.toHashSet() ?: emptySet() }
 
-    fun has(name: String) = file(name).isFile
+    private fun fileName(name: String) = name.replace('/', '_')
+
+    fun has(name: String) = fileName(name) in names
+
+    // The picture, or null if it's missing or can't be read
+    fun decode(name: String): Bitmap? = try {
+        assets.open("$FOLDER/${fileName(name)}").use { BitmapFactory.decodeStream(it) }
+    } catch (_: Exception) {
+        null
+    }
 }

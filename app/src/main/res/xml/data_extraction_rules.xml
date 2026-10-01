@@ -3,7 +3,7 @@
    move to a new phone (device-transfer). Only what's listed is copied:
    - the app's settings, notes, timers, WikiSync name and so on (shared preferences)
    - your Inventory Setups pictures
-   The game pictures the app downloads are left out (see backup_rules.xml for why).
+   Nothing else needs it (see backup_rules.xml).
 -->
 <data-extraction-rules>
     <cloud-backup>

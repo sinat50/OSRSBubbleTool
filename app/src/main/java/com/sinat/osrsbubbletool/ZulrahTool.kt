@@ -36,7 +36,6 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.util.Base64
@@ -46,6 +45,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
 
 // Zulrah Helper, drawn like the RuneLite plugin: a big picture of the current phase on top
 // (Zulrah's coloured dot, where to stand, which prayer), and the possible next phases
@@ -53,11 +54,11 @@ import android.widget.TextView
 class ZulrahTool(private val context: Context) {
 
     companion object {
-        private val WINDOW_BG = Color.parseColor("#1E1E1E")
-        private val CARD_BG = Color.parseColor("#2B2B2B")
-        private val BUTTON_BG = Color.parseColor("#3C3C3C")
-        private val CURRENT_BORDER = Color.parseColor("#FF9900")
-        private val NEXT_BORDER = Color.parseColor("#555555")
+        private val WINDOW_BG = "#1E1E1E".toColorInt()
+        private val CARD_BG = "#2B2B2B".toColorInt()
+        private val BUTTON_BG = "#3C3C3C".toColorInt()
+        private val CURRENT_BORDER = "#FF9900".toColorInt()
+        private val NEXT_BORDER = "#555555".toColorInt()
         private val ZULRAH_BORDER = Color.rgb(140, 140, 140)
 
         // Plugin picture size, in plugin pixels. Everything on a card is drawn in these units.
@@ -275,7 +276,7 @@ class ZulrahTool(private val context: Context) {
             add(smallButton("Undo") { goBack() })
             add(smallButton("Turn") {
                 turned = !turned
-                prefs.edit().putBoolean("north_up", turned).apply()
+                prefs.edit { putBoolean("north_up", turned) }
                 refresh()
             })
             add(smallButton("Reset") { reset() })
@@ -305,7 +306,6 @@ class ZulrahTool(private val context: Context) {
     private inner class Board : View(this@ZulrahTool.context) {
         private var phase: Phase? = null
         private var options: List<Option> = emptyList()
-        private val optionRects = mutableListOf<RectF>()
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val pixelPaint = Paint().apply { isFilterBitmap = false }  // keeps pixel art sharp
 
@@ -331,22 +331,32 @@ class ZulrahTool(private val context: Context) {
             val top = (h - totalH) / 2f
             drawCard(canvas, cur, (w - big) / 2f, top, big, restart = false, border = CURRENT_BORDER)
 
-            optionRects.clear()
             val rowW = small * n + gap * (n - 1)
             var x = (w - rowW) / 2f
             val y = top + big + gap
+            // remembered so a tap can be matched to a picture
+            optionsLeft = x; optionsTop = y; optionSize = small; optionStep = small + gap
             for (o in options) {
                 drawCard(canvas, o.phase, x, y, small, o.restart, NEXT_BORDER)
-                optionRects.add(RectF(x, y, x + small, y + small))
                 x += small + gap
             }
         }
 
+        // Where the row of next-phase pictures is (set when it's drawn)
+        private var optionsLeft = 0f
+        private var optionsTop = 0f
+        private var optionSize = 0f
+        private var optionStep = 0f
+
         @SuppressLint("ClickableViewAccessibility")
         override fun onTouchEvent(event: MotionEvent): Boolean {
-            if (event.action == MotionEvent.ACTION_UP) {
-                val i = optionRects.indexOfFirst { it.contains(event.x, event.y) }
-                if (i >= 0 && i < options.size) choose(options[i])
+            if (event.action == MotionEvent.ACTION_UP && optionStep > 0f) {
+                // which picture the tap is on (not in the gaps between them)
+                val along = event.x - optionsLeft
+                val i = (along / optionStep).toInt()
+                val onPicture = along >= 0f && along - i * optionStep <= optionSize &&
+                    event.y >= optionsTop && event.y <= optionsTop + optionSize
+                if (onPicture && i < options.size) choose(options[i])
             }
             return true
         }

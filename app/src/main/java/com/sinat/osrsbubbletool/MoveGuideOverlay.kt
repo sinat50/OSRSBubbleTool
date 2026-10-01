@@ -12,6 +12,7 @@ import android.os.Build
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import androidx.core.graphics.toColorInt
 
 // Outlines the next few tiles to tap, drawn on top of the puzzle in the game, with a short
 // message ("Move 3 of 42") just above the puzzle's frame. Taps pass straight through to the game.
@@ -22,10 +23,10 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
 
         // Outline colour for move 1, 2, 3, 4
         val MOVE_COLORS = intArrayOf(
-            Color.parseColor("#3DDC5A"),  // move 1: green
-            Color.parseColor("#FFD60A"),  // move 2: yellow
-            Color.parseColor("#FF9500"),  // move 3: orange
-            Color.parseColor("#FF3B30")   // move 4: red
+            "#3DDC5A".toColorInt(),  // move 1: green
+            "#FFD60A".toColorInt(),  // move 2: yellow
+            "#FF9500".toColorInt(),  // move 3: orange
+            "#FF3B30".toColorInt()   // move 4: red
         )
 
         // Outline thickness for move 1, 2, 3, 4, as a fraction of a tile's width.
@@ -35,10 +36,10 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
         // Dot style: one dot per move, each clearly smaller than the last (as a fraction of a tile's width).
         // The biggest leaves the ring the tracking reads (see PuzzleFinder.emptySpace) uncovered.
         val DOT_RADII = floatArrayOf(0.28f, 0.2f, 0.13f, 0.07f)
-        private val DOT_COLOR = Color.parseColor("#FFD60A")
-        private val DOT_EDGE = Color.parseColor("#1A1208")
+        private val DOT_COLOR = "#FFD60A".toColorInt()
+        private val DOT_EDGE = "#1A1208".toColorInt()
 
-        private val BANNER_BG = Color.parseColor("#E6201A10")
+        private val BANNER_BG = "#E6201A10".toColorInt()
         val GREEN = MOVE_COLORS[0]
     }
 
@@ -52,6 +53,7 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
     private var tiles = Rect()      // the 5 x 5 tiles
     private var window = Rect()     // the whole overlay (tiles plus the message strip)
     private var banner = RectF()    // the message strip
+    private var bannerInWindow = RectF()   // the same, measured from the overlay's corner
 
     val isShowing: Boolean get() = view != null
 
@@ -90,6 +92,8 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
         banner = if (above) RectF(tiles.left.toFloat(), tiles.top - frame - bannerH - 4, tiles.right.toFloat(), tiles.top - frame - 4f)
                  else RectF(tiles.left.toFloat(), tiles.bottom + frame + 4f, tiles.right.toFloat(), tiles.bottom + frame + 4 + bannerH)
         window = Rect(tiles.left, minOf(tiles.top, banner.top.toInt()), tiles.right, maxOf(tiles.bottom, banner.bottom.toInt() + 1))
+        // the message strip inside the overlay, worked out once rather than on every redraw
+        bannerInWindow = RectF(banner).apply { offset(-window.left.toFloat(), -window.top.toFloat()) }
 
         val p = WindowManager.LayoutParams(
             window.width(), window.height(),
@@ -194,8 +198,7 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
             }
 
             if (message.isNotEmpty()) {
-                val b = RectF(banner)
-                b.offset(-ox, -oy)
+                val b = bannerInWindow
                 fill.color = BANNER_BG
                 canvas.drawRoundRect(b, b.height() * 0.2f, b.height() * 0.2f, fill)
                 text.color = messageColor

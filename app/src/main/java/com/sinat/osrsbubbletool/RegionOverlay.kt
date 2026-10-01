@@ -17,6 +17,8 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
 import kotlin.math.max
 import kotlin.math.min
 
@@ -83,16 +85,16 @@ class RegionOverlay(
         val location = IntArray(2)
         v.getLocationOnScreen(location)
         val screen = realScreenSize()
-        prefs.edit()
-            .putInt("left", location[0])
-            .putInt("top", location[1])
-            .putInt("width", v.width)
-            .putInt("height", v.height)
-            .putInt("winX", p.x)
-            .putInt("winY", p.y)
-            .putInt("screenW", screen.x)
-            .putInt("screenH", screen.y)
-            .apply()
+        prefs.edit {
+            putInt("left", location[0])
+            putInt("top", location[1])
+            putInt("width", v.width)
+            putInt("height", v.height)
+            putInt("winX", p.x)
+            putInt("winY", p.y)
+            putInt("screenW", screen.x)
+            putInt("screenH", screen.y)
+        }
         hide()
     }
 
@@ -120,21 +122,22 @@ class RegionOverlay(
     @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
     private inner class FrameView : View(context) {
         private val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#E8C766")
+            color = "#E8C766".toColorInt()
             style = Paint.Style.STROKE
             strokeWidth = 3 * density
         }
-        private val fill = Paint().apply { color = Color.parseColor("#22E8C766") }
+        private val fill = Paint().apply { color = "#22E8C766".toColorInt() }
         private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#E8C766")
+            color = "#E8C766".toColorInt()
         }
         private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#E8C766")
+            color = "#E8C766".toColorInt()
             textSize = 14 * density
             isFakeBoldText = true
             setShadowLayer(3 * density, 0f, 0f, Color.BLACK)
         }
         private val handleSize = 32 * density
+        private val corner = Path()   // the resize triangle, reused on every redraw
         private val minSize = (60 * density).toInt()
 
         private var downX = 0f
@@ -153,7 +156,8 @@ class RegionOverlay(
             val half = border.strokeWidth / 2
             canvas.drawRect(half, half, w - half, h - half, border)
             canvas.drawText(label, 8 * density, 20 * density, textPaint)
-            val corner = Path().apply {
+            corner.apply {
+                reset()
                 moveTo(w, h - handleSize)
                 lineTo(w, h)
                 lineTo(w - handleSize, h)

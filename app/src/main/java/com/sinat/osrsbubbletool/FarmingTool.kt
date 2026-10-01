@@ -5,8 +5,6 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.net.Uri
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -16,6 +14,8 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.graphics.toColorInt
+import androidx.core.net.toUri
 import java.util.Calendar
 import java.util.Date
 
@@ -23,14 +23,14 @@ import java.util.Date
 class FarmingTool(private val context: Context) {
 
     companion object {
-        private val PARCHMENT = Color.parseColor("#F2E3C0")
-        private val DARK_BROWN = Color.parseColor("#3E2C12")
-        private val BUTTON_BROWN = Color.parseColor("#8B6B3E")
-        private val ROW_BROWN = Color.parseColor("#E3CFA2")
-        private val GO_GREEN = Color.parseColor("#3E7A2E")
-        private val READY_GREEN = Color.parseColor("#2E8B2E")
-        private val WARN_ORANGE = Color.parseColor("#C0600A")
-        private val STOP_RED = Color.parseColor("#A04030")
+        private val PARCHMENT = "#F2E3C0".toColorInt()
+        private val DARK_BROWN = "#3E2C12".toColorInt()
+        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
+        private val ROW_BROWN = "#E3CFA2".toColorInt()
+        private val GO_GREEN = "#3E7A2E".toColorInt()
+        private val READY_GREEN = "#2E8B2E".toColorInt()
+        private val WARN_ORANGE = "#C0600A".toColorInt()
+        private val STOP_RED = "#A04030".toColorInt()
         private const val REFRESH_MS = 20_000L
     }
 
@@ -97,10 +97,10 @@ class FarmingTool(private val context: Context) {
                     .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
             }, 0)
         }
-        if (!FarmingTimers.canUseExactAlarms(context) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (!FarmingTimers.canUseExactAlarms(context)) {   // (always allowed before Android 12, so this only shows on 12+)
             add(warning("Alerts may be a few minutes late. Tap and allow \"Alarms & reminders\" for on-time alerts.") {
                 openSettings(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                    Uri.parse("package:${context.packageName}")))
+                    "package:${context.packageName}".toUri()))
             }, 0)
         }
 
@@ -217,7 +217,7 @@ class FarmingTool(private val context: Context) {
             context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: Exception) {
             context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                "package:${context.packageName}".toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
     }
 

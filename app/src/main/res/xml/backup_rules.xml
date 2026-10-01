@@ -3,9 +3,8 @@
    data_extraction_rules.xml, which says the same). Only what's listed here is backed up:
    - the app's settings, notes, timers, WikiSync name and so on (shared preferences)
    - your Inventory Setups pictures
-   The game pictures the app downloads (DPS item pictures, puzzle pictures, quest pictures) are left
-   out: they're Jagex's artwork, they can be downloaded again, and they'd take the app over Android's
-   25 MB backup limit, which would stop everything else being backed up too.
+   Nothing else needs it (the game pictures come with the app). Keeping the backup small also matters:
+   past Android's 25 MB limit, nothing gets backed up at all.
 -->
 <full-backup-content>
     <include domain="sharedpref" path="." />

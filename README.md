@@ -51,7 +51,7 @@ Tool windows are two inches wide in landscape. Drag the bar at the top to move a
 - The app has no ads, no analytics and no accounts. The website tools load those sites directly, the same as a browser would.
 - If you choose to enter your RuneScape name in the WikiSync tool, it's used to read your public WikiSync data. That's the only personal thing the app ever sends.
 - Tools that look things up (like Teleport Finder searches) ask the OSRS Wiki for them directly.
-- The first time you open the app, it offers to download the game pictures some tools compare your screen with: the OSRS Wiki DPS calculator's files from GitHub in one ZIP (about 170 MB to download, once; only the pictures the tools use are kept, about 20 MB), plus a few pictures from the OSRS Wiki. Choose **Later** and the tools get them when you first use them.
+- The game pictures some tools compare your screen with (item pictures and solved puzzle pictures) come with the app, so nothing needs downloading and those tools work offline.
 - Each time you open the app, it checks GitHub for a newer version. The button in the top right says **Up To Date** or **Update Available** and opens the latest release page. Nothing about you is sent.
 
 ## Permissions
@@ -81,8 +81,8 @@ The app only shows information and waits for you to tap. It never reads the game
 
 ## Credits
 
-- Item data from the [OSRS Wiki DPS calculator](https://github.com/weirdgloop/osrs-dps-calc)'s repository, licensed under the [GNU GPL v3.0](https://www.gnu.org/licenses/gpl-3.0.html). That list is itself made from the OSRS Wiki. The item pictures (© Jagex) aren't included in the app: the app downloads that repository once and unpacks them from it, with a few from the OSRS Wiki.
-- Content from the [Old School RuneScape Wiki](https://oldschool.runescape.wiki), used under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/): solved puzzle pictures and some quest puzzle answers, the Hunters' Rumours lists, travel and equipment, and the Teleport Finder's search suggestions, map positions, monster levels and some teleport destination descriptions. It has been shortened and reformatted, and anything adapted from it is shared under the same licence.
+- Item data from the [OSRS Wiki DPS calculator](https://github.com/weirdgloop/osrs-dps-calc)'s repository, licensed under the [GNU GPL v3.0](https://www.gnu.org/licenses/gpl-3.0.html). That list is itself made from the OSRS Wiki. The item pictures (© Jagex) included in the app come from that repository too, with a few from the OSRS Wiki.
+- Content from the [Old School RuneScape Wiki](https://oldschool.runescape.wiki), used under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/): the solved puzzle box pictures, a few item pictures, solved quest puzzle pictures and some quest puzzle answers, the Hunters' Rumours lists, travel and equipment, and the Teleport Finder's search suggestions, map positions, monster levels and some teleport destination descriptions. It has been shortened and reformatted, and anything adapted from it is shared under the same licence.
 - Quest progress and levels read with [WikiSync](https://oldschool.runescape.wiki/w/RuneScape:WikiSync) by the OSRS Wiki.
 - Zulrah rotation data and arena layout adapted from the [Zulrah Helper](https://github.com/while-loop/runelite-plugins) RuneLite plugin, © 2020 Anthony Alves and © 2026 Ron Young, used under the BSD 2-Clause License (the full notice is in `ZulrahTool.kt` and on the app's Legal screen).
 - Farming growth times based on [RuneLite](https://github.com/runelite/runelite)'s Time Tracking plugin, and newer teleport destinations and the list of dungeon entrances from RuneLite's world map, © 2016-2017 Adam, © 2018-2019 Abex, © 2018 NotFoxtrot, © 2018 Morgan Lewis and © 2020 Arman S, used under the BSD 2-Clause License.

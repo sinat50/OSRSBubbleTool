@@ -21,9 +21,11 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
+import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 
 // Inventory Setups: saves pictures of your inventory, equipment, rune pouch and spellbook
 // under a name, so you can look at them later while gearing up.
@@ -35,11 +37,11 @@ class InventorySetupsTool(
 ) {
     companion object {
         const val CAPTURE_DELAY_MS = 500L  // wait after hiding the bubble before taking a screenshot
-        private val PARCHMENT = Color.parseColor("#F2E3C0")
-        private val DARK_BROWN = Color.parseColor("#3E2C12")
-        private val BUTTON_BROWN = Color.parseColor("#8B6B3E")
-        private val ROW_BROWN = Color.parseColor("#E3CFA2")
-        private val DELETE_RED = Color.parseColor("#A04030")
+        private val PARCHMENT = "#F2E3C0".toColorInt()
+        private val DARK_BROWN = "#3E2C12".toColorInt()
+        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
+        private val ROW_BROWN = "#E3CFA2".toColorInt()
+        private val DELETE_RED = "#A04030".toColorInt()
     }
 
     // The four parts of a setup. Each has its own saved area on screen.
@@ -428,6 +430,6 @@ class InventorySetupsTool(
     private fun saveSetups() {
         val array = JSONArray()
         setups.forEach { array.put(JSONObject().put("id", it.id).put("name", it.name)) }
-        prefs.edit().putString("list", array.toString()).apply()
+        prefs.edit { putString("list", array.toString()) }
     }
 }

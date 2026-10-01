@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import androidx.core.content.edit
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -117,14 +118,14 @@ object FarmingTimers {
             put("id", t.id); put("kind", t.kind); put("crop", t.crop)
             put("end", t.end); put("notified", t.notified)
         })
-        prefs(context).edit().putString("timers", array.toString()).apply()
+        prefs(context).edit { putString("timers", array.toString()) }
     }
 
     // Some accounts have their growth ticks shifted by a few minutes. RuneLite measures this;
     // here the player can set it by hand if timers are always early or late.
     fun tickOffset(context: Context) = prefs(context).getInt("tick_offset", 0)
     fun setTickOffset(context: Context, minutes: Int) =
-        prefs(context).edit().putInt("tick_offset", minutes).apply()
+        prefs(context).edit { putInt("tick_offset", minutes) }
 
     // ---------------- Growth math ----------------
 

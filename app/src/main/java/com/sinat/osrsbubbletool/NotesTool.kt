@@ -18,32 +18,38 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import org.json.JSONArray
-import org.json.JSONObject
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import org.json.JSONArray
+import org.json.JSONObject
 
 // A notepad: a list of notes, each with a title and text. Notes save by themselves as you type.
 // While you're typing, the keyboard covers about half the screen, so the note sits in the top half.
 class NotesTool(private val context: Context) {
 
     companion object {
-        private val PARCHMENT = Color.parseColor("#F2E3C0")
-        private val DARK_BROWN = Color.parseColor("#3E2C12")
-        private val BUTTON_BROWN = Color.parseColor("#8B6B3E")
-        private val ROW_BROWN = Color.parseColor("#E3CFA2")
-        private val PAPER = Color.parseColor("#FFF8E6")
-        private val GO_GREEN = Color.parseColor("#3E7A2E")
-        private val DELETE_RED = Color.parseColor("#B03A2E")
-        private val FADED = Color.parseColor("#8C7B5E")
+        private val PARCHMENT = "#F2E3C0".toColorInt()
+        private val DARK_BROWN = "#3E2C12".toColorInt()
+        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
+        private val ROW_BROWN = "#E3CFA2".toColorInt()
+        private val PAPER = "#FFF8E6".toColorInt()
+        private val GO_GREEN = "#3E7A2E".toColorInt()
+        private val DELETE_RED = "#B03A2E".toColorInt()
+        private val FADED = "#8C7B5E".toColorInt()
         private const val SAVE_DELAY_MS = 600L
 
         // How far down the Notepad window sits: below the status bar (or 5% of the screen, whichever is more)
         fun topOffset(context: Context): Int {
             val res = context.resources
-            val id = res.getIdentifier("status_bar_height", "dimen", "android")
-            val bar = if (id > 0) res.getDimensionPixelSize(id) else (24 * res.displayMetrics.density).toInt()
+            // Android 11+ says how tall the status bar is, even while the game has it hidden.
+            // Older phones: 24dp, the usual height.
+            val bar = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                context.getSystemService(android.view.WindowManager::class.java).currentWindowMetrics.windowInsets
+                    .getInsetsIgnoringVisibility(android.view.WindowInsets.Type.statusBars()).top
+            } else (24 * res.displayMetrics.density).toInt()
             return maxOf(bar, (res.displayMetrics.heightPixels * 0.05f).toInt())
         }
     }
@@ -220,7 +226,7 @@ class NotesTool(private val context: Context) {
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(36)).apply { leftMargin = dp(4) })
         }, full())
 
-        // The note. It's sized to stay above the keyboard (about half the screen) and scrolls inside.
+        // The note. It fills the rest of the window (resize the window to make it bigger) and scrolls inside.
         val body = EditText(context).apply {
             setText(note.body)
             hint = "Write your note…"
@@ -233,8 +239,9 @@ class NotesTool(private val context: Context) {
             setPadding(dp(8), dp(6), dp(8), dp(6))
             background = GradientDrawable().apply { setColor(PAPER); setStroke(dp(1), BUTTON_BROWN); cornerRadius = dp(5).toFloat() }
         }
-        addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, bodyHeight()).apply { topMargin = dp(5) })
-        addView(label("Saved as you type", 10f).apply { setTextColor(FADED); gravity = Gravity.END }, full(2))
+        addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = dp(5) })
+        // on the left, clear of the window's resize corner at the bottom right
+        addView(label("Saved as you type", 10f).apply { setTextColor(FADED) }, full(2))
 
         fun changed() {
             note.title = title.text.toString()
@@ -250,14 +257,6 @@ class NotesTool(private val context: Context) {
         if (note.title.isEmpty() && note.body.isEmpty()) post { title.requestFocus(); showKeyboard(title) }
     }
 
-    // Tall enough to use the space above the keyboard: the window sits at the top of the screen,
-    // and the keyboard takes about the bottom half
-    private fun bodyHeight(): Int {
-        val screenH = context.resources.displayMetrics.heightPixels
-        val aboveKeyboard = (screenH * 0.48f).toInt() - topOffset(context)
-        return (aboveKeyboard - dp(28) - dp(36) - dp(30)).coerceAtLeast(dp(70))   // minus the window bar, the title row and padding
-    }
-
     // ---------------- Saving ----------------
 
     private fun saveNow() {
@@ -268,14 +267,14 @@ class NotesTool(private val context: Context) {
     private fun persist() {
         val a = JSONArray()
         for (n in notes) a.put(JSONObject().put("id", n.id).put("title", n.title).put("body", n.body).put("updated", n.updated))
-        prefs.edit().putString("notes", a.toString()).apply()
+        prefs.edit { putString("notes", a.toString()) }
     }
 
     private fun load(): MutableList<Note> {
         val text = prefs.getString("notes", null) ?: return mutableListOf()
         val a = try { JSONArray(text) } catch (e: Exception) {
             // unreadable: keep a copy before anything overwrites it, so the notes aren't lost for good
-            prefs.edit().putString("notes_backup_" + System.currentTimeMillis(), text).apply()
+            prefs.edit { putString("notes_backup_" + System.currentTimeMillis(), text) }
             return mutableListOf()
         }
         // each note on its own, so one damaged note doesn't lose the others

@@ -17,6 +17,8 @@ import android.view.WindowManager
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
 import java.util.Locale
 import kotlin.math.abs
 
@@ -92,7 +94,7 @@ class PuzzleBoxTool(
             gravity = Gravity.CENTER
             setPadding(dp(6), dp(7), dp(6), dp(7))
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#8B6B3E"))
+                setColor("#8B6B3E".toColorInt())
                 cornerRadius = dp(6).toFloat()
             }
             setOnClickListener { onClick() }
@@ -107,7 +109,7 @@ class PuzzleBoxTool(
         guide.dots = prefs.getBoolean("dots", false)
         fun styleButton(label: String, dots: Boolean) = button(label, 11f) {
             guide.dots = dots
-            prefs.edit().putBoolean("dots", dots).apply()
+            prefs.edit { putBoolean("dots", dots) }
             refreshStyleButtons()
         }.apply { setPadding(dp(4), dp(5), dp(4), dp(5)) }
         val boxesButton = styleButton("▢ Boxes", false)
@@ -120,7 +122,7 @@ class PuzzleBoxTool(
             addView(TextView(context).apply {
                 text = "Show moves as:"
                 textSize = 11f
-                setTextColor(Color.parseColor("#3E2C12"))
+                setTextColor("#3E2C12".toColorInt())
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(4) })
             addView(boxesButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(3) })
             addView(dotsButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -129,7 +131,7 @@ class PuzzleBoxTool(
         status = TextView(context).apply {
             text = "Open a puzzle box, then tap Scan puzzle. The moves appear on the puzzle."
             textSize = 11f
-            setTextColor(Color.parseColor("#3E2C12"))
+            setTextColor("#3E2C12".toColorInt())
             setPadding(0, dp(6), 0, dp(6))
         }
 
@@ -141,7 +143,7 @@ class PuzzleBoxTool(
 
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#F2E3C0"))
+            setBackgroundColor("#F2E3C0".toColorInt())
             setPadding(dp(8), dp(8), dp(8), dp(8))
             addView(scanButton, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -162,7 +164,7 @@ class PuzzleBoxTool(
     private fun refreshStyleButtons() {
         styleButtons.forEachIndexed { i, b ->
             val chosen = (i == 1) == guide.dots
-            (b.background as? GradientDrawable)?.setColor(Color.parseColor(if (chosen) "#5A4220" else "#B89A63"))
+            (b.background as? GradientDrawable)?.setColor((if (chosen) "#5A4220" else "#B89A63").toColorInt())
             b.setTypeface(null, if (chosen) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
         }
     }
@@ -276,16 +278,14 @@ class PuzzleBoxTool(
             val score = String.format(Locale.US, "%.1f", scan.fitConfidence)
             status?.text = "Couldn't line up the grid (confidence $score), so your frame was used."
         } else {
-            status?.text = if (references.isLoaded) "Reading the tiles..."
-                else "Downloading the puzzle pictures from the OSRS Wiki (first time only)..."
+            status?.text = "Reading the tiles..."
         }
 
         // Identify the tiles by comparing them with the wiki's solved pictures
         references.load { puzzles, error ->
             if (destroyed || id != planId) return@load   // stopped while the pictures were downloading
             if (puzzles == null) {
-                status?.text = "Couldn't get the puzzle pictures from the wiki: $error. " +
-                    "Check your internet connection and scan again."
+                status?.text = "Couldn't read the solved puzzle pictures: $error."
                 return@load
             }
             identify(puzzle, puzzles) { match ->
@@ -546,7 +546,7 @@ class PuzzleBoxTool(
             strokeWidth = text.textSize / 6
         }
         val box = Paint().apply {
-            color = Color.parseColor("#FF8C1A")
+            color = "#FF8C1A".toColorInt()
             style = Paint.Style.STROKE
             strokeWidth = maxOf(2f, tileW / 12)
         }
@@ -572,13 +572,13 @@ class PuzzleBoxTool(
         val canvas = Canvas(out)
         val stroke = maxOf(2f, out.width / 300f)
         canvas.drawRect(rough, Paint().apply {
-            color = Color.parseColor("#3FA9F5")
+            color = "#3FA9F5".toColorInt()
             style = Paint.Style.STROKE
             strokeWidth = stroke
         })
         detected?.let {
             canvas.drawRect(it, Paint().apply {
-                color = Color.parseColor("#E8C766")
+                color = "#E8C766".toColorInt()
                 style = Paint.Style.STROKE
                 strokeWidth = stroke
             })
@@ -604,7 +604,7 @@ class PuzzleBoxTool(
         val out = source.copy(Bitmap.Config.ARGB_8888, true)
         val canvas = Canvas(out)
         val paint = Paint().apply {
-            color = Color.parseColor("#E8C766")
+            color = "#E8C766".toColorInt()
             strokeWidth = maxOf(1f, out.width / 150f)
         }
         for (i in 1 until GRID) {

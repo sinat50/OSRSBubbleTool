@@ -18,25 +18,27 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import org.json.JSONObject
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.util.concurrent.Executors
+import org.json.JSONObject
 
 // Teleport Finder: type an NPC, monster or place, and see the teleports that land closest to it.
 // Where things are comes from the OSRS Wiki (looked up when you search); the teleports are built in.
 class TeleportFinderTool(private val context: Context, private val openWikiSync: () -> Unit = {}) {
 
     companion object {
-        private val PARCHMENT = Color.parseColor("#F2E3C0")
-        private val DARK_BROWN = Color.parseColor("#3E2C12")
-        private val BUTTON_BROWN = Color.parseColor("#8B6B3E")
-        private val LIGHT_BUTTON = Color.parseColor("#B89A63")
-        private val ROW_BROWN = Color.parseColor("#E3CFA2")
-        private val PAPER = Color.parseColor("#FFF8E6")
-        private val FADED = Color.parseColor("#8C7B5E")
-        private val WARN = Color.parseColor("#9C4A10")
+        private val PARCHMENT = "#F2E3C0".toColorInt()
+        private val DARK_BROWN = "#3E2C12".toColorInt()
+        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
+        private val LIGHT_BUTTON = "#B89A63".toColorInt()
+        private val ROW_BROWN = "#E3CFA2".toColorInt()
+        private val PAPER = "#FFF8E6".toColorInt()
+        private val FADED = "#8C7B5E".toColorInt()
+        private val WARN = "#9C4A10".toColorInt()
         private const val USER_AGENT = "OSRSBubbleTool/1.0 (personal Android app)"
         private const val API = "https://oldschool.runescape.wiki/api.php"
         private const val RESULTS = 25   // results in the list (it scrolls)
@@ -292,7 +294,7 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
     private fun recent(): List<String> = (prefs.getString("recent", "") ?: "").split('\n').filter { it.isNotBlank() }
     private fun remember(title: String) {
         val list = (listOf(title) + recent().filter { it != title }).take(6)
-        prefs.edit().putString("recent", list.joinToString("\n")).apply()
+        prefs.edit { putString("recent", list.joinToString("\n")) }
     }
 
     // ---------------- Showing results ----------------

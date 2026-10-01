@@ -17,7 +17,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 // Recognizes the gear in a picture of the equipment window, using the item pictures
-// downloaded once (see GearIcons). Slow work: call it from a background thread.
+// that come with the app (see GearIcons). Slow work: call it from a background thread.
 class GearRecognizer(private val context: Context) {
 
     companion object {
@@ -162,7 +162,7 @@ class GearRecognizer(private val context: Context) {
     }
 
     private var itemsBySlot: Map<String, List<Item>>? = null
-    private val pictures = GearIcons(context)   // the item pictures, downloaded once (see GearIcons)
+    private val pictures = GearIcons(context)   // the item pictures that come with the app
     private val iconCache = HashMap<String, Icon?>()
 
     // ---------------- Bundled data ----------------
@@ -189,25 +189,15 @@ class GearRecognizer(private val context: Context) {
         return grouped
     }
 
-    fun iconBitmap(item: Item): Bitmap? = try {
-        BitmapFactory.decodeFile(pictures.file(item.iconFile).path)
-    } catch (_: Exception) {
-        null
-    }
-
-    // True once every item picture is on the phone (Import my gear needs them all)
-    fun iconsReady(): Boolean = items().values.all { list -> list.all { pictures.has(it.iconFile) } }
-
-
+    fun iconBitmap(item: Item): Bitmap? = pictures.decode(item.iconFile)
 
     // Loads the item list, every icon and the empty-slot outlines. Called when the DPS tool
     // opens, so the first import doesn't wait for it. Safe to call more than once.
     @Synchronized
     fun warmUp() {
-        var all = true
-        for (list in items().values) for (item in list) if (loadIcon(item.iconFile) == null && !pictures.has(item.iconFile)) all = false
+        for (list in items().values) for (item in list) loadIcon(item.iconFile)
         emptyOutlines()
-        warmedUp = all   // until the pictures are downloaded, try again next time
+        warmedUp = true
     }
 
     // What each slot looks like with nothing in it, at game pixel size (slot to colours)
@@ -266,17 +256,10 @@ class GearRecognizer(private val context: Context) {
     // An icon trimmed to its visible pixels (read-only once warmUp has run)
     private fun icon(file: String): Icon? = iconCache[file]
 
-    private fun loadIcon(file: String): Icon? {
-        if (!pictures.has(file)) return null   // not downloaded yet: don't remember it as missing
-        return iconCache.getOrPut(file) { readIcon(file) }
-    }
+    private fun loadIcon(file: String): Icon? = iconCache.getOrPut(file) { readIcon(file) }
 
     private fun readIcon(file: String): Icon? {
-        val bmp: Bitmap? = try {
-            BitmapFactory.decodeFile(pictures.file(file).path)
-        } catch (_: Exception) {
-            null
-        }
+        val bmp: Bitmap? = pictures.decode(file)
         if (bmp == null) return null
         val w = bmp.width
         val h = bmp.height

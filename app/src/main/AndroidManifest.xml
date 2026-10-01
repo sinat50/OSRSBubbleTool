@@ -68,12 +68,15 @@
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar">
-            <intent-filter>
+            <!-- Wiki links. Not "verified" (autoVerify): the wiki isn't this app's website, so links only come
+                 here if you turn it on in Settings > Apps > OSRS Bubble Tool > Open by default. -->
+            <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="oldschool.runescape.wiki" />
-                <data android:scheme="http" android:host="oldschool.runescape.wiki" />
+                <data android:scheme="https" />
+                <data android:scheme="http" />
+                <data android:host="oldschool.runescape.wiki" />
             </intent-filter>
         </activity>
     </application>

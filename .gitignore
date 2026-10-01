@@ -23,6 +23,9 @@ local.properties
 /app/build
 /.kotlin
 
+# Notes passed between work sessions (not part of the app)
+/HANDOFF.md
+
 # Python leftovers from the scripts in tools/
 __pycache__/
 *.pyc

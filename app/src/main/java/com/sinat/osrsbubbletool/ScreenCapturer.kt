@@ -14,6 +14,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.DisplayMetrics
 import android.view.WindowManager
+import androidx.core.graphics.createBitmap
 
 // Takes screenshots of the screen after you allow screen capture once.
 //
@@ -211,7 +212,7 @@ class ScreenCapturer(
             val pixelStride = plane.pixelStride
             val rowStride = plane.rowStride
             val paddedWidth = rowStride / pixelStride   // rows can have extra padding at the end
-            val padded = Bitmap.createBitmap(paddedWidth, image.height, Bitmap.Config.ARGB_8888)
+            val padded = createBitmap(paddedWidth, image.height)
             val buffer = plane.buffer
             if (buffer.remaining() < rowStride * image.height) {
                 // some phones leave out the padding after the last row: pad it so the copy fits
@@ -236,7 +237,7 @@ class ScreenCapturer(
         val (w, h, _) = screenSize()
         if (shot.width > w || shot.height > h) return shot   // the phone is mid-turn: use it as it is
         val (ox, oy) = contentOffset(shot.width, shot.height)
-        val full = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val full = createBitmap(w, h)
         full.eraseColor(android.graphics.Color.BLACK)
         android.graphics.Canvas(full).drawBitmap(shot, ox.toFloat(), oy.toFloat(), null)
         shot.recycle()

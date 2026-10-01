@@ -11,6 +11,7 @@ import android.graphics.Typeface
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.LinearInterpolator
+import androidx.core.graphics.toColorInt
 
 // The 2048 board: draws the tiles, slides them smoothly, and turns swipes into moves.
 // It stays square and as big as the space allows.
@@ -18,12 +19,12 @@ import android.view.animation.LinearInterpolator
 class Game2048View(context: Context, private val game: Game2048, private val onMoved: (Game2048.Move) -> Unit) : View(context) {
 
     companion object {
-        private val BOARD = Color.parseColor("#8B6B3E")
-        private val EMPTY = Color.parseColor("#A88D60")
-        private val DARK_TEXT = Color.parseColor("#3E2C12")
+        private val BOARD = "#8B6B3E".toColorInt()
+        private val EMPTY = "#A88D60".toColorInt()
+        private val DARK_TEXT = "#3E2C12".toColorInt()
 
         // Tile colours: parchment, then oranges and reds, then gold, then purple for the huge ones
-        fun colorOf(v: Int): Int = Color.parseColor(when (v) {
+        fun colorOf(v: Int): Int = (when (v) {
             2 -> "#F3E6C4"
             4 -> "#EAD39C"
             8 -> "#E8AE62"
@@ -36,7 +37,7 @@ class Game2048View(context: Context, private val game: Game2048, private val onM
             1024 -> "#D19D1C"
             2048 -> "#C8900E"
             else -> "#6A3FA0"
-        })
+        }).toColorInt()
     }
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)

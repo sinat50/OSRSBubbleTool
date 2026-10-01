@@ -12,6 +12,8 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
 
 // Light Box Solver, like RuneLite's: press each button once so the app can see what it
 // does, then it shows which buttons turn every bulb on. Instructions are drawn right on
@@ -72,7 +74,7 @@ class LightBoxTool(
             gravity = Gravity.CENTER
             setPadding(dp(8), dp(10), dp(8), dp(10))
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#8B6B3E"))
+                setColor("#8B6B3E".toColorInt())
                 cornerRadius = dp(6).toFloat()
             }
             setOnClickListener { onClick() }
@@ -84,12 +86,12 @@ class LightBoxTool(
         status = TextView(context).apply {
             text = "Open a light box, then tap Solve. Instructions appear on the light box."
             textSize = 11f
-            setTextColor(Color.parseColor("#3E2C12"))
+            setTextColor("#3E2C12".toColorInt())
             setPadding(0, dp(6), 0, 0)
         }
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#F2E3C0"))
+            setBackgroundColor("#F2E3C0".toColorInt())
             setPadding(dp(8), dp(8), dp(8), dp(8))
             addView(startButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(status, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -273,7 +275,7 @@ class LightBoxTool(
     }
 
     private fun saveLayout(l: LightBoxReader.Layout) {
-        prefs.edit().putFloat("x0", l.x0).putFloat("y0", l.y0).putFloat("spacing", l.spacing).apply()
+        prefs.edit { putFloat("x0", l.x0).putFloat("y0", l.y0).putFloat("spacing", l.spacing) }
     }
 
     // ---------------- Called by BubbleService ----------------

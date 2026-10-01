@@ -31,19 +31,23 @@ package com.sinat.osrsbubbletool
 
 import android.content.Context
 import android.graphics.Color
-import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.Typeface
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.inputmethod.EditorInfo
 import android.view.View
 import android.view.ViewGroup
-import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.content.edit
+import androidx.core.graphics.toColorInt
+import androidx.core.net.toUri
+import androidx.core.view.isEmpty
 import com.sinat.osrsbubbletool.QuestBook.Met
 import com.sinat.osrsbubbletool.QuestBook.Req
 import com.sinat.osrsbubbletool.QuestBook.Status
@@ -57,17 +61,17 @@ class QuestHelperTool(
     private val openWikiSync: () -> Unit = {} // the WikiSync tool, where you set your name
 ) {
     companion object {
-        private val PARCHMENT = Color.parseColor("#F2E3C0")
-        private val DARK_BROWN = Color.parseColor("#3E2C12")
-        private val BUTTON_BROWN = Color.parseColor("#8B6B3E")
-        private val SELECTED_BROWN = Color.parseColor("#5A4220")
-        private val ROW_BROWN = Color.parseColor("#E3CFA2")
-        private val CURRENT = Color.parseColor("#FFF4D6")
-        private val GO_GREEN = Color.parseColor("#3E7A2E")
-        private val SAY_BLUE = Color.parseColor("#1F4E8C")
-        private val FADED = Color.parseColor("#8C7B5E")
-        private val MISSING_RED = Color.parseColor("#B03A2E")
-        private val PARTLY_ORANGE = Color.parseColor("#C0600A")
+        private val PARCHMENT = "#F2E3C0".toColorInt()
+        private val DARK_BROWN = "#3E2C12".toColorInt()
+        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
+        private val SELECTED_BROWN = "#5A4220".toColorInt()
+        private val ROW_BROWN = "#E3CFA2".toColorInt()
+        private val CURRENT = "#FFF4D6".toColorInt()
+        private val GO_GREEN = "#3E7A2E".toColorInt()
+        private val SAY_BLUE = "#1F4E8C".toColorInt()
+        private val FADED = "#8C7B5E".toColorInt()
+        private val MISSING_RED = "#B03A2E".toColorInt()
+        private val PARTLY_ORANGE = "#C0600A".toColorInt()
         private const val MAX_DEPTH = 8
     }
 
@@ -250,7 +254,7 @@ class QuestHelperTool(
 
     private val prefs = context.getSharedPreferences("quest_helper", Context.MODE_PRIVATE)
     private fun position(q: Quest) = prefs.getInt(q.key, 0).coerceIn(0, q.steps.size)
-    private fun setPosition(q: Quest, i: Int) = prefs.edit().putInt(q.key, i.coerceIn(0, q.steps.size)).apply()
+    private fun setPosition(q: Quest, i: Int) = prefs.edit { putInt(q.key, i.coerceIn(0, q.steps.size)) }
 
     private val sync = WikiSync(context)
     private var shownSyncState: String? = null   // what the WikiSync tag showed last redraw
@@ -260,10 +264,10 @@ class QuestHelperTool(
     private var search = ""
     private var hideFinished: Boolean
         get() = prefs.getBoolean("hide_finished", false)
-        set(v) { prefs.edit().putBoolean("hide_finished", v).apply() }
+        set(v) { prefs.edit { putBoolean("hide_finished", v) } }
     private var hideDoneTasks: Boolean
         get() = prefs.getBoolean("hide_done_tasks", false)
-        set(v) { prefs.edit().putBoolean("hide_done_tasks", v).apply() }
+        set(v) { prefs.edit { putBoolean("hide_done_tasks", v) } }
 
     private var openQuest: String? = null      // a quest's page (guide or requirements)
     private var openDiary: String? = null      // a diary region's page
@@ -413,7 +417,7 @@ class QuestHelperTool(
         group("Missing requirements", by[Status.MISSING].orEmpty())
         group("Not on WikiSync yet", by[Status.UNKNOWN].orEmpty())
         if (!hideFinished) group("Finished", by[Status.DONE].orEmpty())
-        if (list.childCount == 0) list.addView(label("No quests match \"$term\".", 12f), full(8))
+        if (list.isEmpty()) list.addView(label("No quests match \"$term\".", 12f), full(8))
     }
 
     private fun questRow(q: QuestBook.QuestInfo, data: WikiSync.Data?): View {
@@ -538,7 +542,7 @@ class QuestHelperTool(
     private fun openInBrowser(url: String) {
         try {
             hideWindow()
-            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, url.toUri())
                 .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: Exception) {
             android.widget.Toast.makeText(context, "Couldn't open a browser", android.widget.Toast.LENGTH_SHORT).show()
@@ -554,7 +558,7 @@ class QuestHelperTool(
 
     private fun puzzleScreen(p: QuestPuzzles.Puzzle): View = page {
         val at = prefs.getInt(p.key, 0).coerceIn(0, p.steps.size)
-        fun go(i: Int) { prefs.edit().putInt(p.key, i.coerceIn(0, p.steps.size)).apply(); show() }
+        fun go(i: Int) { prefs.edit { putInt(p.key, i.coerceIn(0, p.steps.size)) }; show() }
 
         addView(titleRow("🧩 ${p.title}", "◀ Guide") { openPuzzle = null; show(keepScroll = false) })
         addView(label(p.quest, 11f).apply { setTextColor(FADED) }, full(1))
@@ -614,69 +618,39 @@ class QuestHelperTool(
         }
     }
 
-    // A picture from the wiki. It's downloaded the first time it's needed and kept on the phone,
-    // so it works offline afterwards and never takes you out of the Quest Helper.
+    // A picture from the wiki that comes with the app (assets/quest_images/, put there by
+    // tools/dps/fetch_pictures.py: add new ones there too). It works offline.
     private fun wikiImage(url: String): View = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        val file = java.io.File(java.io.File(context.filesDir, "wiki_images").apply { mkdirs() }, url.substringAfterLast('/'))
+        val name = url.substringAfterLast('/')
         // decoded once and kept, no wider than the screen (it's redrawn on every tap)
-        val bitmap = decodedImages[url] ?: (if (file.exists()) decodeScaled(file) else null)?.also { decodedImages[url] = it }
-        if (bitmap != null) {
-            addView(android.widget.ImageView(context).apply {
-                setImageBitmap(bitmap)
-                adjustViewBounds = true
-                scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-            }, full())
-            addView(label("Picture: OSRS Wiki", 10f).apply { setTextColor(FADED); gravity = Gravity.END }, full(2))
+        val bitmap = decodedImages[name] ?: decodeScaled("quest_images/$name")?.also { decodedImages[name] = it }
+        if (bitmap == null) {
+            addView(label("The picture for this puzzle is missing.", 12f).apply { setTextColor(FADED) })
             return@apply
         }
-        addView(label(if (file.exists()) "The saved picture is damaged. Retrying…" else "Getting the picture from the wiki…", 12f)
-            .apply { setTextColor(FADED) })
-        file.delete()
-        downloadImage(url, file)
+        addView(android.widget.ImageView(context).apply {
+            setImageBitmap(bitmap)
+            adjustViewBounds = true
+            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+        }, full())
+        addView(label("Picture: OSRS Wiki", 10f).apply { setTextColor(FADED); gravity = Gravity.END }, full(2))
     }
 
-    private val downloading = HashSet<String>()
     private val decodedImages = HashMap<String, android.graphics.Bitmap>()
 
-    private fun decodeScaled(file: java.io.File): android.graphics.Bitmap? {
+    // Reads a picture that came with the app, made smaller if it's much wider than the screen
+    private fun decodeScaled(asset: String): android.graphics.Bitmap? = try {
         val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        android.graphics.BitmapFactory.decodeFile(file.path, bounds)
-        if (bounds.outWidth <= 0) return null
+        context.assets.open(asset).use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
         var sample = 1
         val maxWidth = context.resources.displayMetrics.widthPixels
         while (bounds.outWidth / (sample * 2) >= maxWidth) sample *= 2
-        return android.graphics.BitmapFactory.decodeFile(file.path, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
-    }
-
-    private fun downloadImage(url: String, file: java.io.File) {
-        if (!downloading.add(url)) return
-        val main = android.os.Handler(android.os.Looper.getMainLooper())
-        Thread {
-            var ok = false
-            try {
-                val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-                c.setRequestProperty("User-Agent", "OSRSBubbleTool (Android app)")
-                c.connectTimeout = 10_000; c.readTimeout = 20_000
-                try {
-                    if (c.responseCode == 200) {
-                        val tmp = java.io.File(file.path + ".part")
-                        c.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
-                        // only keep it if it really is a picture (a Wi-Fi login page also answers "OK")
-                        val check = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                        android.graphics.BitmapFactory.decodeFile(tmp.path, check)
-                        ok = check.outWidth > 0 && tmp.renameTo(file)
-                        if (!ok) tmp.delete()
-                    }
-                } finally { c.disconnect() }
-            } catch (e: Exception) { }
-            main.post {
-                downloading.remove(url)
-                if (!ok) android.widget.Toast.makeText(context, "Couldn't get the picture. Check your internet connection.",
-                    android.widget.Toast.LENGTH_SHORT).show()
-                else show()
-            }
-        }.start()
+        context.assets.open(asset).use {
+            android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+        }
+    } catch (e: Exception) {
+        null
     }
 
     private fun tableRow(a: String, b: String, bold: Boolean): View = LinearLayout(context).apply {
