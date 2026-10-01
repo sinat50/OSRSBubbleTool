@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+   What Android backs up to your Google account (Android 11 and older; newer phones use
+   data_extraction_rules.xml, which says the same). Only what's listed here is backed up:
+   - the app's settings, notes, timers, WikiSync name and so on (shared preferences)
+   - your Inventory Setups pictures
+   The game pictures the app downloads (DPS item pictures, puzzle pictures, quest pictures) are left
+   out: they're Jagex's artwork, they can be downloaded again, and they'd take the app over Android's
+   25 MB backup limit, which would stop everything else being backed up too.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <include domain="sharedpref" path="." />
+    <include domain="file" path="setups/" />
 </full-backup-content>

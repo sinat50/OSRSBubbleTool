@@ -212,23 +212,25 @@ class PuzzleBoxTool(
                 status?.text = "Couldn't capture the screen. Try again."
                 return@postDelayed
             }
+            // Finding and lining up the puzzle takes a moment, so it's done in the background
+            // (on the main thread it could make the game stutter)
             Thread {
                 val found = PuzzleFinder.findTiles(LightBoxReader.Pixels(shot))
-                handler.post { if (!destroyed && id == planId) showResult(shot, found, id) }
+                val result = prepare(shot, found)
+                handler.post { if (!destroyed && id == planId) showResult(result, id) }
             }.start()
         }, CAPTURE_DELAY_MS)
     }
 
-    private fun showResult(shot: Bitmap, found: Rect?, id: Int) {
+    // What a scan found. rough: where the puzzle roughly is (null = not found); area: the tiles, lined up
+    // exactly; puzzle: the tiles cut out (null = off the screen); the two views are what the window shows.
+    private class Scan(val shot: Bitmap, val rough: Rect?, val area: Rect?, val lined: Boolean, val fitConfidence: Float,
+                       val puzzle: Bitmap?, val fullView: Bitmap?, val puzzleView: Bitmap?)
+
+    // The slow part of a scan (background thread): line the grid up and cut out the tiles
+    private fun prepare(shot: Bitmap, found: Rect?): Scan {
         val rough = found ?: puzzleArea.savedArea(shot.width, shot.height)
-        if (rough == null) {
-            lastFullView = null
-            lastPuzzleView = null
-            image?.setImageBitmap(shot)
-            status?.text = "Couldn't find the puzzle. Make sure it's open and not covered, then scan again. " +
-                "If it still isn't found, use Set area by hand."
-            return
-        }
+            ?: return Scan(shot, null, null, false, 0f, null, null, null)
 
         // Line the grid up exactly. When the puzzle was found by its frame, that's already
         // exact, so the line-up is only used if it agrees closely.
@@ -241,21 +243,37 @@ class PuzzleBoxTool(
             else -> rough
         }
         val lined = found != null || fitWorked
+        val confidence = fit?.confidence ?: 0f
 
-        val puzzle = crop(shot, area)
-        if (puzzle == null) {
+        val puzzle = crop(shot, area) ?: return Scan(shot, rough, area, lined, confidence, null, null, null)
+        return Scan(shot, rough, area, lined, confidence, puzzle, drawFrames(shot, rough, area), drawGrid(puzzle))
+    }
+
+    private fun showResult(scan: Scan, id: Int) {
+        if (scan.rough == null) {
+            lastFullView = null
+            lastPuzzleView = null
+            image?.setImageBitmap(scan.shot)
+            status?.text = "Couldn't find the puzzle. Make sure it's open and not covered, then scan again. " +
+                "If it still isn't found, use Set area by hand."
+            return
+        }
+        val area = scan.area
+        val puzzle = scan.puzzle
+        if (area == null || puzzle == null) {
             status?.text = "The puzzle area is off the screen. Scan again."
             return
         }
         lastArea = Rect(area)
 
-        lastFullView = drawFrames(shot, rough, area)
-        lastPuzzleView = drawGrid(puzzle)
+        lastFullView = scan.fullView
+        lastPuzzleView = scan.puzzleView
         showingFull = false
         image?.setImageBitmap(lastPuzzleView)
 
+        val lined = scan.lined
         if (!lined) {
-            val score = String.format(Locale.US, "%.1f", fit?.confidence ?: 0f)
+            val score = String.format(Locale.US, "%.1f", scan.fitConfidence)
             status?.text = "Couldn't line up the grid (confidence $score), so your frame was used."
         } else {
             status?.text = if (references.isLoaded) "Reading the tiles..."
@@ -270,12 +288,14 @@ class PuzzleBoxTool(
                     "Check your internet connection and scan again."
                 return@load
             }
-            val match = TileMatcher.identify(puzzle, puzzles)
-            if (match == null) {
-                status?.text = "Couldn't read the tiles. Try scanning again."
-                return@load
+            identify(puzzle, puzzles) { match ->
+                if (id != planId) return@identify   // stopped meanwhile
+                if (match == null) {
+                    status?.text = "Couldn't read the tiles. Try scanning again."
+                    return@identify
+                }
+                showMatch(match, lined)
             }
-            showMatch(match, lined)
         }
     }
 
@@ -384,16 +404,27 @@ class PuzzleBoxTool(
         val area = lastArea ?: return
         val now = SystemClock.uptimeMillis()
 
-        // While re-planning, still notice if the puzzle is closed, so the guide doesn't linger
+        // You left the game (when only the game is shared): take the outlines off the screen and stop,
+        // rather than leaving them over other apps and watching a screen that can't be seen
+        if (capture.gameHidden) {
+            stopGuide("You left the game, so the guide stopped. Tap Scan puzzle to carry on.")
+            return
+        }
+
         if (solving || replanAt != 0L) {
+            // Time to re-read the tiles. This needs the newest picture of the screen, so it goes before the
+            // check below, which would use that picture up and leave the re-plan waiting for another one.
+            if (!solving && now >= replanAt) {
+                replanNow(area)
+                return
+            }
+            // While re-planning, still notice if the puzzle is closed, so the guide doesn't linger
             val gone = capture.sample { !PuzzleFinder.frameVisible(it, area) }
             if (gone == true && ++misses >= GONE_READS) {
                 stopGuide("The puzzle was closed. Tap Scan puzzle to start again.")
                 return
             }
             if (gone == false) misses = 0
-            if (solving) return
-            if (now >= replanAt) replanNow(area)
             return
         }
 
@@ -458,15 +489,31 @@ class PuzzleBoxTool(
         val puzzle = crop(shot, area) ?: return
         replanAt = 0L
         solving = true
+        val id = planId   // changes if you stop or scan again meanwhile: then this re-plan is dropped
         references.load { puzzles, _ ->
-            if (!tracking) return@load
-            val match = if (puzzles == null) null else TileMatcher.identify(puzzle, puzzles)
-            if (match == null || !match.solvable) {
+            if (!tracking || id != planId) return@load
+            if (puzzles == null) {
                 stopGuide("Lost track of the puzzle. Tap Scan puzzle to start again.")
                 return@load
             }
-            solveAndGuide(match.board, match.puzzleName)
+            identify(puzzle, puzzles) { match ->
+                if (!tracking || id != planId) return@identify
+                if (match == null || !match.solvable) {
+                    stopGuide("Lost track of the puzzle. Tap Scan puzzle to start again.")
+                    return@identify
+                }
+                solveAndGuide(match.board, match.puzzleName)
+            }
         }
+    }
+
+    // Reads the tiles by comparing them with the solved pictures. It takes a moment, so it's done in the
+    // background (on the main thread it could make the game stutter). onDone runs on the main thread.
+    private fun identify(puzzle: Bitmap, puzzles: List<PuzzleReferences.Puzzle>, onDone: (TileMatcher.Result?) -> Unit) {
+        Thread {
+            val match = try { TileMatcher.identify(puzzle, puzzles) } catch (e: Exception) { null }
+            handler.post { if (!destroyed) onDone(match) }
+        }.start()
     }
 
     private fun finish() {

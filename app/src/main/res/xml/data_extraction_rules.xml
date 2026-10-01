@@ -1,19 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+   What Android backs up (Android 12 and newer): to your Google account (cloud-backup), and when you
+   move to a new phone (device-transfer). Only what's listed is copied:
+   - the app's settings, notes, timers, WikiSync name and so on (shared preferences)
+   - your Inventory Setups pictures
+   The game pictures the app downloads are left out (see backup_rules.xml for why).
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <include domain="sharedpref" path="." />
+        <include domain="file" path="setups/" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <include domain="sharedpref" path="." />
+        <include domain="file" path="setups/" />
     </device-transfer>
-    -->
 </data-extraction-rules>

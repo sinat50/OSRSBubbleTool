@@ -74,8 +74,15 @@ class NotesTool(private val context: Context) {
         }
     }
 
-    // The window was closed (✕): save straight away
+    // The window was closed (✕, or the bubble closing): save straight away
     fun onWindowClosed() {
+        // a note with nothing written in it isn't kept (the same as tapping Done)
+        open?.takeIf { it.title.isBlank() && it.body.isBlank() }?.let {
+            notes.remove(it)
+            open = null
+            editing = false
+            show()
+        }
         saveNow()
         hideKeyboard()
     }

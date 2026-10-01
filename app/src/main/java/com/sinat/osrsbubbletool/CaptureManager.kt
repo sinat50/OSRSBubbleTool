@@ -25,6 +25,9 @@ class CaptureManager(
 
     val isActive: Boolean get() = capturer.isActive
 
+    // Only the game is shared (Android 14+) and you've left it. The screen can't be seen until you go back.
+    val gameHidden: Boolean get() = capturer.contentHidden
+
     // Why the last request failed, to show to you
     var lastError: String? = null
         private set

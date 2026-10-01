@@ -174,6 +174,12 @@ class LightBoxTool(
 
     private fun trackOnce() {
         val l = layout ?: return
+        // You left the game (when only the game is shared): take the outlines off the screen and stop,
+        // rather than leaving them over other apps and watching a screen that can't be seen
+        if (capture.gameHidden) {
+            stop("You left the game, so solving stopped. Tap Solve light box to start again.")
+            return
+        }
         val now = SystemClock.uptimeMillis()
         // Reads only the 750 pixels it needs straight from the capture: -1 = can't see it,
         // null = the screen hasn't changed since last time

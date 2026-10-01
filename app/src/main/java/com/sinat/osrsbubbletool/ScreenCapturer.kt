@@ -51,6 +51,9 @@ class ScreenCapturer(
 
     val isActive: Boolean get() = projection != null && display != null
 
+    // True while only the game is shared and you've left it (you're in another app or on the home screen)
+    val contentHidden: Boolean get() = !visible
+
     private val callback = object : MediaProjection.Callback() {
         override fun onStop() {
             handler.post {

@@ -49,6 +49,8 @@ object TileMatcher {
         return if (bestDiff < EMPTY_MAX_DIFFERENCE) best else null
     }
 
+    // Runs in the background. One at a time, since the remembered solved pictures are shared.
+    @Synchronized
     fun identify(scan: Bitmap, puzzles: List<PuzzleReferences.Puzzle>): Result? {
         if (puzzles.isEmpty()) return null
         val scanned = features(scan)
