@@ -53,11 +53,14 @@ class MainActivity : Activity() {
         val saved = savedInstanceState?.getString("screen")
         show(Screen.values().firstOrNull { it.name == saved } ?: Screen.MAIN)
         // The game pictures the tools need: show the download if it's running (the screen was rebuilt),
-        // or offer it when the app opens and some are still missing
+        // or offer it when the app opens and some are still missing. After an update that adds only a few
+        // items, their pictures (a few KB) are just got, without asking.
         if (AssetDownloader.running) showDownloadDialog(offer = false)
         else if (savedInstanceState == null) Thread {
             val need = try { AssetDownloader.needed(this) } catch (_: Exception) { false }
-            runOnUiThread { if (need && !isFinishing && !isDestroyed) showDownloadDialog(offer = true) }
+            val few = need && try { AssetDownloader.onlyAFew(this) } catch (_: Exception) { false }
+            if (few) AssetDownloader.start(this)
+            else runOnUiThread { if (need && !isFinishing && !isDestroyed) showDownloadDialog(offer = true) }
         }.start()
     }
 

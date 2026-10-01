@@ -1,0 +1,96 @@
+# Item pictures the DPS calculator's repository has out of date at the pinned version: the app gets these
+# from the OSRS Wiki instead (marked "wiki" in equipment.json). One file name per line.
+Araxyte slayer helmet (i).png
+Araxyte slayer helmet.png
+Arclight.png
+Black naval shirt.png
+Blood ancient sceptre.png
+Burning claws.png
+Cat mask.png
+Crate of ship parts (Pandemonium).png
+Crystal blessing.png
+Crystal legs (Amlodd).png
+Crystal legs (Cadarn).png
+Crystal legs (Crwys).png
+Crystal legs (Hefin).png
+Crystal legs (Iorwerth).png
+Crystal legs (Ithell).png
+Crystal legs (Trahaearn).png
+Crystal legs (deadman).png
+Crystal legs (inactive) (Amlodd).png
+Crystal legs (inactive) (Cadarn).png
+Crystal legs (inactive) (Crwys).png
+Crystal legs (inactive) (Hefin).png
+Crystal legs (inactive) (Iorwerth).png
+Crystal legs (inactive) (Ithell).png
+Crystal legs (inactive) (Trahaearn).png
+Crystal legs (inactive).png
+Crystal legs (inactive, deadman).png
+Crystal legs.png
+Demonic sceptre.png
+Devil's element.png
+Dizana's max cape (broken).png
+Dizana's max cape (l).png
+Dizana's max cape.png
+Dizana's max hood.png
+Dizana's quiver (uncharged).png
+Dizana's quiver.png
+Drygore blowpipe.png
+Echo ahrim's robetop.png
+Echo axe.png
+Echo harpoon.png
+Echo pickaxe.png
+Emberlight.png
+Emerald sickle (b).png
+Enchanted emerald sickle (b).png
+Enchanted lyre(i).png
+Enchanted ruby sickle (b).png
+Fang of the hound.png
+Forager's pouch.png
+Gilded spear.png
+Golden prospector boots.png
+Golden prospector helmet.png
+Golden prospector jacket.png
+Golden prospector legs.png
+Grim reaper hood.png
+Guild hunter boots.png
+Guild hunter headwear.png
+Guild hunter legs.png
+Guild hunter top.png
+Ice ancient sceptre.png
+Infernal cape (l).png
+Infernal tecpatl.png
+King's barrage.png
+Lithic sceptre.png
+Lost bag (blue).png
+Menaphite red kilt.png
+Nature's recurve.png
+Osmumten's fang (or).png
+Osmumten's fang.png
+Prospector boots.png
+Prospector helmet.png
+Prospector jacket.png
+Prospector legs.png
+Rainbow scarf.png
+Ring of suffering (r).png
+Ring of suffering (ri).png
+Ruby sickle (b).png
+Sage's axe.png
+Sailing cape(t).png
+Sailing cape.png
+Scorching bow.png
+Shadow ancient sceptre.png
+Shadowflame quadrant.png
+Silver sickle (b).png
+Slayer ring.png
+Smoke ancient sceptre.png
+Starter bow.png
+Starter staff.png
+Starter sword.png
+Storm cruiser's coat.png
+Storm cruiser's hat.png
+Uncharged toxic trident (e) (o).png
+Uncharged toxic trident (o).png
+Uncharged trident (e) (o).png
+V's helm.png
+Wooden sword.png

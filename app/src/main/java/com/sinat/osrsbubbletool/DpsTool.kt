@@ -227,7 +227,8 @@ class DpsTool(
     // the rest of the tools' pictures, once). See AssetDownloader.
     private fun downloadPictures() {
         busy = true
-        showStatus("Getting the game pictures the tools compare with (about ${AssetDownloader.ZIP_SIZE_MB} MB, only the first time)...")
+        showStatus(if (AssetDownloader.onlyAFew(context)) "Getting the pictures of new items..."
+            else "Getting the game pictures the tools compare with (about ${AssetDownloader.ZIP_SIZE_MB} MB, only the first time)...")
         val listener = object : AssetDownloader.Listener {
             override fun progress(fraction: Float, line: String, url: String) {
                 if (busy) showStatus(line + if (fraction >= 0) " (${(fraction * 100).toInt()}%)" else "")
