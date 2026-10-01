@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App icon for Android 13+ "themed icons": the same ring, pickaxe and hammer as ic_launcher_bubble, in
+     one colour. Android recolours it to match your wallpaper, so only the shape matters here. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="3"
+        android:scaleY="3"
+        android:translateX="18"
+        android:translateY="18">
+        <!-- ring -->
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.2" android:pathData="M12,2.6a9.4,9.4 0,1 1,0 18.8a9.4,9.4 0,1 1,0 -18.8z" />
+        <!-- pickaxe handle and head -->
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.4" android:strokeLineCap="round" android:pathData="M16.6,16.6L7.6,7.6" />
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.6" android:strokeLineCap="round" android:pathData="M5.8,10.6Q7,7 10.6,5.8" />
+        <!-- hammer handle and head -->
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.5" android:strokeLineCap="round" android:pathData="M7.2,16.8L15,9" />
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="2.6" android:pathData="M13.7,6.5L17.5,10.3" />
+    </group>
+</vector>
