@@ -16,8 +16,8 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-// Recognizes the gear in a picture of the equipment window, using the item icons
-// bundled with the app (assets/dps). Slow work: call it from a background thread.
+// Recognizes the gear in a picture of the equipment window, using the item pictures
+// downloaded once (see GearIcons). Slow work: call it from a background thread.
 class GearRecognizer(private val context: Context) {
 
     companion object {
@@ -89,7 +89,9 @@ class GearRecognizer(private val context: Context) {
         private const val MAX_THREADS = 4   // more rarely helps: phones mix fast and slow cores
     }
 
-    class Item(val id: Int, val name: String, val version: String, val slot: String, val iconFile: String) {
+    // iconFile: the picture's name in the DPS calculator's repository; fromWiki: download it from the OSRS Wiki
+    class Item(val id: Int, val name: String, val version: String, val slot: String, val iconFile: String,
+               val fromWiki: Boolean = false) {
         val label: String get() = if (version.isEmpty()) name else "$name ($version)"
     }
 
@@ -160,6 +162,7 @@ class GearRecognizer(private val context: Context) {
     }
 
     private var itemsBySlot: Map<String, List<Item>>? = null
+    private val pictures = GearIcons(context)   // the item pictures, downloaded once (see GearIcons)
     private val iconCache = HashMap<String, Icon?>()
 
     // ---------------- Bundled data ----------------
@@ -172,7 +175,7 @@ class GearRecognizer(private val context: Context) {
         for (i in 0 until array.length()) {
             val o = array.getJSONObject(i)
             list.add(Item(o.getInt("id"), o.getString("name"), o.optString("version", ""),
-                o.getString("slot"), o.getString("icon")))
+                o.getString("slot"), o.getString("icon"), o.optBoolean("wiki", false)))
         }
         // Items whose versions are just numbers are charges or degradation (Amulet of glory 1-6,
         // Barrows 0-100), which don't change damage. Keep only the highest number of each.
@@ -187,18 +190,24 @@ class GearRecognizer(private val context: Context) {
     }
 
     fun iconBitmap(item: Item): Bitmap? = try {
-        context.assets.open("dps/icons/${item.iconFile}").use { BitmapFactory.decodeStream(it) }
+        BitmapFactory.decodeFile(pictures.file(item.iconFile).path)
     } catch (_: Exception) {
         null
     }
+
+    // True once every item picture is on the phone (Import my gear needs them all)
+    fun iconsReady(): Boolean = items().values.all { list -> list.all { pictures.has(it.iconFile) } }
+
+
 
     // Loads the item list, every icon and the empty-slot outlines. Called when the DPS tool
     // opens, so the first import doesn't wait for it. Safe to call more than once.
     @Synchronized
     fun warmUp() {
-        for (list in items().values) for (item in list) loadIcon(item.iconFile)
+        var all = true
+        for (list in items().values) for (item in list) if (loadIcon(item.iconFile) == null && !pictures.has(item.iconFile)) all = false
         emptyOutlines()
-        warmedUp = true
+        warmedUp = all   // until the pictures are downloaded, try again next time
     }
 
     // What each slot looks like with nothing in it, at game pixel size (slot to colours)
@@ -257,13 +266,18 @@ class GearRecognizer(private val context: Context) {
     // An icon trimmed to its visible pixels (read-only once warmUp has run)
     private fun icon(file: String): Icon? = iconCache[file]
 
-    private fun loadIcon(file: String): Icon? = iconCache.getOrPut(file) {
+    private fun loadIcon(file: String): Icon? {
+        if (!pictures.has(file)) return null   // not downloaded yet: don't remember it as missing
+        return iconCache.getOrPut(file) { readIcon(file) }
+    }
+
+    private fun readIcon(file: String): Icon? {
         val bmp: Bitmap? = try {
-            context.assets.open("dps/icons/$file").use { BitmapFactory.decodeStream(it) }
+            BitmapFactory.decodeFile(pictures.file(file).path)
         } catch (_: Exception) {
             null
         }
-        if (bmp == null) return@getOrPut null
+        if (bmp == null) return null
         val w = bmp.width
         val h = bmp.height
         val px = IntArray(w * h)
@@ -274,7 +288,7 @@ class GearRecognizer(private val context: Context) {
                 x0 = min(x0, x); x1 = max(x1, x); y0 = min(y0, y); y1 = max(y1, y)
             }
         }
-        if (x1 < 0) return@getOrPut null
+        if (x1 < 0) return null
         val iw = x1 - x0 + 1
         val ih = y1 - y0 + 1
         val rgb = ByteArray(iw * ih * 3)
@@ -287,7 +301,7 @@ class GearRecognizer(private val context: Context) {
             rgb[i * 3 + 1] = ((c shr 8) and 0xFF).toByte()
             rgb[i * 3 + 2] = (c and 0xFF).toByte()
         }
-        Icon(iw, ih, rgb, mask)
+        return Icon(iw, ih, rgb, mask)
     }
 
     // ---------------- Whole equipment window ----------------

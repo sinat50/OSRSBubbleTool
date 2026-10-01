@@ -29,6 +29,11 @@ class PuzzleReferences(context: Context) {
             "Gnome child" to "Gnome_child_puzzle_solved.png",
             "Theatre of Blood" to "Theatre_of_Blood_puzzle_solved.png"
         )
+
+        // The solved pictures, for the app's one-time download of everything the tools need
+        fun jobs(context: Context): List<AssetDownloader.Job> = PUZZLES.map { (_, fileName) ->
+            AssetDownloader.Job(BASE_URL + fileName, File(File(context.filesDir, "puzzles"), fileName))
+        }
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())

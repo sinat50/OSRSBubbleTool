@@ -36,7 +36,7 @@ Tool windows are two inches wide in landscape. Drag the bar at the top to move a
 | **GE Prices** | The OSRS Wiki [Real-time Prices](https://prices.runescape.wiki/osrs/) site. |
 | **Quest Helper (Beta)** | Step-by-step guides for 195 quests and miniquests, with the dialogue options to pick, the items for each step and the enemies you'll face. Every quest's requirements are ticked off against your account through [WikiSync](https://oldschool.runescape.wiki/w/RuneScape:WikiSync), including the quests they need in turn. Includes the achievement diaries, and solutions for 50 quest puzzles: drawn maps for the Song of the Elves light puzzles, tap-in solvers for riddles and locks, and trackers for the trial-and-error ones. |
 | **Hunter Rumours** | Pick your tier and guild hunter, then the rumour you're on, to see where the creature lives, the fastest ways there and exactly what to bring. Rumours above your Hunter level are faded. |
-| **Teleport Finder (Beta)** | Type any NPC, monster or place and see the teleports that land closest to it, from about 500 teleports. Distances are real walking routes over the game's walking map, counting walls, doors, ladders, cave entrances, boats and levers, and each result names its key step, like "Then: Climb-down Trapdoor". Location buttons show monster levels, and teleports your quests or levels don't allow yet are faded. |
+| **Teleport Finder (Beta)** | Type any NPC, monster or place (suggestions only show places it has teleports for) and see the teleports that land closest to it, from about 500 teleports. Distances are real walking routes over the game's walking map, counting walls, doors, ladders, cave entrances, boats and levers, and each result names its key step, like "Then: Climb-down Trapdoor". With WikiSync, routes skip shortcuts, doors and boats your levels and quests don't allow yet. Location buttons show monster levels, and teleports your quests or levels don't allow yet are faded. |
 | **Calculator** | A basic calculator that understands OSRS shorthand like 1.5m and 250k. |
 | **Notepad** | Write, save and read notes without leaving the game. |
 | **Game Room** | Games for while you wait. **2048**: the classic sliding-tile puzzle, saved after every move. **Wing It**: tap to flap a little bird through the gaps between pillars, with a best score. |
@@ -47,10 +47,11 @@ Tool windows are two inches wide in landscape. Drag the bar at the top to move a
 - Website tools pause while their window is closed.
 - Timers don't keep anything running. Android wakes the app once when a timer is due.
 - On Android 14 and newer you can share just the game instead of the whole screen, so your notifications and other apps are never captured.
-- Screenshots are processed on the phone and thrown away. Only pictures you choose to keep, in Inventory Setups or with **Save picture to phone**, are stored.
+- Screenshots are processed on the phone and never saved. The full screenshot is let go as soon as it has been read, and the last scan's picture (shown in the Puzzle Box and DPS windows) is let go when you close that window. Only pictures you choose to keep, in Inventory Setups or with **Save picture to phone**, are stored.
 - The app has no ads, no analytics and no accounts. The website tools load those sites directly, the same as a browser would.
 - If you choose to enter your RuneScape name in the WikiSync tool, it's used to read your public WikiSync data. That's the only personal thing the app ever sends.
 - Tools that look things up (like Teleport Finder searches) ask the OSRS Wiki for them directly.
+- The first time you open the app, it offers to download the game pictures some tools compare your screen with: the OSRS Wiki DPS calculator's files from GitHub in one ZIP (about 170 MB to download, once; only the pictures the tools use are kept, about 20 MB), plus a few pictures from the OSRS Wiki. Choose **Later** and the tools get them when you first use them.
 - Each time you open the app, it checks GitHub for a newer version. The button in the top right says **Up To Date** or **Update Available** and opens the latest release page. Nothing about you is sent.
 
 ## Permissions
@@ -72,18 +73,22 @@ The app's **Permissions** screen explains each one and has a button to turn it o
 3. Open the project folder in Android Studio and let Gradle finish syncing.
 4. Connect your phone with USB debugging turned on and press **Run ▶**.
 
+The scripts that build the bundled data files (teleports, walking map, item list) are in [`tools/`](tools/README.md).
+
 ## Is it allowed?
 
 The app only shows information and waits for you to tap. It never reads the game's memory, changes the game, or clicks anything for you. Everything it does is something you could do yourself with a second screen and a wiki page.
 
 ## Credits
 
-- Item data and icons from the [OSRS Wiki DPS calculator](https://github.com/weirdgloop/osrs-dps-calc)'s repository, licensed under the [GNU GPL v3.0](https://www.gnu.org/licenses/gpl-3.0.html). That list is itself made from the OSRS Wiki.
+- Item data from the [OSRS Wiki DPS calculator](https://github.com/weirdgloop/osrs-dps-calc)'s repository, licensed under the [GNU GPL v3.0](https://www.gnu.org/licenses/gpl-3.0.html). That list is itself made from the OSRS Wiki. The item pictures (© Jagex) aren't included in the app: the app downloads that repository once and unpacks them from it, with a few from the OSRS Wiki.
 - Content from the [Old School RuneScape Wiki](https://oldschool.runescape.wiki), used under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/): solved puzzle pictures and some quest puzzle answers, the Hunters' Rumours lists, travel and equipment, and the Teleport Finder's search suggestions, map positions, monster levels and some teleport destination descriptions. It has been shortened and reformatted, and anything adapted from it is shared under the same licence.
 - Quest progress and levels read with [WikiSync](https://oldschool.runescape.wiki/w/RuneScape:WikiSync) by the OSRS Wiki.
 - Zulrah rotation data and arena layout adapted from the [Zulrah Helper](https://github.com/while-loop/runelite-plugins) RuneLite plugin, © 2020 Anthony Alves and © 2026 Ron Young, used under the BSD 2-Clause License (the full notice is in `ZulrahTool.kt` and on the app's Legal screen).
 - Farming growth times based on [RuneLite](https://github.com/runelite/runelite)'s Time Tracking plugin, and newer teleport destinations and the list of dungeon entrances from RuneLite's world map, © 2016-2017 Adam, © 2018-2019 Abex, © 2018 NotFoxtrot, © 2018 Morgan Lewis and © 2020 Arman S, used under the BSD 2-Clause License.
 - Teleport destinations, the walking map, and the doors, ladders, cave entrances, boats, portals and levers used for walking distances, from the [Shortest Path](https://github.com/Skretzo/shortest-path) RuneLite plugin, © Skretzo and the Shortest Path contributors, used under the BSD 2-Clause License.
+- Obstacle locations used to join closed-off parts of the walking map, from the [Golems Don't Die](https://github.com/Varzeki/golems-dont-die) RuneLite plugin, © 2026 Varzeki, used under the BSD 2-Clause License.
+- Some cave and boss-room entrances checked against the crowdsourced transport data of the RuneScape map project ([mejrs/data_osrs](https://github.com/mejrs/data_osrs)).
 - Quest guides, requirements, achievement diary tasks and puzzle solutions adapted from the [Quest Helper](https://github.com/Zoinkwiz/quest-helper) RuneLite plugin, © 2020 Zoinkwiz and the Quest Helper contributors, used under the BSD 2-Clause License (the full notice and every contributor are listed on the app's Legal screen).
 - 2048 is the app's own version of the game created by Gabriele Cirulli. Wing It is the app's own game.
 - XP calculators by [oldschool.tools](https://oldschool.tools), shooting star data by [07.gg](https://07.gg).

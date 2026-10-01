@@ -55,9 +55,13 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
     }
     // Real walking routes (walls, doors, ladders), loaded the first time they're needed
     private var walkMap: WalkMap? = null
+    // Pages already read this session, with only the spots that have teleport results (only used on
+    // the background thread). Picking a suggestion reuses it, so the page isn't downloaded twice.
+    private val checked = HashMap<String, List<TeleportData.Spot>>()
     private var working: String? = null                      // the results being worked out right now
     private var lastKey: String? = null                      // the last results worked out, so redraws don't redo it
     private var lastList: List<TeleportData.Result> = emptyList()
+    private var lastNeeds: List<String> = emptyList()           // what the ways in need, if you can't get there yet
 
     private lateinit var holder: FrameLayout
     private lateinit var results: LinearLayout
@@ -130,8 +134,9 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
                     setPadding(dp(8), 0, dp(8), dp(12))
                     results = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
                     addView(results, full(2))
-                    addView(label("Places from the OSRS Wiki. Teleports, the walking map and dungeon entrances from the Shortest Path plugin and RuneLite. " +
-                        "Distances are walking routes, counting walls, doors, ladders and cave entrances.", 9f).apply { setTextColor(FADED) }, full(12))
+                    addView(label("Places from the OSRS Wiki. Teleports, the walking map and dungeon entrances from the Shortest Path plugin and RuneLite, and obstacles from the Golems Don't Die plugin. " +
+                        "Distances are walking routes, counting walls, doors, ladders and cave entrances. With WikiSync, " +
+                        "shortcuts you can't use yet are left out.", 9f).apply { setTextColor(FADED) }, full(12))
                 })
             }
             addView(resultsScroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -181,7 +186,23 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
                     val onMap = (pg.optJSONArray("templates")?.length() ?: 0) > 0
                     if (onMap) found.add(pg.optInt("index", 999) to pg.getString("title"))
                 }
-                TeleportData.usefulSuggestions(found.sortedBy { it.first }.map { it.second }, 8)
+                // Then read those pages (all in one request, only ones not read before) and keep the ones
+                // with somewhere the finder has teleports for, so every suggestion gives results
+                val candidates = TeleportData.usefulSuggestions(found.sortedBy { it.first }.map { it.second }, 14)
+                val need = candidates.filter { it !in checked }
+                if (need.isNotEmpty()) {
+                    val cj = JSONObject(get("$API?action=query&format=json&formatversion=2&prop=revisions&rvprop=content" +
+                        "&rvslots=main&titles=" + URLEncoder.encode(need.joinToString("|"), "UTF-8")))
+                    val got = cj.optJSONObject("query")?.optJSONArray("pages")
+                    if (got != null) for (i in 0 until got.length()) {
+                        val pg = got.getJSONObject(i)
+                        val content = pg.optJSONArray("revisions")?.optJSONObject(0)?.optJSONObject("slots")
+                            ?.optJSONObject("main")?.optString("content") ?: continue
+                        val t = pg.getString("title")
+                        keep(t, TeleportData.spotsFrom(t, content))
+                    }
+                }
+                candidates.filter { checked[it]?.isNotEmpty() == true }.take(8)
             } catch (e: Exception) { null }
             handler.post {
                 if (id != searchId) return@post
@@ -208,14 +229,17 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
         toTop()
         val id = ++searchId
         work.execute {
-            var found: List<TeleportData.Spot>? = null
+            var found: List<TeleportData.Spot>? = checked[title]   // already read for the suggestions
+            var onPage = found?.isNotEmpty() ?: false
             var realTitle = title
-            try {
+            if (found == null) try {
                 val json = JSONObject(get("$API?action=parse&format=json&prop=wikitext&redirects=1&page=" + URLEncoder.encode(title, "UTF-8")))
                 val parse = json.optJSONObject("parse")
                 if (parse != null) {
                     realTitle = parse.optString("title", title)
-                    found = TeleportData.spotsFrom(realTitle, parse.getJSONObject("wikitext").getString("*"))
+                    val all = TeleportData.spotsFrom(realTitle, parse.getJSONObject("wikitext").getString("*"))
+                    onPage = all.isNotEmpty()
+                    found = keep(realTitle, all)
                 } else found = emptyList()
             } catch (e: Exception) { }
             handler.post {
@@ -223,6 +247,8 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
                 page = realTitle
                 when {
                     found == null -> message = "Couldn't reach the OSRS Wiki. Check your internet connection."
+                    found.isEmpty() && onPage -> message = "No teleport lands near $realTitle. " +
+                        "Search for the way in instead (for example its entrance or the nearest town)."
                     found.isEmpty() -> message = "The wiki page for $realTitle doesn't show where it is on the map. " +
                         "Try the NPC, monster or place itself (not an item or quest)."
                     else -> {
@@ -234,6 +260,21 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
                 refresh()
             }
         }
+    }
+
+    // The walking map, loaded the first time it's needed (background thread only)
+    private fun map(): WalkMap = walkMap ?: WalkMap(
+        context.assets.open("collision.bin").use { it.readBytes() },
+        context.assets.open("walks.txt").bufferedReader().use { it.readText() },
+        context.assets.open("dungeons.txt").bufferedReader().use { it.readText() }).also { walkMap = it }
+
+    // Keeps only the spots the finder can give teleports for, and remembers them for this session
+    private fun keep(title: String, spots: List<TeleportData.Spot>): List<TeleportData.Spot> {
+        val map = try { map() } catch (e: Throwable) { null }
+        val good = spots.filter { TeleportData.hasResults(it, teleports, links, map) }
+        if (checked.size > 300) checked.clear()   // plenty for a session; don't grow forever
+        checked[title] = good
+        return good
     }
 
     private fun get(url: String): String {
@@ -311,17 +352,21 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
                 working = key
                 val title = page.orEmpty()   // read here: the page can change while this works in the background
                 work.execute {
+                    var needs = emptyList<String>()
                     val list = try {
-                        val map = walkMap ?: WalkMap(
-                            context.assets.open("collision.bin").use { it.readBytes() },
-                            context.assets.open("walks.txt").bufferedReader().use { it.readText() },
-                            context.assets.open("dungeons.txt").bufferedReader().use { it.readText() }).also { walkMap = it }
+                        val map = map()
                         // what the area is called, to find the way in if the walking map has none (the page's own
                         // name is left out: a monster's name says little about where its cave starts)
                         val hint = s.area.ifBlank { if (title.isEmpty() || !s.label.startsWith(title)) s.label else "" }
                         // stop once enough teleports you can use are reached (ones you can't use yet don't count)
                         val usable = TeleportData.landingTiles(teleports.filter { missing(it).isEmpty() })
-                        val field = map.from(s.x, s.y, s.plane, usable, 70, hint = hint)
+                        // shortcuts, doors and boats your WikiSync levels and quests don't allow yet are left out
+                        val locked = if (data == null) null else BooleanArray(map.requirements.size) { i ->
+                            TeleportData.unmet(map.requirements[i], levels = { data.level(it) },
+                                questDone = { q -> data.questState(q)?.let { it == WikiSync.FINISHED } }).isNotEmpty()
+                        }
+                        val field = map.from(s.x, s.y, s.plane, usable, 70, hint = hint, locked = locked)
+                        needs = field.needs
                         TeleportData.closestOnFoot(teleports, map, field, RESULTS) { missing(it).isNotEmpty() }
                             // somewhere the walking map doesn't cover at all: straight-line guesses
                             .ifEmpty { TeleportData.closest(teleports, s, RESULTS, links) { missing(it).isNotEmpty() } }
@@ -330,7 +375,7 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
                     }
                     handler.post {
                         if (working != key) return@post
-                        working = null; lastKey = key; lastList = list
+                        working = null; lastKey = key; lastList = list; lastNeeds = needs
                         refresh()
                     }
                 }
@@ -338,7 +383,15 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
             return
         }
         val list = lastList
+        if (lastNeeds.isNotEmpty()) {
+            // closed off for you: the ways in need levels or quests you don't have yet (from WikiSync)
+            results.addView(label("You can't walk here yet. The way in needs " +
+                (if (lastNeeds.size <= 4) lastNeeds.joinToString(", ") else lastNeeds.take(4).joinToString(", ") + " or more") + ".", 12f).apply {
+                setTextColor(WARN)
+            }, full(8))
+        }
         if (list.isEmpty()) {
+            if (lastNeeds.isNotEmpty()) return
             results.addView(label("No teleport lands near here. Search for the way in instead (for example its entrance or the nearest town).", 12f),
                 full(8))
             return

@@ -1,2 +1,3 @@
-Wed Sep 2 18:18:56 2026 +0000 89c3e25
-Item list and icons from the OSRS Wiki DPS calculator (github.com/weirdgloop/osrs-dps-calc, GPL-3.0). Item images (c) Jagex Ltd.
+Item list from the OSRS Wiki DPS calculator (github.com/weirdgloop/osrs-dps-calc, GPL-3.0), commit 89c3e25b344aea90d0189746e4b5f73dde0f0383.
+The item pictures aren't bundled: the app downloads them once, the first time you use Import my gear, from that
+same commit (served by jsDelivr), and the ones marked "wiki" from the OSRS Wiki. Item images (c) Jagex Ltd.

@@ -210,7 +210,8 @@ class BubbleService : Service() {
         """
     }
 
-    // The tools the bubble can open. New tools get added here.
+    // The tools the bubble can open, in menu order. A new tool gets added here and in makeParts()
+    // below (the build stops with an error until it's in both).
     enum class Tool(val label: String) {
         WIKISYNC("WikiSync"),
         WIKI("OSRS Wiki"),
@@ -235,22 +236,20 @@ class BubbleService : Service() {
     private lateinit var bubble: ImageView
     private lateinit var bubbleParams: WindowManager.LayoutParams
     private lateinit var capture: CaptureManager   // screen capture shared by all tools
-    private lateinit var puzzleTool: PuzzleBoxTool
-    private lateinit var setupsTool: InventorySetupsTool
-    private lateinit var dpsTool: DpsTool
-    private lateinit var zulrahTool: ZulrahTool
-    private lateinit var farmingTool: FarmingTool
-    private lateinit var lightBoxTool: LightBoxTool
-    private lateinit var questTool: QuestHelperTool
-    private val calculatorTool by lazy { CalculatorTool(this) }
-    private val notesTool by lazy { NotesTool(this) }
-    private val wikiSyncTool by lazy { WikiSyncTool(this) }
     private var syncReturnTo: Tool? = null   // the tool that opened WikiSync, for the back button
-    private val hunterTool by lazy { HunterRumourTool(this, openWikiSync = { openWikiSync(Tool.HUNTER) }) }
-    private val teleportLazy = lazy { TeleportFinderTool(this, openWikiSync = { openWikiSync(Tool.TELEPORTS) }) }
-    private val teleportTool by teleportLazy
-    private val gameRoomLazy = lazy { GameRoomTool(this) }
-    private val gameRoomTool by gameRoomLazy
+
+    // What the bubble needs from one tool: what goes in its window, and what to do when things happen.
+    // (Tools that don't care about something leave it out.)
+    private class ToolParts(
+        val buildView: () -> View,
+        val onBack: (() -> Unit)?,         // the window's ◀ button; null hides it
+        val onClosed: () -> Unit = {},     // its window was closed
+        val onRotated: () -> Unit = {},    // the phone turned
+        val onDestroy: () -> Unit = {}     // the bubble is closing: tidy up
+    )
+    // Each tool is only set up the first time you open it, so tools you don't use cost nothing
+    private val toolParts = mutableMapOf<Tool, ToolParts>()
+    private fun partsFor(tool: Tool) = toolParts.getOrPut(tool) { makeParts(tool) }
 
     private val toolWindows = mutableMapOf<Tool, LinearLayout>() // built once, reused
     private var currentTool = Tool.WIKI
@@ -277,14 +276,6 @@ class BubbleService : Service() {
         capture = CaptureManager(this) { capturing ->
             if (!destroyed) updateForeground(capturing)
         }
-        puzzleTool = PuzzleBoxTool(this, windowManager, capture, ::setOverlaysVisible) { hideToolWindow() }
-        setupsTool = InventorySetupsTool(this, windowManager, capture, ::setOverlaysVisible)
-        dpsTool = DpsTool(this, windowManager, capture, ::setOverlaysVisible)
-        zulrahTool = ZulrahTool(this)
-        farmingTool = FarmingTool(this)
-        questTool = QuestHelperTool(this, openWiki = { url -> openWikiLink(url, returnTo = Tool.QUESTS) }, hideWindow = { hideToolWindow() },
-            openWikiSync = { openWikiSync(Tool.QUESTS) })
-        lightBoxTool = LightBoxTool(this, windowManager, capture, ::setOverlaysVisible) { hideToolWindow() }
         createBubble()
     }
 
@@ -368,6 +359,7 @@ class BubbleService : Service() {
             y = dp(100)
         }
         allowScreenEdges(bubbleParams)
+        restoreBubblePlace()
 
         // Tap = open/hide current tool, drag = move, long-press = tool menu
         val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
@@ -413,6 +405,7 @@ class BubbleService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     bubble.removeCallbacks(longPress)
+                    if (dragging) saveBubblePlace()   // so it starts here next time
                     if (!dragging && !longPressed) toggleToolWindow()
                     true
                 }
@@ -590,13 +583,10 @@ class BubbleService : Service() {
         shownWindow?.let { windowManager.removeView(it) }
         shownWindow = null
         shownParams = null
-        if (wasShowing) setWebPagesRunning(false)
-        if (wasShowing && currentTool == Tool.PUZZLE_BOX) puzzleTool.onWindowClosed()
-        if (wasShowing && currentTool == Tool.INVENTORY_SETUPS) setupsTool.onWindowClosed()
-        if (wasShowing && currentTool == Tool.DPS_CALCULATOR) dpsTool.onWindowClosed()
-        if (wasShowing && currentTool == Tool.FARMING) farmingTool.onWindowClosed()
-        if (wasShowing && currentTool == Tool.LIGHT_BOX) lightBoxTool.onWindowClosed()
-        if (wasShowing && currentTool == Tool.NOTES) notesTool.onWindowClosed()
+        if (wasShowing) {
+            setWebPagesRunning(false)
+            toolParts[currentTool]?.onClosed?.invoke()
+        }
     }
 
     // Web pages (Wiki, GE Prices, star tracker...) keep running their scripts and live updates
@@ -615,47 +605,95 @@ class BubbleService : Service() {
         return false
     }
 
+    // Where the bubble was left, remembered separately for landscape and portrait. Saved as how far
+    // across and down the screen it is, so it lands in the same spot even if the screen size changes.
+    private val bubblePlace by lazy { getSharedPreferences("bubble_place", MODE_PRIVATE) }
+    private fun placeKey() = if (screenWidth() > screenHeight()) "land" else "port"
+
+    private fun saveBubblePlace() {
+        val size = dp(BUBBLE_SIZE_DP)
+        val across = bubbleParams.x.toFloat() / maxOf(1, screenWidth() - size)
+        val down = bubbleParams.y.toFloat() / maxOf(1, screenHeight() - size)
+        bubblePlace.edit().putFloat("x_" + placeKey(), across).putFloat("y_" + placeKey(), down).apply()
+    }
+
+    private fun restoreBubblePlace() {
+        val key = placeKey()
+        // not moved in this orientation yet: use where it was in the other one
+        val use = if (bubblePlace.contains("x_$key")) key else if (key == "land") "port" else "land"
+        if (!bubblePlace.contains("x_$use")) return   // never moved: keep the starting spot
+        val size = dp(BUBBLE_SIZE_DP)
+        bubbleParams.x = (bubblePlace.getFloat("x_$use", 0f) * (screenWidth() - size)).toInt()
+        bubbleParams.y = (bubblePlace.getFloat("y_$use", 0f) * (screenHeight() - size)).toInt()
+        clampBubble()
+    }
+
     private fun clampBubble() {
         val size = dp(BUBBLE_SIZE_DP)
         bubbleParams.x = bubbleParams.x.coerceIn(0, maxOf(0, screenWidth() - size))
         bubbleParams.y = bubbleParams.y.coerceIn(0, maxOf(0, screenHeight() - size))
     }
 
-    private fun buildToolWindow(tool: Tool): LinearLayout = when (tool) {
-        Tool.WIKI -> {
-            val web = buildWebView(pendingWikiUrl ?: WIKI_URL, PAGE_ZOOM_PERCENT)
-            pendingWikiUrl = null
-            wikiWeb = web
-            buildFrame(web) { wikiBack(web) }
+    private fun buildToolWindow(tool: Tool): LinearLayout {
+        val parts = partsFor(tool)
+        return buildFrame(parts.buildView(), parts.onBack)
+    }
+
+    // Every tool, and how the bubble works with it. This is the one place a new tool gets set up.
+    private fun makeParts(tool: Tool): ToolParts = when (tool) {
+        Tool.WIKI -> ToolParts(
+            buildView = {
+                buildWebView(pendingWikiUrl ?: WIKI_URL, PAGE_ZOOM_PERCENT).also { wikiWeb = it; pendingWikiUrl = null }
+            },
+            onBack = { wikiWeb?.let { wikiBack(it) } }
+        )
+        Tool.XP_CALCULATOR -> webPage(XP_CALCULATOR_URL, XP_CALCULATOR_ZOOM_PERCENT)
+        Tool.SHOOTING_STARS -> webPage(SHOOTING_STARS_URL, SHOOTING_STARS_ZOOM_PERCENT)
+        Tool.PRICES -> webPage(PRICES_URL, PRICES_ZOOM_PERCENT)
+        Tool.DPS_CALCULATOR -> DpsTool(this, windowManager, capture, ::setOverlaysVisible).let { t ->
+            var web: WebView? = null
+            ToolParts(
+                buildView = { t.buildView(buildWebView(DPS_CALCULATOR_URL, DPS_ZOOM_PERCENT).also { web = it }) },
+                onBack = { web?.let { if (it.canGoBack()) it.goBack() } },
+                onClosed = t::onWindowClosed, onRotated = t::onRotated, onDestroy = t::destroy
+            )
         }
-        Tool.XP_CALCULATOR -> {
-            val web = buildWebView(XP_CALCULATOR_URL, XP_CALCULATOR_ZOOM_PERCENT)
-            buildFrame(web) { if (web.canGoBack()) web.goBack() }
+        Tool.PUZZLE_BOX -> PuzzleBoxTool(this, windowManager, capture, ::setOverlaysVisible) { hideToolWindow() }.let { t ->
+            ToolParts(t::buildView, onBack = null, onClosed = t::onWindowClosed, onRotated = t::onRotated, onDestroy = t::destroy)
         }
-        Tool.DPS_CALCULATOR -> {
-            val web = buildWebView(DPS_CALCULATOR_URL, DPS_ZOOM_PERCENT)
-            buildFrame(dpsTool.buildView(web)) { if (web.canGoBack()) web.goBack() }
+        Tool.LIGHT_BOX -> LightBoxTool(this, windowManager, capture, ::setOverlaysVisible) { hideToolWindow() }.let { t ->
+            ToolParts(t::buildView, onBack = null, onClosed = t::onWindowClosed, onRotated = t::onRotated, onDestroy = t::destroy)
         }
-        Tool.SHOOTING_STARS -> {
-            val web = buildWebView(SHOOTING_STARS_URL, SHOOTING_STARS_ZOOM_PERCENT)
-            buildFrame(web) { if (web.canGoBack()) web.goBack() }
+        Tool.INVENTORY_SETUPS -> InventorySetupsTool(this, windowManager, capture, ::setOverlaysVisible).let { t ->
+            ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed, onRotated = t::onRotated, onDestroy = t::destroy)
         }
-        Tool.PUZZLE_BOX -> buildFrame(puzzleTool.buildView(), onBack = null)
-        Tool.INVENTORY_SETUPS -> buildFrame(setupsTool.buildView()) { setupsTool.goBack() }
-        Tool.ZULRAH -> buildFrame(zulrahTool.buildView()) { zulrahTool.goBack() }
-        Tool.FARMING -> buildFrame(farmingTool.buildView(), onBack = null)
-        Tool.LIGHT_BOX -> buildFrame(lightBoxTool.buildView(), onBack = null)
-        Tool.WIKISYNC -> buildFrame(wikiSyncTool.buildView()) { syncReturnTo?.let { openTool(it) } }
-        Tool.QUESTS -> buildFrame(questTool.buildView()) { questTool.goBack() }
-        Tool.CALCULATOR -> buildFrame(calculatorTool.buildView(), onBack = null)
-        Tool.NOTES -> buildFrame(notesTool.buildView()) { notesTool.goBack() }
-        Tool.GAMES -> buildFrame(gameRoomTool.buildView()) { gameRoomTool.goBack() }
-        Tool.HUNTER -> buildFrame(hunterTool.buildView()) { hunterTool.goBack() }
-        Tool.TELEPORTS -> buildFrame(teleportTool.buildView()) { teleportTool.goBack() }
-        Tool.PRICES -> {
-            val web = buildWebView(PRICES_URL, PRICES_ZOOM_PERCENT)
-            buildFrame(web) { if (web.canGoBack()) web.goBack() }
+        Tool.ZULRAH -> ZulrahTool(this).let { t -> ToolParts(t::buildView, t::goBack) }
+        Tool.FARMING -> FarmingTool(this).let { t ->
+            ToolParts(t::buildView, onBack = null, onClosed = t::onWindowClosed, onDestroy = t::destroy)
         }
+        Tool.WIKISYNC -> WikiSyncTool(this).let { t -> ToolParts(t::buildView, onBack = { syncReturnTo?.let { openTool(it) } }) }
+        Tool.QUESTS -> QuestHelperTool(this, openWiki = { url -> openWikiLink(url, returnTo = Tool.QUESTS) },
+            hideWindow = { hideToolWindow() }, openWikiSync = { openWikiSync(Tool.QUESTS) }).let { t ->
+            ToolParts(t::buildView, t::goBack)
+        }
+        Tool.CALCULATOR -> CalculatorTool(this).let { t -> ToolParts(t::buildView, onBack = null) }
+        Tool.NOTES -> NotesTool(this).let { t -> ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed) }
+        Tool.GAMES -> GameRoomTool(this).let { t -> ToolParts(t::buildView, t::goBack, onDestroy = t::destroy) }
+        Tool.HUNTER -> HunterRumourTool(this, openWikiSync = { openWikiSync(Tool.HUNTER) }).let { t ->
+            ToolParts(t::buildView, t::goBack)
+        }
+        Tool.TELEPORTS -> TeleportFinderTool(this, openWikiSync = { openWikiSync(Tool.TELEPORTS) }).let { t ->
+            ToolParts(t::buildView, t::goBack, onDestroy = t::destroy)
+        }
+    }
+
+    // A tool that's just a web page, with ◀ going back a page
+    private fun webPage(url: String, zoomPercent: Int): ToolParts {
+        var web: WebView? = null
+        return ToolParts(
+            buildView = { buildWebView(url, zoomPercent).also { web = it } },
+            onBack = { web?.let { if (it.canGoBack()) it.goBack() } }
+        )
     }
 
     // The shared window frame: button bar on top, tool content below
@@ -948,10 +986,7 @@ class BubbleService : Service() {
         hideMenu()
         clampBubble()
         windowManager.updateViewLayout(bubble, bubbleParams)
-        puzzleTool.onRotated()
-        setupsTool.onRotated()
-        dpsTool.onRotated()
-        lightBoxTool.onRotated()
+        toolParts.values.forEach { it.onRotated() }
         if (shownWindow != null) {
             val params = makeWindowParams()
             shownParams = params
@@ -965,13 +1000,7 @@ class BubbleService : Service() {
         // close the window first, while the tools can still tidy up after it
         hideMenu()
         hideToolWindow()
-        puzzleTool.destroy()
-        setupsTool.destroy()
-        dpsTool.destroy()
-        farmingTool.destroy()
-        lightBoxTool.destroy()
-        if (gameRoomLazy.isInitialized()) gameRoomTool.destroy()
-        if (teleportLazy.isInitialized()) teleportTool.destroy()
+        toolParts.values.forEach { it.onDestroy() }
         capture.shutdown()
         windowManager.removeView(bubble)
         webViews.forEach { (it.parent as? ViewGroup)?.removeView(it); it.destroy() }

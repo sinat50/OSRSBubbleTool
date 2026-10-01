@@ -13,3 +13,16 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Never commit signing keys or built apps
+*.jks
+*.keystore
+*.apk
+*.aab
+/app/release/
+/app/build
+/.kotlin
+
+# Python leftovers from the scripts in tools/
+__pycache__/
+*.pyc

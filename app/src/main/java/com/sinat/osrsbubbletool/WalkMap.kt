@@ -13,8 +13,10 @@ import kotlin.math.max
 //
 // collision: assets/collision.bin, one packed block per 64 x 64 map region. For every tile and plane it
 //            holds two bits: "you can step north from here" and "you can step east from here".
-// walks:     assets/walks.txt, "@ name" lines, then one line per door/ladder/etc:
-//            from x y plane, to x y plane, ticks, goes far or into another area (1/0), name number.
+// walks:     assets/walks.txt, "@ name" lines and "% requirement" lines, then one line per door/ladder/etc:
+//            from x y plane, to x y plane, ticks, goes far or into another area (1/0), name number,
+//            requirement number (-1 = none), estimate (1/0). Estimates are joins into areas the walking map
+//            has no way into, worked out ahead of time (see the Teleport Finder notes in the README).
 // dungeons:  assets/dungeons.txt, one line per dungeon entrance on the surface: x y name.
 class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
 
@@ -93,9 +95,12 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
 
     // ---------------- Doors, ladders and the rest ----------------
 
-    private class Walk(val from: Int, val cost: Int, val far: Boolean, val name: Int)
+    private class Walk(val from: Int, val cost: Int, val far: Boolean, val name: Int, val req: Int, val guess: Boolean)
     private val walksTo = HashMap<Int, MutableList<Walk>>()   // by where they come out
     private val names = ArrayList<String>()                   // walk names, then dungeon names
+    // What shortcuts, doors and boats need, like "70 Agility" or a quest. The Teleport Finder checks these
+    // against your WikiSync levels and quests, and the search leaves out the ones you can't use yet.
+    val requirements = ArrayList<String>()
 
     private class Dungeon(val x: Int, val y: Int, val name: Int)
     private val entrances = ArrayList<Dungeon>()
@@ -103,13 +108,15 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
     init {
         for (line in walks.lineSequence()) {
             if (line.startsWith("@ ")) { names.add(line.substring(2).trim()); continue }
+            if (line.startsWith("% ")) { requirements.add(line.substring(2).trim()); continue }
             if (line.isBlank() || line.startsWith("#")) continue
             val parts = line.trim().split(' ')
             val f = parts.map { it.toIntOrNull() ?: Int.MIN_VALUE }
             if (f.size < 8 || f.any { it == Int.MIN_VALUE }) continue   // not a line we understand: skip it
             val from = pack(f[0], f[1], f[2]); val to = pack(f[3], f[4], f[5])
             // ticks to tiles: you run two tiles a tick
-            walksTo.getOrPut(to) { ArrayList(1) }.add(Walk(from, max(1, f[6] * 2), f[7] == 1, f.getOrElse(8) { NO_WAY }))
+            walksTo.getOrPut(to) { ArrayList(1) }.add(Walk(from, max(1, f[6] * 2), f[7] == 1, f.getOrElse(8) { NO_WAY },
+                f.getOrElse(9) { -1 }, f.getOrElse(10) { 0 } == 1))
         }
         for (line in dungeons.lineSequence()) {
             if (line.isBlank() || line.startsWith("#")) continue
@@ -131,8 +138,10 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
     // its route, so a teleport's result can say "via Climb-down Trapdoor". guess: the route goes through a
     // way into a cave that isn't on the walking map, so its distance is an estimate.
     // shutIn: the walking map has no way out of the area around the target (so any routes out are guesses)
+    // needs: when the only ways out are ones you can't use yet, what they need (e.g. "70 Agility")
     class Field internal constructor(private val cost: Array<ShortArray?>, private val via: Array<ShortArray?>,
-                                     private val guess: Array<BooleanArray?>, val shutIn: Boolean = false) {
+                                     private val guess: Array<BooleanArray?>, val shutIn: Boolean = false,
+                                     val needs: List<String> = emptyList()) {
         fun at(x: Int, y: Int, z: Int): Int? {
             val k = slot(x, y, z); if (k < 0) return null
             return cost[k]?.get(idx(x, y))?.toInt()?.takeIf { it != UNSEEN.toInt() }
@@ -159,8 +168,10 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
     // stopAt: tiles that matter (where teleports land); the search stops once `want` of them are reached.
     // hint: what the place is called (the wiki page and area), to find its entrance if the walking map
     // has no way out of it.
+    // locked: for each requirement number, true if you can't use it yet: those shortcuts, doors and boats are
+    // left out. Null to use everything.
     fun from(x0: Int, y0: Int, z0: Int, stopAt: Set<Int> = emptySet(), want: Int = Int.MAX_VALUE, maxCost: Int = MAX_COST,
-             hint: String = "", rescue: Boolean = true): Field {
+             hint: String = "", rescue: Boolean = true, locked: BooleanArray? = null): Field {
         val cost = arrayOfNulls<ShortArray>(256 * 256 * 4)
         val via = arrayOfNulls<ShortArray>(256 * 256 * 4)
         val guess = arrayOfNulls<BooleanArray>(256 * 256 * 4)
@@ -201,6 +212,7 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
 
         var visited = 0
         var found = 0
+        val skipped = HashSet<Int>()   // requirements of ways left out because you can't use them yet
         val settledBelow = ArrayList<Int>()   // underground tiles reached, in case this turns out to be a cave with no mapped way out
         val settled = ArrayList<Int>()        // every tile reached, while there are few (a closed-off area)
         var leaky = false                     // allowed to squeeze through walls (last resort)
@@ -229,7 +241,10 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
                     val g = guess[k]!![ix]
 
                     // doors, ladders and the rest that come out here: the way back goes to where they start
-                    walksTo[p]?.forEach { wk -> push(px(wk.from), py(wk.from), pz(wk.from), c + wk.cost, if (wk.far) wk.name else v, g) }
+                    walksTo[p]?.forEach { wk ->
+                        if (locked != null && wk.req >= 0 && wk.req < locked.size && locked[wk.req]) skipped.add(wk.req)
+                        else push(px(wk.from), py(wk.from), pz(wk.from), c + wk.cost, if (wk.far) wk.name else v, g || wk.guess)
+                    }
 
                     // walking to the 8 tiles around (the same rules the game uses)
                     if (blocked(x, y, z)) {
@@ -269,6 +284,11 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
         }
         val shutIn = pending == 0 && !cutOff && found < want
         if (!rescue) return Field(cost, via, guess, shutIn)
+        // Closed off because ways out need something you don't have yet: don't guess at another way round
+        // that. If no teleport you can use was reached at all, say what's needed.
+        if (shutIn && skipped.isNotEmpty())
+            return Field(cost, via, guess, true,
+                if (found > 0) emptyList() else skipped.sorted().mapNotNull { requirements.getOrNull(it) }.distinct())
 
         // Shut in: nowhere left to walk, and not enough teleports reached. The walking map has no way out of
         // here (newer areas, lairs reached by a hole or a boat, bosses behind doors), so come out at the most

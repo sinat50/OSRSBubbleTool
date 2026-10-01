@@ -88,6 +88,8 @@ class DpsTool(
     private var resultsPanel: ScrollView? = null
     private var busy = false
     private var lastCapture: Bitmap? = null      // the equipment window from the last import
+    private var previewView: ImageView? = null   // shows it while you check the guesses
+    private var saveButton: View? = null
     // Items you picked yourself, remembered per slot (slot to item id)
     private val picksPrefs = context.getSharedPreferences("gear_import_picks", Context.MODE_PRIVATE)
 
@@ -152,6 +154,20 @@ class DpsTool(
 
     fun onWindowClosed() {
         finishAreaSetup()
+        forgetPicture()
+    }
+
+    // Lets go of the captured picture once the window is closed. Any guesses you're checking stay,
+    // so you can still load them into the calculator. Without guesses there's nothing left to show.
+    private fun forgetPicture() {
+        if (lastCapture == null && previewView == null) return
+        lastCapture = null
+        previewView?.setImageDrawable(null)
+        previewView?.visibility = View.GONE
+        previewView = null
+        saveButton?.visibility = View.GONE
+        saveButton = null
+        if (choices.isEmpty() && resultsPanel?.visibility == View.VISIBLE) closeResults()
     }
 
     fun onRotated() {
@@ -206,9 +222,36 @@ class DpsTool(
 
     // ---------------- Importing ----------------
 
+    // The item pictures aren't part of the app (they're Jagex's artwork). The main screen offers to
+    // download them when the app first opens; if that was put off, the first import gets them (along with
+    // the rest of the tools' pictures, once). See AssetDownloader.
+    private fun downloadPictures() {
+        busy = true
+        showStatus("Getting the game pictures the tools compare with (about ${AssetDownloader.ZIP_SIZE_MB} MB, only the first time)...")
+        val listener = object : AssetDownloader.Listener {
+            override fun progress(fraction: Float, line: String, url: String) {
+                if (busy) showStatus(line + if (fraction >= 0) " (${(fraction * 100).toInt()}%)" else "")
+            }
+            override fun finished(failed: Int) {
+                AssetDownloader.removeListener(this)
+                Thread {
+                    try { recognizer.warmUp() } catch (_: Exception) { }
+                    handler.post {
+                        busy = false
+                        showStatus(if (recognizer.iconsReady()) "Item pictures ready. Open your equipment tab in the game and tap Import my gear."
+                            else "Couldn't get $failed pictures. Check your internet connection, then tap Import my gear to finish.")
+                    }
+                }.start()
+            }
+        }
+        AssetDownloader.addListener(listener)
+        AssetDownloader.start(context)
+    }
+
     private fun importGear() {
         if (busy) return
         finishAreaSetup()
+        if (!recognizer.iconsReady()) { downloadPictures(); return }
         if (!capture.isActive) {
             showStatus("Waiting for screen-capture permission...")
             capture.request { ok ->
@@ -307,11 +350,13 @@ class DpsTool(
         }
 
         // What was captured, with the slots it found outlined
-        column.addView(ImageView(context).apply {
+        val pic = ImageView(context).apply {
             setImageBitmap(preview)
             adjustViewBounds = true
             scaleType = ImageView.ScaleType.FIT_CENTER
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(160)))
+        }
+        previewView = pic
+        column.addView(pic, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(160)))
 
         for (slot in GearRecognizer.SLOT_ORDER) {
             val options = choices[slot] ?: continue
@@ -329,8 +374,9 @@ class DpsTool(
 
         val actions = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
         // Saves the uncompressed capture, for checking how well recognition works
-        actions.addView(button("Save picture to phone") { saveCapture() },
-            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2f))
+        val save = button("Save picture to phone") { saveCapture() }
+        saveButton = save
+        actions.addView(save, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2f))
         actions.addView(button(if (choices.isEmpty()) "Close" else "Cancel") { closeResults() },
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(6) })
 
@@ -404,6 +450,8 @@ class DpsTool(
         resultsPanel?.visibility = View.GONE
         resultsPanel?.removeAllViews()
         lastCapture = null   // only "Save picture" (on the panel just closed) used it
+        previewView = null
+        saveButton = null
         showStatus(null)
     }
 

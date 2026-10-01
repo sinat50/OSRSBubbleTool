@@ -287,9 +287,11 @@ class PuzzleBoxTool(
     }
 
     private fun showMatch(match: TileMatcher.Result, lined: Boolean) {
-        val puzzleView = lastPuzzleView ?: return
-        lastPuzzleView = drawLabels(puzzleView, match.board, match.correctedPositions)
-        if (!showingFull) image?.setImageBitmap(lastPuzzleView)
+        // (the picture is gone if the window was closed mid-scan: carry on without it)
+        lastPuzzleView?.let { puzzleView ->
+            lastPuzzleView = drawLabels(puzzleView, match.board, match.correctedPositions)
+            if (!showingFull) image?.setImageBitmap(lastPuzzleView)
+        }
 
         val diff = String.format(Locale.US, "%.1f", match.difference)
         val gridNote = if (lined) "" else " (Grid wasn't lined up, so the reading may be off.)"
@@ -582,6 +584,12 @@ class PuzzleBoxTool(
             puzzleArea.hide()
             areaButton?.text = "Set area by hand"
         }
+        // Let go of the scan pictures. The move guide over the game doesn't need them: it
+        // keeps working from what it read, and checks the screen afresh as you move tiles.
+        lastFullView = null
+        lastPuzzleView = null
+        showingFull = false
+        image?.setImageDrawable(null)
     }
 
     fun onRotated() {

@@ -52,6 +52,126 @@ class MainActivity : Activity() {
         // turning the phone rebuilds the screen; stay on the same page
         val saved = savedInstanceState?.getString("screen")
         show(Screen.values().firstOrNull { it.name == saved } ?: Screen.MAIN)
+        // The game pictures the tools need: show the download if it's running (the screen was rebuilt),
+        // or offer it when the app opens and some are still missing
+        if (AssetDownloader.running) showDownloadDialog(offer = false)
+        else if (savedInstanceState == null) Thread {
+            val need = try { AssetDownloader.needed(this) } catch (_: Exception) { false }
+            runOnUiThread { if (need && !isFinishing && !isDestroyed) showDownloadDialog(offer = true) }
+        }.start()
+    }
+
+    override fun onDestroy() {
+        downloadListener?.let { AssetDownloader.removeListener(it) }
+        downloadListener = null
+        downloadDialog?.dismiss()
+        downloadDialog = null
+        super.onDestroy()
+    }
+
+    // ---------------- Downloading the game pictures ----------------
+
+    private var downloadDialog: android.app.Dialog? = null
+    private var downloadListener: AssetDownloader.Listener? = null
+
+    // offer: ask first (Start download / Later); otherwise show the download that's already going
+    private fun showDownloadDialog(offer: Boolean) {
+        downloadDialog?.dismiss()
+        val faded = Color.parseColor("#8C7B5E")
+        val title = label("Download game pictures", 18f, bold = true)
+        val message = label("", 14f).apply { setLineSpacing(0f, 1.15f) }
+        val bar = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 1; progress = 0
+            progressTintList = android.content.res.ColorStateList.valueOf(GO_GREEN)
+            visibility = View.GONE
+        }
+        val count = label("", 13f, bold = true).apply { visibility = View.GONE }
+        val link = label("", 11f).apply {
+            setTextColor(faded)
+            setSingleLine(true)
+            ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+            visibility = View.GONE
+        }
+        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.END }
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(18), dp(20), dp(16))
+            background = GradientDrawable().apply { setColor(PARCHMENT); cornerRadius = dp(12).toFloat() }
+            addView(title)
+            addView(message, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
+            addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(14)).apply { topMargin = dp(14) })
+            addView(count, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
+            addView(link)
+            addView(buttons, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(16) })
+        }
+        val dialog = android.app.Dialog(this).apply {
+            requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+            setContentView(ScrollView(this@MainActivity).apply { addView(column) })
+            window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+            setCanceledOnTouchOutside(false)
+        }
+        fun setButtons(vararg b: Pair<String, () -> Unit>) {
+            buttons.removeAllViews()
+            b.forEachIndexed { i, (text, action) ->
+                buttons.addView(button(text, if (i == b.lastIndex) GO_GREEN else BUTTON_BROWN) { action() },
+                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        if (i > 0) leftMargin = dp(8)
+                    })
+            }
+        }
+        fun close() {
+            downloadListener?.let { AssetDownloader.removeListener(it) }
+            downloadListener = null
+            dialog.dismiss()
+            if (downloadDialog === dialog) downloadDialog = null
+        }
+        fun showProgress(fraction: Float, line: String, url: String) {
+            bar.visibility = View.VISIBLE; count.visibility = View.VISIBLE; link.visibility = View.VISIBLE
+            bar.max = 1000
+            bar.isIndeterminate = fraction < 0   // the size isn't known yet
+            if (fraction >= 0) bar.progress = (fraction * 1000).toInt()
+            count.text = if (fraction >= 0) "${(fraction * 100).toInt()}%  ·  $line" else line
+            link.text = try { java.net.URLDecoder.decode(url, "UTF-8") } catch (_: Exception) { url }
+        }
+        fun running() {
+            message.text = "Downloading. You can keep using the app while this finishes in the background."
+            setButtons("Hide" to { close() })
+            showProgress(AssetDownloader.fraction, AssetDownloader.line, AssetDownloader.current)
+            val listener = object : AssetDownloader.Listener {
+                override fun progress(fraction: Float, line: String, url: String) = showProgress(fraction, line, url)
+                override fun finished(failed: Int) {
+                    link.visibility = View.GONE
+                    if (failed == 0) {
+                        bar.isIndeterminate = false
+                        bar.progress = bar.max
+                        count.text = "100%  ·  all pictures ready"
+                        message.text = "All set. Every tool has the pictures it needs, and they'll work without internet."
+                        setButtons("Done" to { close() })
+                    } else {
+                        bar.isIndeterminate = false
+                        count.text = "Some files couldn't be downloaded"
+                        message.text = "Check your internet connection and try again. Anything already downloaded is kept."
+                        setButtons("Later" to { close() }, "Try again" to { running(); AssetDownloader.start(this@MainActivity) })
+                    }
+                }
+            }
+            downloadListener?.let { AssetDownloader.removeListener(it) }
+            downloadListener = listener
+            AssetDownloader.addListener(listener)
+        }
+        if (offer) {
+            message.text = "Some tools compare what's on your screen with pictures from the OSRS Wiki: the item pictures for " +
+                "the DPS Calculator's Import my gear, and the solved puzzle pictures for the Puzzle Box Solver. They're " +
+                "Jagex's artwork, so they don't come with the app.\n\nThey come from the OSRS Wiki and its DPS calculator, " +
+                "whose files are downloaded in one go (about ${AssetDownloader.ZIP_SIZE_MB} MB, only once, so Wi-Fi is best). " +
+                "Only the pictures the tools use are kept, about 20 MB. If you choose Later, you'll be asked next time you open the app, and the tools " +
+                "will get them when you first use them."
+            setButtons("Later" to { close() }, "Start download" to { running(); AssetDownloader.start(this@MainActivity) })
+        } else running()
+        dialog.setOnCancelListener { close() }   // the back button: same as Later / Hide
+        downloadDialog = dialog
+        dialog.show()
+        dialog.window?.setLayout(minOf(resources.displayMetrics.widthPixels - dp(32), dp(440)), ViewGroup.LayoutParams.WRAP_CONTENT)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -332,7 +452,9 @@ class MainActivity : Activity() {
         section("OSRS Wiki DPS calculator",
             "DPS Calculator gear import: the item list and item pictures come from the OSRS Wiki DPS calculator's " +
             "repository (github.com/weirdgloop/osrs-dps-calc), which is licensed under the GNU General Public License v3.0 " +
-            "(gnu.org/licenses/gpl-3.0). That list is itself made from the OSRS Wiki.", size = 11f)
+            "(gnu.org/licenses/gpl-3.0). That list is itself made from the OSRS Wiki. The item pictures aren't part of the app: " +
+            "the app downloads that repository once and unpacks them from it, with a few from the OSRS Wiki. " +
+            "Item pictures are (c) Jagex Ltd.", size = 11f)
 
         section("Websites",
             "The OSRS Wiki, Real-time Prices, the DPS calculator, the XP calculator (oldschool.tools) and the Shooting Star Tracker (07.gg) " +
@@ -361,6 +483,16 @@ class MainActivity : Activity() {
             "Teleport destinations, the walking map, and the doors, ladders, cave entrances, boats, portals and levers that join places, from the Shortest Path RuneLite plugin " +
             "(github.com/Skretzo/shortest-path), used under the BSD 2-Clause License.\n\n" +
             "Copyright (c) Skretzo and the Shortest Path contributors\nAll rights reserved.\n\n" +
+            BSD_TERMS, size = 11f)
+
+        section("Teleport Finder: cave entrances",
+            "Some cave and boss-room entrances were checked against the crowdsourced transport data of the RuneScape map project (github.com/mejrs/data_osrs).",
+            size = 11f)
+
+        section("Teleport Finder: obstacles",
+            "Where the game's obstacles are (used to join closed-off areas of the walking map to the rest), from the Golems Don't Die RuneLite plugin " +
+            "(github.com/Varzeki/golems-dont-die), used under the BSD 2-Clause License.\n\n" +
+            "Copyright (c) 2026, Varzeki\nAll rights reserved.\n\n" +
             BSD_TERMS, size = 11f)
 
         section("Quest Helper",

@@ -142,6 +142,11 @@ object TeleportData {
     // The closest teleports by real walking distance (walls, rivers, doors and ladders counted), from the
     // walking map spread out from the target. Empty when none are within reach of it.
     // The tiles around each teleport's landing spot, for the walking search to stop once enough are reached
+    // Whether a search from here gives any teleports: the walking map covers it (a route can be
+    // worked out), or a teleport is close enough for a straight-line guess
+    fun hasResults(s: Spot, all: List<Teleport>, links: List<Link>, map: WalkMap?): Boolean =
+        map?.covers(s.x, s.y) == true || closest(all, s, 1, links).isNotEmpty()
+
     fun landingTiles(all: List<Teleport>): Set<Int> = all.mapTo(HashSet()) { WalkMap.pack(it.x, it.y, it.plane) }
 
     fun closestOnFoot(all: List<Teleport>, map: WalkMap, field: WalkMap.Field, count: Int = 10,
@@ -355,10 +360,14 @@ object TeleportData {
     // ---------------- What you can use ----------------
 
     // Quests and skill levels the teleport needs, from its requirement text ("25 Magic; Priest in Peril")
-    fun unmet(t: Teleport, levels: (String) -> Int?, questDone: (String) -> Boolean?): List<String> {
-        if (t.requirements.isBlank()) return emptyList()
+    fun unmet(t: Teleport, levels: (String) -> Int?, questDone: (String) -> Boolean?): List<String> =
+        unmet(t.requirements, levels, questDone)
+
+    // The same for any list of requirements ("70 Agility; Regicide"), such as a shortcut's
+    fun unmet(requirements: String, levels: (String) -> Int?, questDone: (String) -> Boolean?): List<String> {
+        if (requirements.isBlank()) return emptyList()
         val missing = ArrayList<String>()
-        for (part in t.requirements.split(';').map { it.trim() }.filter { it.isNotEmpty() }) {
+        for (part in requirements.split(';').map { it.trim() }.filter { it.isNotEmpty() }) {
             val skill = Regex("""^(\d+)\s+([A-Za-z]+)$""").find(part)
             if (skill != null) {
                 val need = skill.groupValues[1].toIntOrNull() ?: continue
