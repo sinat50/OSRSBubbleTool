@@ -32,6 +32,7 @@ Code: `app/src/main/java/com/sinat/osrsbubbletool/` (one file per tool, roughly)
 | `CaptureManager.kt`, `ScreenCapturer.kt`, `CapturePermissionActivity.kt` | Screen capture: asked once per bubble session; Android 14+ can share just the game |
 | `PuzzleBoxTool.kt`, `PuzzleFinder.kt`, `GridFinder.kt`, `TileMatcher.kt`, `PuzzleSolver.kt`, `MoveGuideOverlay.kt`, `PuzzleReferences.kt` | Puzzle Box Solver |
 | `LightBoxTool.kt`, `LightBoxReader.kt`, `LightBoxGuideOverlay.kt` | Light Box Solver |
+| `ToaPuzzleTool.kt`, `ToaPuzzles.kt` | ToA Puzzle Helper (Beta): Path of Scabaras puzzles, tap-in maps and answers (rules from the LlemonDuck Tombs of Amascut plugin). Screen reading is planned, answers stay in the window |
 | `DpsTool.kt`, `GearRecognizer.kt`, `GearIcons.kt`, `PanelFinder.kt` | DPS Calculator (wiki web page) and Import my gear |
 | `InventorySetupsTool.kt`, `RegionOverlay.kt`, `PuzzleAreaOverlay.kt` | Inventory Setups, and the "set area by hand" frames |
 | `TeleportFinderTool.kt`, `TeleportData.kt`, `WalkMap.kt` | Teleport Finder (Beta): wiki lookup, teleport list, walking-route search |
@@ -146,14 +147,16 @@ Each release is worked on in its own branch (named like `v1.0.6`), then merged i
 
 ## Current state (1 October 2026)
 
-- Working on v1.0.6 in branch `v1.0.6` (versionCode 7), not pushed or released yet; `master` is still
-  v1.0.5. Changes since v1.0.5: game pictures updated to the DPS calculator's (still included in the app), smarter Teleport Finder, bubble
-  remembers its spot, tools set up only when first opened, Puzzle Box re-plan and stutter fixes, solvers
-  stop when you leave the game, smaller backups, Notepad moves and resizes, windows stay clear of the status
-  bar, code tidy-up, themed app icon. `HANDOFF.md` (from an earlier session) describes the first part and
-  can be deleted once v1.0.6 is released.
+- v1.0.6 released on 1 October 2026 (tag `v1.0.6`, versionCode 7, merged into `master`). Changes since v1.0.5:
+  smarter Teleport Finder, bubble remembers its spot, tools set up only when first opened, Puzzle Box re-plan
+  and stutter fixes, solvers stop when you leave the game, smaller backups, Notepad moves and resizes,
+  windows stay clear of the status bar, DPS calculator item pictures and puzzle/quest pictures included,
+  code tidy-up, themed app icon. `HANDOFF.md` described the start of this release and can be deleted.
+- Release tags: `v1.0.0`-`v1.0.6` use the "v" form except `1.0.3`. Never rename a published release's tag on
+  GitHub: it creates the new tag on the latest master (that happened to v1.0.5 and was fixed by
+  force-pushing the tag back to its commit, from Android Studio's terminal, which has the GitHub login).
 - Tested on the phone: Notepad moving/resizing, status bar handling (Notepad and Wiki).
-- Not yet tested on the phone: the included pictures (Import my gear, a puzzle scan, the Dragon Slayer II map), Teleport Finder
+- Not yet tested on the phone (released anyway): the included pictures (Import my gear, a puzzle scan, the Dragon Slayer II map), Teleport Finder
   searches (with and without WikiSync), bubble position after restarting, Puzzle Box re-plan after an
   unplanned move, solvers stopping when you leave the game (single-app sharing), the code tidy-up
   (colours, settings, Zulrah taps, Wing It, wiki links), the themed icon.

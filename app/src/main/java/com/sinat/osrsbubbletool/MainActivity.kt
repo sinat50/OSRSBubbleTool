@@ -35,7 +35,7 @@ class MainActivity : Activity() {
         private val GO_GREEN = "#3E7A2E".toColorInt()
         private const val REQUEST_NOTIFICATIONS = 1
 
-        // The BSD 2-Clause licence conditions and disclaimer (used by the Zulrah, RuneLite, Teleport Finder and Quest Helper credits)
+        // The BSD 2-Clause licence conditions and disclaimer (used by the Zulrah, ToA Puzzle Helper, RuneLite, Teleport Finder and Quest Helper credits)
         private const val BSD_TERMS =
             "Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n" +
                 "1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.\n\n" +
@@ -374,6 +374,13 @@ class MainActivity : Activity() {
             "Zulrah Helper rotation data and arena layout adapted from the Zulrah Helper RuneLite plugin " +
             "(github.com/while-loop/runelite-plugins).\n\n" +
             "Copyright (c) 2020, Anthony Alves\nCopyright (c) 2026, Ron Young\nAll rights reserved.\n\n" +
+            BSD_TERMS,
+            size = 11f)
+
+        section("ToA Puzzle Helper",
+            "Path of Scabaras puzzle rules and the addition puzzle's answers adapted from the Tombs of Amascut RuneLite plugin " +
+            "(github.com/LlemonDuck/tombs-of-amascut).\n\n" +
+            "Copyright (c) 2022, LlemonDuck\nAll rights reserved.\n\n" +
             BSD_TERMS,
             size = 11f)
 

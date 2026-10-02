@@ -219,6 +219,7 @@ class BubbleService : Service() {
         WIKI("OSRS Wiki"),
         PUZZLE_BOX("Puzzle Box Solver"),
         LIGHT_BOX("Light Box Solver"),
+        TOA_PUZZLES("ToA Puzzle Helper (Beta)"),
         INVENTORY_SETUPS("Inventory Setups"),
         XP_CALCULATOR("XP Calculator"),
         DPS_CALCULATOR("DPS Calculator"),
@@ -747,6 +748,7 @@ class BubbleService : Service() {
             ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed, onRotated = t::onRotated, onDestroy = t::destroy)
         }
         Tool.ZULRAH -> ZulrahTool(this).let { t -> ToolParts(t::buildView, t::goBack) }
+        Tool.TOA_PUZZLES -> ToaPuzzleTool(this).let { t -> ToolParts(t::buildView, t::goBack) }
         Tool.FARMING -> FarmingTool(this).let { t ->
             ToolParts(t::buildView, onBack = null, onClosed = t::onWindowClosed, onDestroy = t::destroy)
         }
