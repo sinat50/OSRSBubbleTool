@@ -823,6 +823,150 @@ object ToaReader {
         return MatchTile(TILE_UNKNOWN)
     }
 
+    // All 18 tiles, as Watch reads them from one picture. Tiles of a board not actually found in this picture are
+    // left unread ("can't tell"), and a symbol is only taken from a board found clearly (8 or 9 tiles lined up): one
+    // found from 7 can be a tile out of place. Glows are checked in pairs anyway (MatchMemory).
+    fun readMatchTiles(p: LightBoxReader.PixelSource, boards: MatchBoards, skip: Skip,
+                       allowed: Collection<ToaPuzzles.Symbol>): List<MatchTile> = (0 until 18).map { t ->
+        if (!boards.seen[t / 9]) MatchTile(TILE_UNKNOWN) else {
+            val r = readMatchTile(p, boards, t, skip, allowed)
+            if (r.state == TILE_SYMBOL && !boards.clear[t / 9]) MatchTile(TILE_UNKNOWN) else r
+        }
+    }
+
+    // ---- What Watch remembers from one picture to the next ----
+    // Kept here (no Android parts) so the PC replay test follows exactly the same rules as the app.
+
+    private const val MATCH_GLOW_MS = 1_500L   // a tile must glow this long to count as matched
+    private const val LONE_GLOW_MS = 4_000L    // …or this long if its partner can't be seen
+    // The symbols that can turn up in a solo raid (the other four pairs start matched)
+    private val SOLO_SYMBOLS = listOf(ToaPuzzles.Symbol.DIAMOND, ToaPuzzles.Symbol.KNIVES, ToaPuzzles.Symbol.STAR,
+        ToaPuzzles.Symbol.WIGGLE, ToaPuzzles.Symbol.FOOT)
+
+    // The matching boards as far as they're known. `now` is in milliseconds: the phone's clock in the app, the
+    // picture's time in a replay.
+    class MatchMemory {
+        val symbols = HashMap<Int, ToaPuzzles.Symbol>()   // what's been seen on each tile
+        val done = HashSet<Int>()                          // matched tiles
+        var active: Int? = null                            // the tile flipped last
+        private val votes = HashMap<Int, IntArray>()       // per tile: how many pictures showed each symbol
+        private val glowSince = HashMap<Int, Long>()       // per tile: when it started glowing (it must keep glowing to count)
+        private val glowNearUi = HashSet<Int>()            // glowing tiles seen near the game's buttons (orbs, minimap, inventory)
+        private var soloRaid: Boolean? = null              // four pairs already matched on each board when watching began
+
+        // The symbols a tile could show: in a solo raid, only the five that start unmatched
+        val allowed: List<ToaPuzzles.Symbol> get() = if (soloRaid == true) SOLO_SYMBOLS else ToaPuzzles.MATCHING_SYMBOLS
+
+        // Watch is starting: glows have to be seen afresh, and solo or not is decided again
+        fun startWatch() { glowSince.clear(); glowNearUi.clear(); soloRaid = null }
+
+        // Forget everything
+        fun clear() { symbols.clear(); done.clear(); votes.clear(); active = null; startWatch() }
+
+        // Adds what one picture showed. `screenW` is the screen's width, to tell where the game's buttons are.
+        // True if anything changed.
+        fun merge(tiles: List<MatchTile>, boards: MatchBoards, screenW: Int, now: Long): Boolean {
+            // decided from the first clear look: solo raids start with four pairs matched
+            if (soloRaid == null) soloRaid = (0 until 18).count { tiles[it].state == TILE_MATCHED } >= 7
+            // The game's buttons down the right of the screen (orbs, minimap, inventory) and down the left can look
+            // like a glowing tile; a glow seen there needs a partner to count
+            fun nearUi(t: Int) = boards.tileX(t) !in (screenW * 0.1f)..(screenW * 0.72f)
+            var changed = false
+            for (t in 0 until 18) {
+                val tile = tiles[t]
+                when (tile.state) {
+                    // A glowing tile is only counted as matched once it has glowed steadily for a while and has a
+                    // partner on the other board (see settlePairs). A matched tile then stays matched: one seen through
+                    // the see-through inventory can look grey.
+                    TILE_MATCHED -> if (t !in done) {
+                        glowSince.getOrPut(t) { now }
+                        if (nearUi(t)) glowNearUi.add(t)
+                    }
+                    TILE_HIDDEN -> { glowSince.remove(t); glowNearUi.remove(t) }
+                    TILE_SYMBOL -> {
+                        glowSince.remove(t)
+                        glowNearUi.remove(t)
+                        // the tile you've just flipped (it shows its symbol while you stand on it)
+                        if (active != t) { active = t; changed = true }
+                        val sym = tile.symbol ?: continue
+                        val k = ToaPuzzles.MATCHING_SYMBOLS.indexOf(sym)
+                        val v = votes.getOrPut(t) { IntArray(9) }
+                        v[k]++
+                        // the symbol most pictures agreed on, once at least two did (or one was very clear)
+                        val best = v.indices.maxBy { v[it] }
+                        if (v[best] < 2 && tile.sure < 0.8f) continue
+                        val chosen = ToaPuzzles.MATCHING_SYMBOLS[best]
+                        if (symbols[t] == chosen) continue
+                        // each board has each symbol once: keep whichever tile it was seen on more
+                        val board = if (t < 9) 0 until 9 else 9 until 18
+                        val rival = board.firstOrNull { it != t && symbols[it] == chosen }
+                        if (rival != null) {
+                            if ((votes[rival]?.get(best) ?: 0) > v[best]) continue
+                            symbols.remove(rival)
+                        }
+                        symbols[t] = chosen
+                        changed = true
+                    }
+                }
+            }
+            if (settlePairs(now)) changed = true
+            return changed
+        }
+
+        // Tiles become matched in pairs, one on each board, at the same moment. So a tile that has glowed steadily
+        // is only marked matched together with a partner: the tile with the same symbol on the other board, if that's
+        // known; otherwise another steadily glowing tile on the other board. A lone glow is something in front of the
+        // tile (the orbs by the minimap can look like one), not a match. True if anything changed.
+        private fun settlePairs(now: Long): Boolean {
+            val steady = glowSince.filter { (t, since) -> t !in done && now - since >= MATCH_GLOW_MS }.keys.toMutableSet()
+            fun otherBoard(t: Int) = if (t < 9) 9 until 18 else 0 until 9
+            var changed = false
+            fun pair(a: Int, b: Int) {
+                done.add(a); done.add(b)
+                steady.remove(a); steady.remove(b)
+                glowSince.remove(a); glowSince.remove(b)
+                changed = true
+            }
+            // a tile whose symbol is known: with that symbol's tile on the other board, or else with a glowing tile
+            // there whose symbol was never seen (matched as soon as you stepped on it)
+            for (t in steady.sorted()) {
+                if (t !in steady) continue
+                val sym = symbols[t] ?: continue
+                val partner = otherBoard(t).firstOrNull { symbols[it] == sym }
+                if (partner != null) {
+                    if (partner in steady || partner in done) pair(t, partner)
+                } else {
+                    otherBoard(t).firstOrNull { it in steady && symbols[it] == null }?.let {
+                        symbols[it] = sym
+                        pair(t, it)
+                    }
+                }
+            }
+            // tiles whose symbols were never seen (like the pairs a solo raid starts with): pair them up across boards
+            val left = steady.filter { it < 9 && symbols[it] == null }.sorted()
+            val right = steady.filter { it >= 9 && symbols[it] == null }.sorted()
+            for (i in 0 until minOf(left.size, right.size)) pair(left[i], right[i])
+            // Its partner may be out of sight (behind the inventory, or off the screen): a tile that has glowed
+            // steadily for longer, never near the game's buttons, counts by itself. (The pairs a raid starts with.)
+            for (t in steady.toList()) {
+                if (t in glowNearUi || symbols[t] != null) continue
+                if (now - (glowSince[t] ?: now) < LONE_GLOW_MS) continue
+                done.add(t); glowSince.remove(t); changed = true
+            }
+            return changed
+        }
+
+        // The tile you've just flipped and its match on the other board, if that's known and not matched yet
+        fun activePair(): Pair<Int, Int>? {
+            val a = active ?: return null
+            val sym = symbols[a] ?: return null
+            val other = if (a < 9) 9 until 18 else 0 until 9
+            val b = other.firstOrNull { symbols[it] == sym } ?: return null
+            if (a in done && b in done) return null
+            return a to b
+        }
+    }
+
     // How alike a seen symbol is to a sample (0 to 1), counting only the points that could be seen. The sample
     // is tried at each quarter turn (the camera may face any way) and nudged up to two points each way (the
     // board's tile middles are only roughly right).
@@ -838,7 +982,14 @@ object ToaReader {
                 // the sample's point that lands here
                 val si = i - dy; val sj = j - dx
                 if (si !in 0 until n || sj !in 0 until n) continue
-                val (ti, tj) = when (turn) { 0 -> si to sj; 1 -> sj to n - 1 - si; 2 -> n - 1 - si to n - 1 - sj; else -> n - 1 - sj to si }
+                // (two plain numbers, not a pair: a pair here would make an object for every point, every look)
+                val ti: Int; val tj: Int
+                when (turn) {
+                    0 -> { ti = si; tj = sj }
+                    1 -> { ti = sj; tj = n - 1 - si }
+                    2 -> { ti = n - 1 - si; tj = n - 1 - sj }
+                    else -> { ti = n - 1 - sj; tj = si }
+                }
                 if (sample[ti * n + tj]) { sampleSeen++; if (yellow[i * n + j]) both++ }
             }
             val score = 2f * both / (seenYellow + sampleSeen).coerceAtLeast(1)

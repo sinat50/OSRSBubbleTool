@@ -29,7 +29,7 @@
 package com.sinat.osrsbubbletool
 
 // The Path of Scabaras puzzles in the Tombs of Amascut: the rules and the answers.
-// Nothing here is Android, so the screen (ToaPuzzleTool) or, later, screen reading can fill it in.
+// Nothing here is Android: the tool's maps (ToaPuzzleTool) are filled in by tapping or by screen reading (ToaReader).
 object ToaPuzzles {
 
     // ---------------- Symbols ----------------
@@ -181,5 +181,5 @@ object ToaPuzzles {
 
     // ---------------- Matching puzzle ----------------
     // Two 3×3 boards (tiles 0-8 on the left, 9-17 on the right). Each board has each symbol once; step on
-    // the two tiles with the same symbol to match them. (The screen and the matching are in ToaPuzzleTool.)
+    // the two tiles with the same symbol to match them. (Watch's memory of the boards is ToaReader.MatchMemory.)
 }

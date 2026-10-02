@@ -50,11 +50,7 @@ class ToaPuzzleTool(
         private const val HELP_SIZE_DP = 30       // the ? button
         private const val MAP_CELL_DP = 26        // a square of the boards drawn at the bottom while watching
         private const val MATCH_INTERVAL_MS = 333L        // how often Watch looks at the matching boards (3 times a second)
-        private const val MATCH_GLOW_MS = 1_500L          // a tile must glow this long to count as matched
-        private const val LONE_GLOW_MS = 4_000L           // …or this long if its partner can't be seen
         private const val MATCH_WATCH_MAX_MS = 300_000L   // Watch stops by itself after 5 minutes
-        // The symbols that can turn up in a solo raid (the other four pairs start matched)
-        private val SOLO_SYMBOLS = listOf(Symbol.DIAMOND, Symbol.KNIVES, Symbol.STAR, Symbol.WIGGLE, Symbol.FOOT)
         private const val CAPTURE_DELAY_MS = 500L  // wait after hiding the bubble before the screenshot
         private const val WATCH_INTERVAL_MS = 80L         // how often the sequence tiles are checked
         private const val WATCH_FIRST_FLASH_MS = 20_000L  // how long to wait for you to press the button
@@ -113,27 +109,24 @@ class ToaPuzzleTool(
     private val obeliskOrder = mutableListOf<Int>()   // the right order, as far as it's known
     private val obeliskMisses = mutableSetOf<Int>()   // wrong guesses for the next obelisk
     private val obeliskUndo = ArrayDeque<Pair<List<Int>, Set<Int>>>()
-    private val matchSymbols = HashMap<Int, Symbol>() // what you've seen on each matching tile
-    private val matchDone = mutableSetOf<Int>()       // matched tiles
-    private var matchBrush = 0                        // what a tap does: 0-8 a symbol, 9 matched, 10 erase
+    // what you've seen on each matching tile, which are matched, and what Watch remembers between pictures
+    // (the same code the PC replay test uses)
+    private val memory = ToaReader.MatchMemory()
+    private var matchBrush = 0                       // what a tap does: 0-8 a symbol, 9 matched, 10 erase
     private var matchManual = false                   // the symbols to tap in by hand are showing
     private var lightManual = false                   // each page's "Solve manually" is open (its map can be tapped)
     private var additionManual = false
     private var sequenceManual = false
     private var matchWatching = false                 // Watch is on
     private var matchNote: String? = null             // what Watch last said
-    private val matchVotes = HashMap<Int, IntArray>() // per tile: how many pictures showed each symbol
-    private var matchActive: Int? = null              // the tile flipped last
-    private val glowSince = HashMap<Int, Long>()      // per tile: when it started glowing (it must keep glowing to count)
-    private val glowNearUi = HashSet<Int>()           // glowing tiles seen near the game's buttons (orbs, minimap, inventory)
 
-    // Which way the addition map faces: how many quarter turns from north at the top. Starts with east
-    // at the top, as you see the room walking in towards the exit.
     // Which way the obelisk map is turned, in quarter turns clockwise (0 = the walls at the top and bottom)
     private var obeliskTurns: Int
         get() = prefs.getInt("obelisk_turns", 0)
         set(v) { prefs.edit { putInt("obelisk_turns", v) } }
 
+    // Which way the addition map faces: how many quarter turns from north at the top. Starts with east
+    // at the top, as you see the room walking in towards the exit.
     private var additionTurns: Int
         get() = prefs.getInt("addition_turns", 1)
         set(v) { prefs.edit { putInt("addition_turns", v) } }
@@ -151,6 +144,9 @@ class ToaPuzzleTool(
         hideMapOverlay()
         destroyed = true
         handler.removeCallbacksAndMessages(null)
+        // that may have thrown away a finished look's "give the memory back" step, so give it back now
+        // (a look still being worked on gives it back again when it finishes)
+        watchBusy = false
         freeWatchMemory()
     }
 
@@ -162,14 +158,37 @@ class ToaPuzzleTool(
 
     // The window's ◀ button: from a puzzle back to the list
     fun goBack() {
-        if (page != Page.MENU) { stopMatchWatch(null); leaveOnScreen(); page = Page.MENU; helpOpen = false; show(keepScroll = false) }
+        if (page != Page.MENU) { stopMatchWatch(null); cancelReading(); leaveOnScreen(); page = Page.MENU; helpOpen = false; show(keepScroll = false) }
     }
 
-    // The window was closed: stop watching (nothing can be seen to update) and take the map off the screen
+    // The window was closed: stop watching and reading (nothing can be seen to update) and take the map off the screen
     fun onWindowClosed() {
         stopMatchWatch(null)
+        cancelReading()
         if (onScreen) { onScreen = false; hideMapOverlay() }
-        if (watchingSequence) { reading++; watchingSequence = false; setOverlaysVisible(true) }
+    }
+
+    // The phone turned: the puzzle has moved on screen, so watching where it was is no use
+    fun onRotated() {
+        if (watchingSequence) endWatch("Screen rotated. Tap Watch to start again.") else cancelReading()
+        stopMatchWatch("Screen rotated. Tap Watch to start again.")
+    }
+
+    // Stops a screen reading or sequence watch in progress (its result is ignored when it comes in), including one
+    // still waiting for screen-capture permission
+    private fun cancelReading() {
+        reading++
+        if (watchingSequence) { watchingSequence = false; hideForPicture(false) }
+        // notes that said it was busy ("Reading the screen...") would otherwise stay up for good
+        fun idle(note: String?) = note?.takeUnless { it.endsWith("...") }
+        lightNote = idle(lightNote); additionNote = idle(additionNote); sequenceNote = idle(sequenceNote); matchNote = idle(matchNote)
+    }
+
+    // Hides the bubble, this window and the map at the bottom while a picture is taken, so none of them is
+    // mistaken for the game (or shows them again)
+    private fun hideForPicture(hide: Boolean) {
+        setOverlaysVisible(!hide)
+        mapOverlay?.visibility = if (hide) View.INVISIBLE else View.VISIBLE
     }
 
     // Shows the page's answer at the bottom of the screen (just the map) and shrinks the window to a few buttons
@@ -309,7 +328,9 @@ class ToaPuzzleTool(
         if (!capture.isActive) {
             note("Waiting for screen-capture permission...")
             show()
+            val asked = reading
             capture.request { ok ->
+                if (destroyed || asked != reading) return@request   // closed or cancelled while asking
                 if (ok) readScreen(note, read, done) else { note("Couldn't turn on screen capture: ${capture.lastError}."); show() }
             }
             return
@@ -318,11 +339,11 @@ class ToaPuzzleTool(
         note("Reading the screen...")
         show()
         capture.matchScreenSize()
-        setOverlaysVisible(false)
+        hideForPicture(true)
         handler.postDelayed({
             if (destroyed) return@postDelayed
             val shot = capture.grab()
-            setOverlaysVisible(true)
+            hideForPicture(false)
             if (id != reading) { shot?.recycle(); return@postDelayed }   // a newer reading has started
             if (shot == null) { note("Couldn't capture the screen. Try again."); show(); return@postDelayed }
             Thread {
@@ -495,13 +516,15 @@ class ToaPuzzleTool(
         }
     }
 
-    // Finds the nine tiles in one picture, then hides the bubble and watches just those tiles (a few pixels
+    // Finds the nine tiles in one picture (with the bubble hidden), then watches just those tiles (a few pixels
     // each, about 12 times a second) until five have flashed, or it gives up waiting
     private fun watchSequence() {
         if (!capture.isActive) {
             sequenceNote = "Waiting for screen-capture permission..."
             show()
+            val asked = reading
             capture.request { ok ->
+                if (destroyed || asked != reading) return@request   // closed or cancelled while asking
                 if (ok) watchSequence() else { sequenceNote = "Couldn't turn on screen capture: ${capture.lastError}."; show() }
             }
             return
@@ -510,9 +533,9 @@ class ToaPuzzleTool(
         sequenceNote = "Looking for the tiles..."
         show()
         capture.matchScreenSize()
-        setOverlaysVisible(false)
+        hideForPicture(true)
         handler.postDelayed({
-            if (destroyed || id != reading) { setOverlaysVisible(true); return@postDelayed }
+            if (destroyed || id != reading) { hideForPicture(false); return@postDelayed }
             val shot = capture.grab()
             if (shot == null) { endWatch("Couldn't capture the screen. Try again."); return@postDelayed }
             Thread {
@@ -520,7 +543,9 @@ class ToaPuzzleTool(
                     ToaReader.findSequenceTiles(LightBoxReader.Pixels(shot)).also { if (it == null) saveForDebugging("sequence", shot) }
                 } catch (_: Exception) { null } finally { shot.recycle() }
                 handler.post {
-                    if (destroyed || id != reading) return@post
+                    if (destroyed) return@post
+                    // cancelled meanwhile (the phone turned, say): the bubble is still hidden, so bring it back
+                    if (id != reading) { hideForPicture(false); return@post }
                     if (tiles == null) {
                         endWatch("Couldn't find the tiles. Stand still with all nine on screen, then try again.")
                         return@post
@@ -528,7 +553,7 @@ class ToaPuzzleTool(
                     sequence.clear()
                     sequenceTurn = tiles.rotation
                     // the window shrinks to a Stop button and the tiles fill in at the bottom as they flash
-                    setOverlaysVisible(true)
+                    hideForPicture(false)
                     watchingSequence = true
                     if (onScreen) { show(); refreshMapOverlay() } else showOnScreen()
                     watchTiles(id, tiles)
@@ -563,7 +588,7 @@ class ToaPuzzleTool(
                 }
                 when {
                     lastFlash == 0L && now - started > WATCH_FIRST_FLASH_MS ->
-                        { endWatch("No tiles lit up. Tap Watch the tiles, then press the button in the game."); return }
+                        { endWatch("No tiles lit up. Tap Watch, then press the button in the game."); return }
                     lastFlash != 0L && now - lastFlash > WATCH_NEXT_FLASH_MS ->
                         { endWatch("Only saw ${sequence.size} of ${ToaPuzzles.SEQUENCE_LENGTH} flashes. Tap any missing tiles, " +
                             "or tap Clear and watch again."); return }
@@ -577,7 +602,7 @@ class ToaPuzzleTool(
     private fun endWatch(note: String) {
         reading++   // stops the watching
         watchingSequence = false
-        setOverlaysVisible(true)
+        hideForPicture(false)
         sequenceNote = note
         show()
         refreshMapOverlay()
@@ -634,9 +659,9 @@ class ToaPuzzleTool(
     private fun LinearLayout.matching() {
         if (matchWatching) { matchingSmall(); return }
         tip("close your chat and inventory first, so both boards can be seen.")
-        addView(bar(button(if (matchWatching) "Stop" else "Watch", if (matchWatching) WARN else SELECTED) {
-                if (matchWatching) stopMatchWatch(null) else watchMatching() } to 1.2f,
-            button("Clear") { matchSymbols.clear(); matchDone.clear(); matchVotes.clear(); glowSince.clear(); glowNearUi.clear(); matchActive = null; show() } to 1f), full(4))
+        // (while watching, the page is just matchingSmall's Stop button)
+        addView(bar(button("Watch", SELECTED) { watchMatching() } to 1.2f,
+            button("Clear") { memory.clear(); show() } to 1f), full(4))
         help("For Watch: camera facing east, looking straight down, with the zoom at 25%, so both boards and the " +
             "statue are on screen. While it watches, this window shrinks to a Stop button in the corner and the " +
             "boards are drawn at the bottom of the screen. Walk the tiles: each symbol you reveal is filled in. When " +
@@ -663,41 +688,44 @@ class ToaPuzzleTool(
         }
 
         addView(status(when {
-            matchDone.size == 18 -> "All nine pairs matched: done! ✓"
-            activePair() != null -> "Step on the other green tile."
+            memory.done.size == 18 -> "All nine pairs matched: done! ✓"
+            memory.activePair() != null -> "Step on the other green tile."
             else -> "Flip a tile: if its match is known, both turn green."
         }), full(8))
     }
 
     // ---- Watching the matching boards ----
-    // About 4 times a second: one picture, found the boards in it (they move as you walk), and read each
-    // tile. A symbol counts once two pictures agree. Stops by itself when all pairs are matched.
+    // 3 times a second: one picture, find the boards in it (they move as you walk), and read each tile. A symbol
+    // counts once two pictures agree. Stops by itself when all pairs are matched.
 
     private val watchPixels = ReusablePixels()
     private var watchBusy = false
     private var watchStarted = 0L
+    private var watchRun = 0                      // counts Watch starts, so a look from before a restart is ignored
     private var lastBoards: ToaReader.MatchBoards? = null
-    private var soloRaid: Boolean? = null
     private var mapOverlay: FrameLayout? = null   // the boards drawn on their own at the bottom of the screen
-    private var onScreen = false                  // the light, addition or sequence answer is shown at the bottom   // four pairs already matched on each board when watching began
+    private var onScreen = false                  // the light, addition or sequence answer is shown at the bottom
 
     private fun watchMatching() {
         if (!capture.isActive) {
             matchNote = "Waiting for screen-capture permission..."
             show()
+            val asked = reading
             capture.request { ok ->
+                if (destroyed || asked != reading) return@request   // closed or cancelled while asking
                 if (ok) watchMatching() else { matchNote = "Couldn't turn on screen capture: ${capture.lastError}."; show() }
             }
             return
         }
         capture.matchScreenSize()
         matchWatching = true
+        watchRun++
         // the window shrinks to a Stop button in the top-left corner, and the boards are drawn at the bottom
         setWindowCompact(BubbleService.COMPACT_TOP_LEFT)
         showMapOverlay()
         matchNote = "Watching. Walk the tiles."
         lastBoards = null
-        soloRaid = null
+        memory.startWatch()
         watchStarted = SystemClock.uptimeMillis()
         show()
         handler.postDelayed(matchTick, MATCH_INTERVAL_MS)
@@ -735,7 +763,8 @@ class ToaPuzzleTool(
                     (map != null && x in map[0] until map[2] && y in map[1] until map[3])
             }
             val previous = lastBoards
-            val solo = soloRaid
+            val allowed = memory.allowed
+            val run = watchRun
             watchBusy = true
             Thread {
                 var lookBoards: ToaReader.MatchBoards? = null
@@ -754,16 +783,7 @@ class ToaPuzzleTool(
                         shot.recycle()
                     }
                     val t5 = SystemClock.elapsedRealtimeNanos()
-                    val allowed = if (solo == true) SOLO_SYMBOLS else ToaPuzzles.MATCHING_SYMBOLS
-                    // tiles of a board not actually found in this picture are left unread ("can't tell")
-                    lookTiles = lookBoards?.let { b -> (0 until 18).map {
-                        if (!b.seen[it / 9]) ToaReader.MatchTile(ToaReader.TILE_UNKNOWN) else {
-                            // a symbol is only taken from a board found clearly (8 or 9 tiles lined up): one found from
-                            // 7 can be a tile out of place. Glows are checked in pairs anyway.
-                            val r = ToaReader.readMatchTile(watchPixels, b, it, skip, allowed)
-                            if (r.state == ToaReader.TILE_SYMBOL && !b.clear[it / 9]) ToaReader.MatchTile(ToaReader.TILE_UNKNOWN) else r
-                        }
-                    } }
+                    lookTiles = lookBoards?.let { ToaReader.readMatchTiles(watchPixels, it, skip, allowed) }
                     if (debugBuild) timeWatch(t1 - t0, t3 - t2, t4 - t3, t5 - t4, SystemClock.elapsedRealtimeNanos() - t5)
                 } catch (_: Exception) {
                     lookBoards = null; lookTiles = null   // a look that went wrong counts as "couldn't see the boards"
@@ -774,18 +794,17 @@ class ToaPuzzleTool(
                     watchBusy = false
                     // Watch was stopped while this look was being worked on: give its memory back now
                     if (!matchWatching || destroyed) { freeWatchMemory(); return@post }
+                    // Watch was stopped and started again meanwhile: this look belongs to the old one
+                    if (run != watchRun) return@post
                     lastBoards = boards ?: previous
-                    if (tiles == null) {
+                    if (tiles == null || boards == null) {
                         if (previous == null) showMatchNote("Can't see both boards. Zoom out, face east, and move this window off them.")
                         return@post
                     }
                     showMatchNote("Watching. Walk the tiles.")
-                    if (soloRaid == null) {
-                        // decided from the first clear look: solo raids start with four pairs matched
-                        soloRaid = (0 until 18).count { tiles[it].state == ToaReader.TILE_MATCHED } >= 7
-                    }
-                    if (mergeTiles(tiles, boards)) { show(); refreshMapOverlay() }
-                    if (matchDone.size == 18) stopMatchWatch("All nine pairs matched: done! ✓")
+                    val screenW = context.resources.displayMetrics.widthPixels
+                    if (memory.merge(tiles, boards, screenW, SystemClock.uptimeMillis())) { show(); refreshMapOverlay() }
+                    if (memory.done.size == 18) stopMatchWatch("All nine pairs matched: done! ✓")
                 }
             }.start()
         }
@@ -876,119 +895,17 @@ class ToaPuzzleTool(
         return intArrayOf(loc[0], loc[1], loc[0] + frame.width, loc[1] + frame.height)
     }
 
-    // Adds what one picture showed to the map. True if anything changed.
-    private fun mergeTiles(tiles: List<ToaReader.MatchTile>, boards: ToaReader.MatchBoards?): Boolean {
-        // The game's buttons down the right of the screen (orbs, minimap, inventory) and down the left can look like
-        // a glowing tile; a glow seen there needs a partner to count
-        val screenW = context.resources.displayMetrics.widthPixels
-        fun nearUi(t: Int) = boards == null || boards.tileX(t) !in (screenW * 0.1f)..(screenW * 0.72f)
-        var changed = false
-        for (t in 0 until 18) {
-            val tile = tiles[t]
-            when (tile.state) {
-                // A glowing tile is only counted as matched once it has glowed steadily for a while and has a
-                // partner on the other board (see settlePairs). A matched tile then stays matched: one seen through
-                // the see-through inventory can look grey.
-                ToaReader.TILE_MATCHED -> if (t !in matchDone) {
-                    glowSince.getOrPut(t) { SystemClock.uptimeMillis() }
-                    if (nearUi(t)) glowNearUi.add(t)
-                }
-                ToaReader.TILE_HIDDEN -> { glowSince.remove(t); glowNearUi.remove(t) }
-                ToaReader.TILE_SYMBOL -> {
-                    glowSince.remove(t)
-                    glowNearUi.remove(t)
-                    // the tile you've just flipped (it shows its symbol while you stand on it)
-                    if (matchActive != t) { matchActive = t; changed = true }
-                    val sym = tile.symbol ?: continue
-                    val k = ToaPuzzles.MATCHING_SYMBOLS.indexOf(sym)
-                    val votes = matchVotes.getOrPut(t) { IntArray(9) }
-                    votes[k]++
-                    // the symbol most pictures agreed on, once at least two did (or one was very clear)
-                    val best = votes.indices.maxBy { votes[it] }
-                    if (votes[best] < 2 && tile.sure < 0.8f) continue
-                    val chosen = ToaPuzzles.MATCHING_SYMBOLS[best]
-                    if (matchSymbols[t] == chosen) continue
-                    // each board has each symbol once: keep whichever tile it was seen on more
-                    val board = if (t < 9) 0 until 9 else 9 until 18
-                    val rival = board.firstOrNull { it != t && matchSymbols[it] == chosen }
-                    if (rival != null) {
-                        if ((matchVotes[rival]?.get(best) ?: 0) > votes[best]) continue
-                        matchSymbols.remove(rival)
-                    }
-                    matchSymbols[t] = chosen
-                    changed = true
-                }
-            }
-        }
-        if (settlePairs()) changed = true
-        return changed
-    }
-
-    // Tiles become matched in pairs, one on each board, at the same moment. So a tile that has glowed steadily
-    // is only marked matched together with a partner: the tile with the same symbol on the other board, if that's
-    // known; otherwise another steadily glowing tile on the other board. A lone glow is something in front of the
-    // tile (the orbs by the minimap can look like one), not a match. True if anything changed.
-    private fun settlePairs(): Boolean {
-        val now = SystemClock.uptimeMillis()
-        val steady = glowSince.filter { (t, since) -> t !in matchDone && now - since >= MATCH_GLOW_MS }.keys.toMutableSet()
-        fun otherBoard(t: Int) = if (t < 9) 9 until 18 else 0 until 9
-        var changed = false
-        fun pair(a: Int, b: Int) {
-            matchDone.add(a); matchDone.add(b)
-            steady.remove(a); steady.remove(b)
-            glowSince.remove(a); glowSince.remove(b)
-            changed = true
-        }
-        // a tile whose symbol is known: with that symbol's tile on the other board, or else with a glowing tile
-        // there whose symbol was never seen (matched as soon as you stepped on it)
-        for (t in steady.sorted()) {
-            if (t !in steady) continue
-            val sym = matchSymbols[t] ?: continue
-            val partner = otherBoard(t).firstOrNull { matchSymbols[it] == sym }
-            if (partner != null) {
-                if (partner in steady || partner in matchDone) pair(t, partner)
-            } else {
-                otherBoard(t).firstOrNull { it in steady && matchSymbols[it] == null }?.let {
-                    matchSymbols[it] = sym
-                    pair(t, it)
-                }
-            }
-        }
-        // tiles whose symbols were never seen (like the pairs a solo raid starts with): pair them up across boards
-        val left = steady.filter { it < 9 && matchSymbols[it] == null }.sorted()
-        val right = steady.filter { it >= 9 && matchSymbols[it] == null }.sorted()
-        for (i in 0 until minOf(left.size, right.size)) pair(left[i], right[i])
-        // Its partner may be out of sight (behind the inventory, or off the screen): a tile that has glowed
-        // steadily for longer, never near the game's buttons, counts by itself. (The pairs a raid starts with.)
-        for (t in steady.toList()) {
-            if (t in glowNearUi || matchSymbols[t] != null) continue
-            if (now - (glowSince[t] ?: now) < LONE_GLOW_MS) continue
-            matchDone.add(t); glowSince.remove(t); changed = true
-        }
-        return changed
-    }
-
-    // The tile you've just flipped and its match on the other board, if that's known and not matched yet
-    private fun activePair(): Pair<Int, Int>? {
-        val a = matchActive ?: return null
-        val sym = matchSymbols[a] ?: return null
-        val other = if (a < 9) 9 until 18 else 0 until 9
-        val b = other.firstOrNull { matchSymbols[it] == sym } ?: return null
-        if (a in matchDone && b in matchDone) return null
-        return a to b
-    }
-
     // Both boards: grey until a symbol is seen, purple with the symbol once seen, glowing once matched. When the
     // tile you've just flipped has a known match, both get a green border.
     private fun matchBoardsView(maxHeightDp: Int): View {
-        val green = activePair()
+        val green = memory.activePair()
         // Left board in columns 0-2, right board in columns 4-6 (the statue sits between them)
         val cells = (0 until 18).map { t -> (t % 9) / 3 to (t % 3) + if (t < 9) 0 else 4 }
         return Board(3, 7, cells, maxHeightDp = maxHeightDp, onTap = { t -> if (matchManual) { tapMatching(t); show() } }) { canvas, t, r ->
             // grey until you've seen its symbol, purple with a yellow symbol once seen, glowing once matched
-            val sym = matchSymbols[t]
-            tile(canvas, r, when { t in matchDone -> TILE_LIT; sym != null -> TILE; else -> TILE_HIDDEN })
-            sym?.let { glyph(canvas, it, r, if (t in matchDone) GLYPH_LIT else YELLOW) }
+            val sym = memory.symbols[t]
+            tile(canvas, r, when { t in memory.done -> TILE_LIT; sym != null -> TILE; else -> TILE_HIDDEN })
+            sym?.let { glyph(canvas, it, r, if (t in memory.done) GLYPH_LIT else YELLOW) }
             if (green != null && (t == green.first || t == green.second)) ring(canvas, r, STEP_GREEN)
         }
     }
@@ -1002,19 +919,19 @@ class ToaPuzzleTool(
         when (matchBrush) {
             in 0..8 -> {
                 val sym = ToaPuzzles.MATCHING_SYMBOLS[matchBrush]
-                if (matchSymbols[t] == sym) { matchSymbols.remove(t); matchDone.remove(t); return }
+                if (memory.symbols[t] == sym) { memory.symbols.remove(t); memory.done.remove(t); return }
                 // each symbol is on a board only once, so take it off any other tile on this board
                 val board = if (t < 9) 0 until 9 else 9 until 18
-                board.filter { matchSymbols[it] == sym }.forEach { matchSymbols.remove(it); matchDone.remove(it) }
-                matchSymbols[t] = sym
-                matchActive = t
+                board.filter { memory.symbols[it] == sym }.forEach { memory.symbols.remove(it); memory.done.remove(it) }
+                memory.symbols[t] = sym
+                memory.active = t
             }
             9 -> {
-                val sym = matchSymbols[t] ?: return
-                val pair = (0 until 18).filter { matchSymbols[it] == sym }
-                if (t in matchDone) matchDone.removeAll(pair.toSet()) else matchDone.addAll(pair)
+                val sym = memory.symbols[t] ?: return
+                val pair = (0 until 18).filter { memory.symbols[it] == sym }
+                if (t in memory.done) memory.done.removeAll(pair.toSet()) else memory.done.addAll(pair)
             }
-            else -> { matchSymbols.remove(t); matchDone.remove(t) }
+            else -> { memory.symbols.remove(t); memory.done.remove(t) }
         }
     }
 
@@ -1228,21 +1145,6 @@ class ToaPuzzleTool(
             setPadding(dp(10), dp(8), dp(10), dp(12))
             build()
         })
-    }
-
-    private fun choiceGrid(c: LinearLayout, options: List<String>, picked: Int, perRow: Int, onPick: (Int) -> Unit) {
-        options.chunked(perRow).forEachIndexed { rowIndex, row ->
-            c.addView(LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                row.forEachIndexed { j, text ->
-                    val i = rowIndex * perRow + j
-                    addView(button(text, if (i == picked) SELECTED else BUTTON_BROWN) { onPick(i) }
-                        .apply { textSize = 11f; setPadding(dp(2), dp(7), dp(2), dp(7)) },
-                        LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(dp(2), 0, dp(2), 0) })
-                }
-                repeat(perRow - row.size) { addView(View(context), LinearLayout.LayoutParams(0, 1, 1f)) }
-            }, full(3))
-        }
     }
 
     private fun status(text: String) = label(text, 13f, bold = true)

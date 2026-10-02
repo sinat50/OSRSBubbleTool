@@ -6,9 +6,13 @@ import java.io.File
 import javax.imageio.ImageIO
 
 // Runs the ToA puzzle reader on saved phone screenshots and prints what it reads.
-// The screenshots aren't part of the project: put them in a folder and point TOA_SHOTS at it, e.g.
-//   set TOA_SHOTS=C:\path\to\toa_shots  then  gradlew.bat testDebugUnitTest --tests *ToaReaderTest*
-// Without TOA_SHOTS the test is skipped.
+// The pictures aren't part of the project (they're in Documents\Androiddev\toa_recordings). Point one of these at a folder:
+//   TOA_SHOTS=<folder of screenshots>    reads every screenshot fresh (all the puzzles)
+//   TOA_REPLAY=<folder of f_<time>.png>  replays a recorded matching solve, as Watch would see it
+//   TOA_DEBUG_FRAME=<n>                  (with TOA_REPLAY) also lists the boards considered in picture n
+// e.g.  set TOA_REPLAY=C:\...\toa_recordings\matching_1  then
+//       gradlew.bat testDebugUnitTest --tests *ToaReaderTest* --rerun-tasks
+// (--rerun-tasks, or Gradle skips the test when only the folder changed.) Without them the tests are skipped.
 class ToaReaderTest {
 
     private class Shot(file: File) : LightBoxReader.PixelSource {
@@ -62,12 +66,8 @@ class ToaReaderTest {
         assumeTrue(dir != null && dir.isDirectory)
         var previous: ToaReader.MatchBoards? = null
         var totalNanos = 0L; var frames = 0
-        // the app's memory, as ToaPuzzleTool keeps it: a symbol once two pictures agree, matched after 1.5 s of glow
-        val votes = HashMap<Int, IntArray>()
-        val symbols = HashMap<Int, ToaPuzzles.Symbol>()
-        val done = HashSet<Int>()
-        val glowSince = HashMap<Int, Long>()
-        val nearUi = HashSet<Int>()
+        // the app's own memory (the same code as Watch uses), with each picture's time as the clock
+        val memory = ToaReader.MatchMemory()
         dir!!.listFiles { f -> f.name.startsWith("f_") && f.name.endsWith(".png") }!!.sortedBy { it.name }.forEachIndexed { n, f ->
             val shot = Shot(f)
             val w = shot.width; val h = shot.height
@@ -83,65 +83,26 @@ class ToaReaderTest {
             }
             val started = System.nanoTime()
             val boards = ToaReader.findMatchBoards(fast, skip, previous)
-            boards?.let { b -> for (t in 0 until 18) if (b.seen[t / 9]) ToaReader.readMatchTile(fast, b, t, skip, ToaPuzzles.MATCHING_SYMBOLS) }
+            val read = boards?.let { ToaReader.readMatchTiles(fast, it, skip, memory.allowed) }
             totalNanos += System.nanoTime() - started; frames++
             ToaReader.debugLog = null
-            if (boards == null) { println("REPLAY %3d: no boards".format(n)); return@forEachIndexed }
+            if (boards == null || read == null) { println("REPLAY %3d: no boards".format(n)); return@forEachIndexed }
             previous = boards
+            // each tile as . grey, * glowing, ? can't tell, or the symbol's first letters; - for a board not read
             val tiles = (0 until 18).map { t ->
-                if (!boards.seen[t / 9] || !boards.clear[t / 9]) "-" else {
-                    val r = ToaReader.readMatchTile(shot, boards, t, skip, ToaPuzzles.MATCHING_SYMBOLS)
-                    when (r.state) {
-                        ToaReader.TILE_HIDDEN -> "."
-                        ToaReader.TILE_MATCHED -> "*"
-                        ToaReader.TILE_SYMBOL -> r.symbol!!.label.take(2)
-                        else -> "?"
-                    }
+                if (!boards.seen[t / 9] || !boards.clear[t / 9]) "-" else when (read[t].state) {
+                    ToaReader.TILE_HIDDEN -> "."
+                    ToaReader.TILE_MATCHED -> "*"
+                    ToaReader.TILE_SYMBOL -> read[t].symbol!!.label.take(2)
+                    else -> "?"
                 }
             }
             val time = f.name.removePrefix("f_").removeSuffix(".png").toLong()
-            for (t in 0 until 18) {
-                if (!boards.seen[t / 9]) continue
-                val r = ToaReader.readMatchTile(shot, boards, t, skip, ToaPuzzles.MATCHING_SYMBOLS)
-                if (r.state == ToaReader.TILE_SYMBOL && !boards.clear[t / 9]) continue
-                when (r.state) {
-                    ToaReader.TILE_MATCHED -> if (t !in done) {
-                        glowSince.getOrPut(t) { time }
-                        if (boards.tileX(t) !in (w * 0.1f)..(w * 0.72f)) nearUi.add(t)
-                    }
-                    ToaReader.TILE_HIDDEN -> { glowSince.remove(t); nearUi.remove(t) }
-                    ToaReader.TILE_SYMBOL -> {
-                        glowSince.remove(t); nearUi.remove(t)
-                        val k = ToaPuzzles.MATCHING_SYMBOLS.indexOf(r.symbol)
-                        val v = votes.getOrPut(t) { IntArray(9) }
-                        v[k]++
-                        val best = v.indices.maxBy { v[it] }
-                        if (v[best] >= 2 || r.sure >= 0.8f) symbols[t] = ToaPuzzles.MATCHING_SYMBOLS[best]
-                    }
-                }
+            memory.merge(read, boards, w, time)
+            val remembered = (0 until 18).joinToString("") { t ->
+                (if (t == 9) "|" else "") + (memory.symbols[t]?.label?.take(2) ?: "..") + (if (t in memory.done) "*" else " ")
             }
-            // pairs, as ToaPuzzleTool.settlePairs does
-            val steady = glowSince.filter { (t, since) -> t !in done && time - since >= 1500 }.keys.toMutableSet()
-            fun other(t: Int) = if (t < 9) 9 until 18 else 0 until 9
-            fun pair(a: Int, b: Int) { done.add(a); done.add(b); steady.remove(a); steady.remove(b); glowSince.remove(a); glowSince.remove(b) }
-            for (t in steady.sorted()) {
-                if (t !in steady) continue
-                val sym = symbols[t] ?: continue
-                val partner = other(t).firstOrNull { symbols[it] == sym }
-                if (partner != null) { if (partner in steady || partner in done) pair(t, partner) }
-                else other(t).firstOrNull { it in steady && symbols[it] == null }?.let { symbols[it] = sym; pair(t, it) }
-            }
-            val ls = steady.filter { it < 9 && symbols[it] == null }.sorted()
-            val rs = steady.filter { it >= 9 && symbols[it] == null }.sorted()
-            for (i in 0 until minOf(ls.size, rs.size)) pair(ls[i], rs[i])
-            for (t in steady.toList()) {
-                if (t in nearUi || symbols[t] != null) continue
-                if (time - (glowSince[t] ?: time) >= 4000) { done.add(t); glowSince.remove(t) }
-            }
-            val memory = (0 until 18).joinToString("") { t ->
-                (if (t == 9) "|" else "") + (symbols[t]?.label?.take(2) ?: "..") + (if (t in done) "*" else " ")
-            }
-            println("MEMORY %3d: %s".format(n, memory))
+            println("MEMORY %3d: %s".format(n, remembered))
             println("REPLAY %3d: L(%4.0f,%4.0f) R(%4.0f,%4.0f) col(%4.0f,%4.0f) %s | %s".format(n,
                 boards.cx[0], boards.cy[0], boards.cx[1], boards.cy[1], boards.colX[0], boards.colY[0],
                 tiles.take(9).joinToString(" ") { it.padEnd(2) }, tiles.drop(9).joinToString(" ") { it.padEnd(2) }))

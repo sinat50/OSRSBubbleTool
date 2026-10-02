@@ -796,7 +796,7 @@ class BubbleService : Service() {
         }
         Tool.ZULRAH -> ZulrahTool(this).let { t -> ToolParts(t::buildView, t::goBack) }
         Tool.TOA_PUZZLES -> ToaPuzzleTool(this, capture, ::setOverlaysVisible, ::setWindowCompact).let { t ->
-            ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed, onDestroy = t::destroy)
+            ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed, onRotated = t::onRotated, onDestroy = t::destroy)
         }
         Tool.FARMING -> FarmingTool(this).let { t ->
             ToolParts(t::buildView, onBack = null, onClosed = t::onWindowClosed, onDestroy = t::destroy)
