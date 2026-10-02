@@ -47,10 +47,10 @@ class BubbleService : Service() {
         const val ZULRAH_WIDTH_INCHES = 1.2f // the Zulrah Helper window is thinner
         const val LIGHT_BOX_WIDTH_INCHES = 1.3f  // the Light Box Solver is a small box, top right
         const val PUZZLE_BOX_WIDTH_INCHES = 1.5f // so is the Puzzle Box Solver
-        const val COMPACT_WIDTH_INCHES = 1.5f    // a window shrunk out of the way (ToA matching Watch)
+        // where a tool's window can shrink to (setWindowCompact)
         const val COMPACT_OFF = 0
-        const val COMPACT_RIGHT = 1
-        const val COMPACT_LEFT = 2
+        const val COMPACT_TOP_LEFT = 1
+        const val COMPACT_BOTTOM_LEFT = 2
         const val BUBBLE_SIZE_DP = 36       // size of the bubble
         const val BAR_HEIGHT_DP = 28        // height of the window's button bar
         const val BAR_BUTTON_WIDTH_DP = 66  // width of the back and close buttons
@@ -590,7 +590,7 @@ class BubbleService : Service() {
     }
 
     private fun hideToolWindow() {
-        compactSaved = null   // a shrunk window opens at its normal size next time
+        if (compactSaved != null) setWindowCompact(COMPACT_OFF)   // a shrunk window opens whole, at its normal size, next time
         val wasShowing = shownWindow != null
         shownWindow?.let { windowManager.removeView(it) }
         shownWindow = null
@@ -601,34 +601,45 @@ class BubbleService : Service() {
         }
     }
 
-    // A tool asks for its window to be small and out of the way in a bottom corner (so the game can be seen
-    // while the tool watches it): COMPACT_RIGHT or COMPACT_LEFT; or COMPACT_OFF for back where and how big it was
+    // A tool asks for its window to shrink to just what's in it (no title bar) in a corner (COMPACT_TOP_LEFT or
+    // COMPACT_BOTTOM_LEFT), so the game can be seen while it shows its answer; or (COMPACT_OFF) to go back to
+    // where and how big it was
     private var compactSaved: IntArray? = null   // x, y, width, height, wanted y, wanted height before shrinking
 
-    private fun setWindowCompact(corner: Int) {
+    private fun setWindowCompact(place: Int) {
+        val on = place != COMPACT_OFF
         val params = shownParams ?: return
         val window = shownWindow ?: return
-        if (corner == COMPACT_OFF) {
+        val bar = window.getChildAt(0)
+        val corner = (window.getChildAt(1) as? ViewGroup)?.let { if (it.childCount > 1) it.getChildAt(1) else null }
+        if (!on) {
             val saved = compactSaved ?: return
             compactSaved = null
+            bar.visibility = View.VISIBLE
+            corner?.visibility = View.VISIBLE
             params.x = saved[0]; params.y = saved[1]; params.width = saved[2]; params.height = saved[3]
             shownWantY = saved[4]; shownWantH = saved[5]
             windowManager.updateViewLayout(window, params)
             return
         }
         if (compactSaved == null) compactSaved = intArrayOf(params.x, params.y, params.width, params.height, shownWantY, shownWantH)
-        val w = (COMPACT_WIDTH_INCHES * resources.displayMetrics.xdpi).toInt().coerceAtMost(screenWidth())
-        params.width = w
+        bar.visibility = View.GONE
+        corner?.visibility = View.GONE
+        params.width = ViewGroup.LayoutParams.WRAP_CONTENT
         params.height = ViewGroup.LayoutParams.WRAP_CONTENT
-        params.x = if (corner == COMPACT_RIGHT) screenWidth() - w else 0
+        params.x = 0
+        params.y = statusBarTop
+        shownWantY = 0
         shownWantH = ViewGroup.LayoutParams.WRAP_CONTENT
         windowManager.updateViewLayout(window, params)
-        // down to the bottom once it knows how tall it is (still measured from the top, so dragging works as usual)
-        window.post {
-            if (shownWindow !== window || compactSaved == null) return@post
-            params.y = maxOf(statusBarTop, screenHeight() - window.height)
-            shownWantY = params.y
-            windowManager.updateViewLayout(window, params)
+        if (place == COMPACT_BOTTOM_LEFT) {
+            // down to the bottom once it knows how tall it is (still measured from the top, so dragging works)
+            window.post {
+                if (shownWindow !== window || compactSaved == null) return@post
+                params.y = maxOf(statusBarTop, screenHeight() - window.height)
+                shownWantY = params.y
+                windowManager.updateViewLayout(window, params)
+            }
         }
     }
 

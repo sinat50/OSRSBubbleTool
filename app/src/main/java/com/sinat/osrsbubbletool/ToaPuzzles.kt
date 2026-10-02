@@ -181,13 +181,5 @@ object ToaPuzzles {
 
     // ---------------- Matching puzzle ----------------
     // Two 3×3 boards (tiles 0-8 on the left, 9-17 on the right). Each board has each symbol once; step on
-    // the two tiles with the same symbol to match them.
-
-    // Symbols seen on both boards and not matched yet: (left tile, right tile)
-    fun matchingPairs(symbols: Map<Int, Symbol>, matched: Set<Int>): List<Pair<Int, Int>> =
-        (0 until 9).mapNotNull { a ->
-            val s = symbols[a] ?: return@mapNotNull null
-            val b = (9 until 18).firstOrNull { symbols[it] == s } ?: return@mapNotNull null
-            if (a in matched && b in matched) null else a to b
-        }
+    // the two tiles with the same symbol to match them. (The screen and the matching are in ToaPuzzleTool.)
 }

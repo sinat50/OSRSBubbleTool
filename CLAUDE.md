@@ -32,7 +32,7 @@ Code: `app/src/main/java/com/sinat/osrsbubbletool/` (one file per tool, roughly)
 | `CaptureManager.kt`, `ScreenCapturer.kt`, `CapturePermissionActivity.kt` | Screen capture: asked once per bubble session; Android 14+ can share just the game |
 | `PuzzleBoxTool.kt`, `PuzzleFinder.kt`, `GridFinder.kt`, `TileMatcher.kt`, `PuzzleSolver.kt`, `MoveGuideOverlay.kt`, `PuzzleReferences.kt` | Puzzle Box Solver |
 | `LightBoxTool.kt`, `LightBoxReader.kt`, `LightBoxGuideOverlay.kt` | Light Box Solver |
-| `ToaPuzzleTool.kt`, `ToaPuzzles.kt` | ToA Puzzle Helper (Beta): Path of Scabaras puzzles, tap-in maps and answers (rules from the LlemonDuck Tombs of Amascut plugin). Screen reading is planned, answers stay in the window |
+| `ToaPuzzleTool.kt`, `ToaPuzzles.kt`, `ToaReader.kt` | ToA Puzzle Helper (Beta): the five Path of Scabaras puzzles. `ToaPuzzles` = rules and answers (from the LlemonDuck Tombs of Amascut plugin, BSD); `ToaReader` = screen reading (no Android parts, testable on the PC); `ToaPuzzleTool` = the pages, Watch loops and the map drawn at the bottom of the screen. See "ToA Puzzle Helper" below |
 | `DpsTool.kt`, `GearRecognizer.kt`, `GearIcons.kt`, `PanelFinder.kt` | DPS Calculator (wiki web page) and Import my gear |
 | `InventorySetupsTool.kt`, `RegionOverlay.kt`, `PuzzleAreaOverlay.kt` | Inventory Setups, and the "set area by hand" frames |
 | `TeleportFinderTool.kt`, `TeleportData.kt`, `WalkMap.kt` | Teleport Finder (Beta): wiki lookup, teleport list, walking-route search |
@@ -106,6 +106,39 @@ Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're gener
   Joins into closed-off areas are precomputed (`find_closed_off_areas.py`).
 - **Wiki links** from the game open in the bubble's Wiki window via `WikiLinkActivity`, only if the owner
   turns on "Open by default" for the wiki (it can't be auto-verified: not our website).
+- **ToA Puzzle Helper** (built October 2026 with the owner testing live in raids; all reading was built from
+  the owner's phone screenshots, never guessed):
+  - Light: one picture, finds the ring of 8 plates (unlit = solid yellow square on purple, lit = pale glow with
+    a beam; facing east the squares show as diamonds). Addition: reads the red number from the chat line "The
+    number N has been hastily chipped into the stone." (digit templates typed by the owner into the chat; only
+    the left 60% of the screen is searched, so a red HP orb can't fool it). The symbol layout is fixed every
+    raid. Sequence: one picture finds the 9 tiles, then `capture.sample` checks just those tiles ~12×/s for
+    the 5 flashes. Obelisk: tap-in only (obelisks are small and hard to see from the safe spot).
+  - Matching ("Watch"): the camera follows the player, so both 3×3 boards are found again in every picture,
+    3 looks a second (~150 ms each on the phone). Hard-won rules, each found from real failures:
+    first look needs both boards side by side, and picks the pair with the most yellow on both (the
+    see-through inventory over the next room's floor makes a perfect fake board of "hidden-grey" squares);
+    after that each board keeps its identity and direction from the last picture (`orientLike`; players turn
+    the camera a lot); if both are lost it searches afresh (`freshPair`); jumps over 2.5 tiles are bad fits;
+    only boards actually found are read, and symbols only from boards with 8+ of 9 tiles lined up (7 can be a
+    tile out of place, which put a wiggle on the wrong tile at close zoom); a tile counts as matched only in
+    pairs (`settlePairs`; the orbs by the minimap can look like a glow), or alone after glowing 4 s away from
+    the right-hand UI (a raid's starting pairs, whose partner may be hidden). Revealed symbols vanish when the
+    player steps on the next tile and are often half hidden by the player, so recognition compares only the
+    visible points against 31 samples (`SYMBOL_SAMPLES`, from the matching and addition rooms).
+  - Several "obvious" improvements made the recorded replays worse and were undone: searching only near the
+    boards, skipping a board once found whole, fewer candidate marks, best pair every frame, nearest board to
+    last time. Always check a change against the recordings (see Checking your work).
+  - Answers on screen: after a reading (or while watching) the window shrinks to a few buttons
+    (`BubbleService.setWindowCompact`: `COMPACT_TOP_LEFT`, or `COMPACT_BOTTOM_LEFT` for the addition puzzle so
+    the chat stays clear) and the puzzle's map is drawn alone at the bottom of the screen in a separate
+    untouchable overlay. Both areas are skipped when reading. Each page: a tip line, main buttons, a `?` for
+    instructions, and tap-in controls behind "Solve manually".
+  - Per-pixel code must not use Kotlin function types like `(Int, Int) -> Boolean`: on Android every call
+    boxes its arguments (a million objects per look, 500 ms instead of 85). `ToaReader.Skip` is a
+    `fun interface` for that reason.
+  - Test builds only (debuggable): pictures a reader couldn't make sense of are saved to the app's
+    `cache/toa_debug` (newest 30, one per 2 s), and Watch logs its timings (`adb logcat -s ToaWatch`).
 - **Every outside source must be credited** on the Legal screen (`MainActivity.legalScreen`) and in the
   README's Credits. Check the licence first: BSD/MIT/GPL are fine with notices; no licence means look
   things up only, don't copy in bulk.
@@ -114,6 +147,8 @@ Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're gener
 
 - Colours: `"#3E2C12".toColorInt()`; saved settings: `prefs.edit { putInt(...) }`; web addresses:
   `"...".toUri()` (androidx core-ktx). Android's check (lint) flags the older forms.
+- No Kotlin function types (`(Int) -> Boolean`) in code run for every pixel: they box on Android. Use a
+  `fun interface` (see `ToaReader.Skip`).
 - Plain-language comments, matching the existing ones. Text shown on screen is written in the code (the app
   is English-only), not in `strings.xml`.
 
@@ -121,7 +156,25 @@ Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're gener
 
 - On the owner's PC, build with `gradlew.bat assembleDebug`, and run Android's checks with
   `gradlew.bat lintDebug` (report in `app/build/reports/lint-results-debug.sarif`). The only warnings left
-  are 113 "SetTextI18n" (text written in the code), left on purpose; see Open items.
+  are 92 "SetTextI18n" (text written in the code), left on purpose; see Open items.
+- ToA screen reading is tested on the PC with `app/src/test/.../ToaReaderTest.kt` (skipped unless pointed at
+  pictures): `TOA_SHOTS=<folder>` reads every screenshot fresh; `TOA_REPLAY=<folder>` replays a recording
+  (files `f_<time>.png`) through the matching reader and the same memory rules as the app, printing each
+  frame, every change to the remembered boards (`MEMORY` lines) and the time per picture; `TOA_DEBUG_FRAME=n`
+  lists the candidate boards in frame n. Run with `--rerun-tasks`: Gradle otherwise skips the test when only
+  the folder changed. The pictures are never part of the project.
+- Recording a live solve: while the owner plays, two `adb exec-out screencap -p` loops save ~2.5 pictures a
+  second until told to stop (the owner says "start" and "stop"). Recordings and screenshots are kept outside
+  the project in `C:\Users\Tanis\Documents\Androiddev\toa_recordings\` (never commit them; the `Keys` folder
+  next to it is off limits): `matching_1\` (192 pictures, a full solo solve: the replay should end with all
+  nine pairs matched), `matching_2\` (114 pictures, a later run that started with the inventory open) and
+  `screenshots\` (every puzzle room, used with TOA_SHOTS). Any change to the matching reader must replay both
+  recordings without getting worse. Put new recordings there too.
+- Battery check: read the app's processor time from `/proc/<pid>/stat` (fields 14+15, in 1/100 s) at the start
+  and end of a minute with the feature on and off, plus `dumpsys meminfo com.sinat.osrsbubbletool`.
+  October 2026: matching Watch ≈ 45% of one core (the game itself ≈ 80%), about 20-30 MB extra memory.
+- The owner is happy to be asked for screenshots ("screenshot") or to describe what they see; taking one with
+  `adb exec-out screencap -p` while they play is the fastest way to understand a problem.
 - Phone plugged in: `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe install -r
   app\build\outputs\apk\debug\app-debug.apk` installs the build (same as ▶; it closes the bubble, so the
   owner has to tap Start Bubble again), and `adb shell dumpsys window windows` shows where the app's
@@ -161,7 +214,24 @@ Each release is worked on in its own branch (named like `v1.0.6`), then merged i
   unplanned move, solvers stopping when you leave the game (single-app sharing), the code tidy-up
   (colours, settings, Zulrah taps, Wing It, wiki links), the themed icon.
 
+## In progress: v1.0.7 (branch `v1.0.7`, October 2026)
+
+- New ToA Puzzle Helper (Beta), committed in stages ("New ToA Puzzle Helper", "ToA Puzzle Helper reads the
+  screen", then the matching/battery work). Credits for the LlemonDuck plugin are on the Legal screen and in
+  the README. `versionCode`/`versionName` not bumped yet.
+- Tested live on the phone: light reading, addition number, sequence watching, matching Watch (many runs),
+  the map at the bottom with the shrunk window, the redrawn symbols.
+- Not yet tested live: the light/addition/sequence answers-at-the-bottom layout in a real raid, the addition
+  number with digits other than 3 and 0, group raids (no starting pairs; line/crook/hand/bird samples come
+  from the addition room only), the release build's speed.
+- Owner's preferences for these tools: compact windows (few words, one row of buttons, `?` for instructions),
+  maps kept straight (snapped to the nearest direction), green for "step here", symbols drawn like the game's
+  (the owner checks them against the game and has corrected the knives, foot and hand).
+
 ## Open items and ideas
+
+- ToA ideas: reading the obelisk puzzle; tracing the remaining symbol drawings from the owner's close-up
+  addition-room screenshot; a matching symbol is sometimes missed when no clear view of its board is had.
 
 - "SetTextI18n" warnings: ask the owner whether to switch that check off (recommended for an English-only
   app) or move the text into `strings.xml`.

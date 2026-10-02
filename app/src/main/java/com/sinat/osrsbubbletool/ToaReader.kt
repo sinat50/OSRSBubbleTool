@@ -377,7 +377,13 @@ object ToaReader {
     class MatchBoards(
         val cx: FloatArray, val cy: FloatArray,
         val colX: FloatArray, val colY: FloatArray,
-        val rowX: FloatArray, val rowY: FloatArray
+        val rowX: FloatArray, val rowY: FloatArray,
+        // whether each board was actually found in this picture (rather than worked out from where it slid):
+        // only boards actually found are read, so a guess can't put a tile's reading on the wrong tile
+        val seen: BooleanArray = booleanArrayOf(true, true),
+        // whether each board was found clearly (8 or 9 of its tiles lined up): only those are read, as a board
+        // found from just 7 can be a tile out of place
+        val clear: BooleanArray = booleanArrayOf(true, true)
     ) {
         // Tile t (0-8 left board, 9-17 right, left to right and top to bottom) on screen
         fun tileX(t: Int): Float { val b = t / 9; val c = t % 9; return cx[b] + (c % 3 - 1) * colX[b] + (c / 3 - 1) * rowX[b] }
@@ -402,18 +408,49 @@ object ToaReader {
     }
 
     // Finds patches of pixels that pass `test` (and aren't in `skip`, e.g. the bubble's own window)
-    private fun patches(p: LightBoxReader.PixelSource, step: Int, skip: (Int, Int) -> Boolean, test: (Int) -> Boolean): List<Patch> {
+    // Where the app's own windows are, so their pixels are left out: "is (x, y) covered?". A plain interface
+    // rather than a Kotlin function type, so asking it for every pixel makes no objects on the phone.
+    fun interface Skip { fun at(x: Int, y: Int): Boolean }
+
+    // Working memory kept from one look to the next (Watch looks several times a second)
+    private var workKind = ByteArray(0)
+    private var workSeen = BooleanArray(0)
+    private var workStack = IntArray(0)
+
+    // Gives the working memory back once Watch stops (it's made again on the next look)
+    fun releaseWork() {
+        workKind = ByteArray(0); workSeen = BooleanArray(0); workStack = IntArray(0)
+    }
+    private const val GREY: Byte = 1
+    private const val YELLOW: Byte = 2
+
+    // Finds the patches of hidden-tile grey and of yellow, in one pass over the shrunk picture (or just over
+    // `area`: left, top, right, bottom in shrunk-picture pixels)
+    private fun markPatches(p: LightBoxReader.PixelSource, step: Int, skip: Skip, area: IntArray?): Pair<List<Patch>, List<Patch>> {
         val w = p.width / step
         val h = p.height / step
-        val mask = BooleanArray(w * h) { i ->
-            val x = (i % w) * step; val y = (i / w) * step
-            !skip(x, y) && test(p.rgb(x, y))
+        if (workKind.size < w * h) { workKind = ByteArray(w * h); workSeen = BooleanArray(w * h); workStack = IntArray(w * h) }
+        val kind = workKind; val seen = workSeen; val stack = workStack
+        val x0 = (area?.get(0) ?: 0).coerceIn(0, w); val y0 = (area?.get(1) ?: 0).coerceIn(0, h)
+        val x1 = (area?.get(2) ?: w).coerceIn(x0, w); val y1 = (area?.get(3) ?: h).coerceIn(y0, h)
+        for (y in y0 until y1) {
+            val row = y * w
+            for (x in x0 until x1) {
+                val i = row + x
+                seen[i] = false
+                val px = x * step; val py = y * step
+                kind[i] = if (skip.at(px, py)) 0 else {
+                    val c = p.rgb(px, py)
+                    if (hiddenGrey(c)) GREY else if (yellowish(c)) YELLOW else 0
+                }
+            }
         }
-        val seen = BooleanArray(w * h)
-        val stack = IntArray(w * h)
-        val found = ArrayList<Patch>()
-        for (start in mask.indices) {
-            if (!mask[start] || seen[start]) continue
+        val grey = ArrayList<Patch>()
+        val yellow = ArrayList<Patch>()
+        for (sy in y0 until y1) for (sx in x0 until x1) {
+            val start = sy * w + sx
+            val k = kind[start]
+            if (k == 0.toByte() || seen[start]) continue
             var top = 0
             stack[top++] = start
             seen[start] = true
@@ -427,34 +464,43 @@ object ToaReader {
                 if (x > maxX) maxX = x
                 if (y < minY) minY = y
                 if (y > maxY) maxY = y
-                if (x > 0) { val j = i - 1; if (mask[j] && !seen[j]) { seen[j] = true; stack[top++] = j } }
-                if (x < w - 1) { val j = i + 1; if (mask[j] && !seen[j]) { seen[j] = true; stack[top++] = j } }
-                if (y > 0) { val j = i - w; if (mask[j] && !seen[j]) { seen[j] = true; stack[top++] = j } }
-                if (y < h - 1) { val j = i + w; if (mask[j] && !seen[j]) { seen[j] = true; stack[top++] = j } }
+                if (x > x0) { val j = i - 1; if (kind[j] == k && !seen[j]) { seen[j] = true; stack[top++] = j } }
+                if (x < x1 - 1) { val j = i + 1; if (kind[j] == k && !seen[j]) { seen[j] = true; stack[top++] = j } }
+                if (y > y0) { val j = i - w; if (kind[j] == k && !seen[j]) { seen[j] = true; stack[top++] = j } }
+                if (y < y1 - 1) { val j = i + w; if (kind[j] == k && !seen[j]) { seen[j] = true; stack[top++] = j } }
             }
-            found.add(Patch(sumX.toFloat() / count, sumY.toFloat() / count, count, maxX - minX + 1, maxY - minY + 1))
+            val patch = Patch(sumX.toFloat() / count, sumY.toFloat() / count, count, maxX - minX + 1, maxY - minY + 1)
+            if (k == GREY) grey.add(patch) else yellow.add(patch)
         }
-        return found
+        return grey to yellow
     }
 
     // One board found: its middle, its two steps, and which marks it used
     private class Board(val cx: Float, val cy: Float, val ux: Float, val uy: Float, val vx: Float, val vy: Float,
                         val hits: Int, val err: Float, val used: Set<Int>)
 
+    // For the PC test only: when set, findMatchBoards reports the boards it considers
+    var debugLog: ((String) -> Unit)? = null
+
     // Finds the boards. With `previous` (the last picture's boards), one board on screen is enough: the
     // other is assumed to have moved the same way. Without it, both must be seen. Null if they can't be.
-    fun findMatchBoards(p: LightBoxReader.PixelSource, skip: (Int, Int) -> Boolean, previous: MatchBoards? = null): MatchBoards? {
+    fun findMatchBoards(p: LightBoxReader.PixelSource, skip: Skip, previous: MatchBoards? = null): MatchBoards? =
+        searchBoards(p, skip, previous, null)
+
+    private fun searchBoards(p: LightBoxReader.PixelSource, skip: Skip, previous: MatchBoards?, area: IntArray?): MatchBoards? {
         val step = maxOf(1, p.height / WORK_ROWS)
         val h = p.height / step
         val hh = h.toFloat() * h
         // Marks: the grey squares of hidden tiles, and the yellow of symbols (dull or glowing)
         val marks = ArrayList<Patch>()
-        patches(p, step, skip, ::hiddenGrey).filter {
-            it.count > hh * 0.0015f && it.count < hh * 0.012f && it.w.toFloat() / it.h in 0.6f..1.7f &&
+        val (greyPatches, yellowPatches) = markPatches(p, step, skip, area)
+        greyPatches.filter {
+            // (as small as they are at 25% zoom)
+            it.count > hh * 0.0005f && it.count < hh * 0.012f && it.w.toFloat() / it.h in 0.6f..1.7f &&
                 it.count.toFloat() / (it.w * it.h) >= 0.6f
         }.forEach { it.grey = true; marks.add(it) }
         // (small enough for the thin glowing line symbol)
-        patches(p, step, skip, ::yellowish).filterTo(marks) {
+        yellowPatches.filterTo(marks) {
             it.count > hh * 0.00012f && it.count < hh * 0.004f && it.w.toFloat() / it.h in 0.15f..6f
         }
         // Keep the marks nearest the middle of the screen (the boards are round you)
@@ -516,19 +562,134 @@ object ToaReader {
             }
         }
         boards.sortWith(compareBy<Board>({ -it.hits }, { it.err }))
+        debugLog?.let { log ->
+            boards.take(12).forEach { b ->
+                log("board at (%.0f, %.0f) step (%.0f, %.0f) hits %d err %.1f grey %d yellow %d".format(b.cx * step, b.cy * step,
+                    b.ux * step, b.uy * step, b.hits, b.err, b.used.count { pts[it].grey }, b.used.count { !pts[it].grey }))
+            }
+        }
         val first = boards.firstOrNull() ?: return follow()
-        val second = boards.firstOrNull { b -> b.used.none { it in first.used } &&
-            hypot(b.cx - first.cx, b.cy - first.cy) > 2.5f * hypot(first.ux, first.uy) }
-        val found = listOfNotNull(first, second).map { scaled(it, step) }
+        // Both boards afresh: the second sits beside the first, along a line of its tiles, about 4 to 9 tiles
+        // away, the same size and lined up with it: never far above or below (the grey floor of the next room can
+        // otherwise pass for a board). Null if there isn't such a pair.
+        fun freshPair(): Pair<Board, Board>? {
+            fun beside(a: Board, b: Board): Boolean {
+                val la = hypot(a.ux, a.uy); val lb = hypot(b.ux, b.uy)
+                if (lb / la !in 0.75f..1.33f) return false
+                val dx = b.cx - a.cx; val dy = b.cy - a.cy
+                for ((sx, sy) in listOf(a.ux to a.uy, a.vx to a.vy)) {
+                    val len = hypot(sx, sy)
+                    val along = abs(dx * sx + dy * sy) / (len * len)
+                    val across = abs(dx * sy - dy * sx) / (len * len)
+                    if (along in 4f..9f && across < 1.5f) return true
+                }
+                return false
+            }
+            // A real board has yellow on it (glowing pairs, revealed symbols). The floor of the next room, seen
+            // through the see-through inventory, makes a near-perfect "board" of dark squares with at most a speck
+            // of gold. So of all the side-by-side pairs, take the one where both boards have the most yellow.
+            fun yellow(b: Board) = b.used.count { !pts[it].grey }
+            val top = boards.take(60)
+            var best: Pair<Board, Board>? = null
+            var bestScore = intArrayOf(-1, -1, -1)
+            for (i in top.indices) for (j in i + 1 until top.size) {
+                val x = top[i]; val y = top[j]
+                if (y.used.any { it in x.used } || !beside(x, y)) continue
+                val score = intArrayOf(minOf(yellow(x), yellow(y)), yellow(x) + yellow(y), x.hits + y.hits)
+                val better = (0..2).firstOrNull { score[it] != bestScore[it] }?.let { score[it] > bestScore[it] } ?: false
+                if (better) { bestScore = score; best = x to y }
+            }
+            val (x, y) = best ?: return null
+            return scaled(x, step) to scaled(y, step)
+        }
 
-        if (found.size == 2) {
-            // Left board first, along the boards' own left-to-right direction
+        val prev = previous
+        if (prev == null) {
+            // The first look: both boards needed. Left board first, along the boards' own left-to-right direction;
+            // each board's directions taken from the screen (right and down).
+            val (a, b) = freshPair() ?: return null
+            val found = listOf(a, b)
             val (colX, colY) = columnStep(found[0])
             val sorted = found.sortedBy { it.cx * colX + it.cy * colY }
             return boardsOf(sorted[0], sorted[1])
         }
-        // Not both boards whole: follow how the boards seen last time have slid (the camera follows you)
-        return follow()
+
+        // After that, each board keeps who it is and which way it faces from one picture to the next, so turning
+        // the camera doesn't mix up the boards or which tile is which
+        val second = boards.firstOrNull { b -> b.used.none { it in first.used } &&
+            hypot(b.cx - first.cx, b.cy - first.cy) > 2.5f * hypot(first.ux, first.uy) }
+        val found = listOfNotNull(first, second).map { scaled(it, step) }
+        val assigned = arrayOfNulls<Board>(2)
+        fun gap(f: Board, k: Int) = hypot(f.cx - prev.cx[k], f.cy - prev.cy[k])
+        if (found.size == 2) {
+            if (gap(found[0], 0) + gap(found[1], 1) <= gap(found[0], 1) + gap(found[1], 0)) {
+                assigned[0] = found[0]; assigned[1] = found[1]
+            } else {
+                assigned[0] = found[1]; assigned[1] = found[0]
+            }
+        } else {
+            assigned[if (gap(found[0], 0) <= gap(found[0], 1)) 0 else 1] = found[0]
+        }
+        val cx = prev.cx.copyOf(); val cy = prev.cy.copyOf()
+        val colX = prev.colX.copyOf(); val colY = prev.colY.copyOf()
+        val rowX = prev.rowX.copyOf(); val rowY = prev.rowY.copyOf()
+        val seen = BooleanArray(2)
+        val clear = BooleanArray(2)
+        for (k in 0..1) {
+            val f = assigned[k] ?: continue
+            // a board can't really move more than a couple of its tiles between two pictures: a jump is a bad fit
+            if (gap(f, k) > 2.5f * hypot(prev.colX[k], prev.colY[k])) continue
+            val steps = orientLike(f, prev.colX[k], prev.colY[k], prev.rowX[k], prev.rowY[k]) ?: continue
+            cx[k] = f.cx; cy[k] = f.cy
+            colX[k] = steps[0]; colY[k] = steps[1]; rowX[k] = steps[2]; rowY[k] = steps[3]
+            seen[k] = true
+            clear[k] = f.hits >= 8
+        }
+        if (!seen[0] && !seen[1]) {
+            // Lost both (they moved too far while out of sight, say): find them afresh, each matched to the board
+            // it was before and facing as near as it can to how it faced
+            freshPair()?.let { (a, b) ->
+                val pair = if (gap(a, 0) + gap(b, 1) <= gap(a, 1) + gap(b, 0)) listOf(a, b) else listOf(b, a)
+                for (k in 0..1) {
+                    val f = pair[k]
+                    val st = orientLike(f, prev.colX[k], prev.colY[k], prev.rowX[k], prev.rowY[k], strict = false)!!
+                    cx[k] = f.cx; cy[k] = f.cy
+                    colX[k] = st[0]; colY[k] = st[1]; rowX[k] = st[2]; rowY[k] = st[3]
+                }
+                return MatchBoards(cx, cy, colX, colY, rowX, rowY, booleanArrayOf(true, true), booleanArrayOf(pair[0].hits >= 8, pair[1].hits >= 8))
+            }
+            return follow()
+        }
+        if (seen[0] != seen[1]) {
+            // One board found: the other (hidden, or not trusted this time) has moved with it, turning and
+            // growing or shrinking the same way, as the camera turns and zooms
+            val k = if (seen[0]) 0 else 1
+            val o = 1 - k
+            val turn = atan2(colY[k], colX[k]) - atan2(prev.colY[k], prev.colX[k])
+            val scale = hypot(colX[k], colY[k]) / hypot(prev.colX[k], prev.colY[k])
+            val c = cos(turn) * scale; val sn = sin(turn) * scale
+            fun turnX(x: Float, y: Float) = x * c - y * sn
+            fun turnY(x: Float, y: Float) = x * sn + y * c
+            val ox = prev.cx[o] - prev.cx[k]; val oy = prev.cy[o] - prev.cy[k]
+            cx[o] = cx[k] + turnX(ox, oy); cy[o] = cy[k] + turnY(ox, oy)
+            colX[o] = turnX(prev.colX[o], prev.colY[o]); colY[o] = turnY(prev.colX[o], prev.colY[o])
+            rowX[o] = turnX(prev.rowX[o], prev.rowY[o]); rowY[o] = turnY(prev.rowX[o], prev.rowY[o])
+        }
+        return MatchBoards(cx, cy, colX, colY, rowX, rowY, seen, clear)
+    }
+
+    // Of a board's four steps (±u, ±v), the ones closest to the steps it had last time, as colX, colY, rowX, rowY.
+    // Null if even the closest has turned or stretched too much since then: a bad fit, not to be trusted.
+    private fun orientLike(b: Board, pcx: Float, pcy: Float, prx: Float, pry: Float, strict: Boolean = true): FloatArray? {
+        val steps = listOf(b.ux to b.uy, -b.ux to -b.uy, b.vx to b.vy, -b.vx to -b.vy)
+        fun likeness(x: Float, y: Float, px: Float, py: Float) = (x * px + y * py) / (hypot(x, y) * hypot(px, py))
+        val col = steps.maxBy { likeness(it.first, it.second, pcx, pcy) }
+        val colIsU = steps.indexOf(col) < 2
+        val row = steps.filterIndexed { i, _ -> (i < 2) != colIsU }.maxBy { likeness(it.first, it.second, prx, pry) }
+        fun ok(x: Float, y: Float, px: Float, py: Float) =
+            likeness(x, y, px, py) >= 0.82f && hypot(x, y) / hypot(px, py) in 0.7f..1.43f   // within about 35°, and ±40% size
+        if (strict && (!ok(col.first, col.second, pcx, pcy) || !ok(row.first, row.second, prx, pry))) return null
+        return floatArrayOf(col.first, col.second, row.first, row.second)
     }
 
     // The last boards moved by however far the marks on screen say they've slid. Each mark near a tile's last
@@ -557,7 +718,7 @@ object ToaReader {
         val dx = sx / n; val dy = sy / n
         return MatchBoards(
             FloatArray(2) { prev.cx[it] + dx }, FloatArray(2) { prev.cy[it] + dy },
-            prev.colX, prev.colY, prev.rowX, prev.rowY)
+            prev.colX, prev.colY, prev.rowX, prev.rowY, booleanArrayOf(false, false))
     }
 
     // The board's middle and steps, best fitted to all the marks it found (least squares)
@@ -603,7 +764,8 @@ object ToaReader {
         val lr = rowStep(left); val rr = rowStep(right)
         return MatchBoards(floatArrayOf(left.cx, right.cx), floatArrayOf(left.cy, right.cy),
             floatArrayOf(l.first, r.first), floatArrayOf(l.second, r.second),
-            floatArrayOf(lr.first, rr.first), floatArrayOf(lr.second, rr.second))
+            floatArrayOf(lr.first, rr.first), floatArrayOf(lr.second, rr.second),
+            booleanArrayOf(true, true), booleanArrayOf(left.hits >= 8, right.hits >= 8))
     }
 
     // ---- Reading one tile ----
@@ -619,7 +781,7 @@ object ToaReader {
     }
 
     // What one tile shows. `allowed` = the symbols it could be.
-    fun readMatchTile(p: LightBoxReader.PixelSource, boards: MatchBoards, t: Int, skip: (Int, Int) -> Boolean,
+    fun readMatchTile(p: LightBoxReader.PixelSource, boards: MatchBoards, t: Int, skip: Skip,
                       allowed: Collection<ToaPuzzles.Symbol>): MatchTile {
         val b = t / 9
         val tx = boards.tileX(t); val ty = boards.tileY(t)
@@ -627,14 +789,14 @@ object ToaReader {
         // Only symbol and tile points are compared, so a symbol partly hidden can still be recognised.
         val yellow = BooleanArray(TILE_GRID * TILE_GRID)
         val seen = BooleanArray(TILE_GRID * TILE_GRID)
-        var hidden = 0; var dull = 0; var pale = 0; var known = 0
+        var hidden = 0; var dull = 0; var pale = 0; var purple = 0; var known = 0
         for (i in 0 until TILE_GRID) for (j in 0 until TILE_GRID) {
             // a symbol fills about one floor tile: half the step between puzzle tiles
             val fj = ((j + 0.5f) / TILE_GRID - 0.5f) * 0.45f
             val fi = ((i + 0.5f) / TILE_GRID - 0.5f) * 0.45f
             val x = (tx + fj * boards.colX[b] + fi * boards.rowX[b]).toInt()
             val y = (ty + fj * boards.colY[b] + fi * boards.rowY[b]).toInt()
-            if (x < 0 || y < 0 || x >= p.width || y >= p.height || skip(x, y)) continue
+            if (x < 0 || y < 0 || x >= p.width || y >= p.height || skip.at(x, y)) continue
             known++
             val c = p.rgb(x, y)
             val k = i * TILE_GRID + j
@@ -644,13 +806,16 @@ object ToaReader {
                     val r = (c shr 16) and 0xFF
                     if ((c and 0xFF) >= 0.25f * r) pale++ else { dull++; yellow[k] = true; seen[k] = true }
                 }
-                tilePurple(c) -> seen[k] = true
+                tilePurple(c) -> { seen[k] = true; purple++ }
             }
         }
         val all = TILE_GRID * TILE_GRID
         if (known < all / 2) return MatchTile(TILE_UNKNOWN)
-        if (pale >= all / 10) return MatchTile(TILE_MATCHED)
-        if (dull >= all * 5 / 100) {
+        // A real tile, glowing or showing a symbol, sits on its purple background. The minimap, orbs or
+        // inventory can cover a tile with pale or yellow colours, but not with that purple.
+        val onTile = purple >= all / 5
+        if (onTile && pale >= all * 6 / 100) return MatchTile(TILE_MATCHED)
+        if (onTile && dull >= all * 5 / 100) {
             val (symbol, sure) = recogniseSymbol(yellow, seen, allowed) ?: return MatchTile(TILE_UNKNOWN)
             return MatchTile(TILE_SYMBOL, symbol, sure)
         }
