@@ -49,6 +49,8 @@ class ToaPuzzleTool(
     companion object {
         private const val HELP_SIZE_DP = 30       // the ? button
         private const val MAP_CELL_DP = 26        // a square of the boards drawn at the bottom while watching
+        private const val ICON_W_DP = 64          // the little board pictures on the list of puzzles
+        private const val ICON_H_DP = 44
         private const val MATCH_INTERVAL_MS = 333L        // how often Watch looks at the matching boards (3 times a second)
         private const val MATCH_WATCH_MAX_MS = 300_000L   // Watch stops by itself after 5 minutes
         private const val CAPTURE_DELAY_MS = 500L  // wait after hiding the bubble before the screenshot
@@ -244,13 +246,57 @@ class ToaPuzzleTool(
             "reading the screen: camera facing east, looking straight down, with the zoom set to 25%.")
         Page.entries.drop(1).forEach { p ->
             addView(LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(10), dp(8), dp(10), dp(8))
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(8), dp(6), dp(10), dp(6))
                 background = GradientDrawable().apply { setColor(BUTTON_BROWN); cornerRadius = dp(6).toFloat() }
-                addView(label(p.title, 14f, bold = true).apply { setTextColor(Color.WHITE) })
-                addView(label(p.about, 11f).apply { setTextColor("#F2E3C0".toColorInt()) })
+                // a little picture of the puzzle's board, then its name
+                addView(puzzleIcon(p), LinearLayout.LayoutParams(dp(ICON_W_DP), ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(10) })
+                addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(label(p.title, 14f, bold = true).apply { setTextColor(Color.WHITE) })
+                    addView(label(p.about, 11f).apply { setTextColor("#F2E3C0".toColorInt()) })
+                }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                 setOnClickListener { open(p) }
             }, full(6))
+        }
+    }
+
+    // A small picture of a puzzle's board for the list, drawn like its map part-way through the puzzle.
+    // Tapping it opens the puzzle, like the rest of the button.
+    private fun puzzleIcon(p: Page): View {
+        val tap = { _: Int -> open(p) }
+        return when (p) {
+            // the ring of eight plates, three of them lit
+            Page.LIGHT -> Board(3, 3, (0 until 8).map { ToaPuzzles.lightCell(it) }, maxHeightDp = ICON_H_DP, onTap = tap) { canvas, i, r ->
+                if (i == 1 || i == 4 || i == 6) litPlate(canvas, r) else plate(canvas, r)
+            }
+            // the floor of symbols, with a short walk lit
+            Page.ADDITION -> Board(5, 5, (0 until 25).map { it / 5 to it % 5 }, maxHeightDp = ICON_H_DP, onTap = tap) { canvas, i, r ->
+                val lit = i == 12 || i == 17 || i == 22
+                tile(canvas, r, if (lit) TILE_LIT else TILE)
+                glyph(canvas, ToaPuzzles.ADDITION_GRID[i], r, if (lit) GLYPH_LIT else YELLOW)
+            }
+            // the diamond of nine tiles, two of them flashing
+            Page.SEQUENCE -> Board(5, 5, ToaPuzzles.SEQUENCE_CELLS, maxHeightDp = ICON_H_DP, onTap = tap) { canvas, i, r ->
+                if (i == 2 || i == 6) tile(canvas, r, TILE_LIT) else plate(canvas, r)
+            }
+            // three obelisks on each wall, two lit pink
+            Page.OBELISK -> Board(3, 3, (0 until ToaPuzzles.OBELISKS).map { o -> (if (o < 3) 0 else 2) to o % 3 },
+                maxHeightDp = ICON_H_DP, onTap = tap) { canvas, o, r ->
+                tile(canvas, obeliskRect(r), if (o == 0 || o == 4) OBELISK_LIT else OBELISK)
+            }
+            // both boards: mostly grey, two symbols showing and one matched pair glowing
+            Page.MATCHING -> Board(3, 7, (0 until 18).map { t -> (t % 9) / 3 to (t % 3) + if (t < 9) 0 else 4 },
+                maxHeightDp = ICON_H_DP, onTap = tap) { canvas, t, r ->
+                when (t) {
+                    0, 14 -> { tile(canvas, r, TILE_LIT); glyph(canvas, ToaPuzzles.MATCHING_SYMBOLS[0], r, GLYPH_LIT) }
+                    4 -> { tile(canvas, r, TILE); glyph(canvas, ToaPuzzles.MATCHING_SYMBOLS[3], r, YELLOW) }
+                    10 -> { tile(canvas, r, TILE); glyph(canvas, ToaPuzzles.MATCHING_SYMBOLS[6], r, YELLOW) }
+                    else -> tile(canvas, r, TILE_HIDDEN)
+                }
+            }
+            Page.MENU -> View(context)
         }
     }
 
