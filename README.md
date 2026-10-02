@@ -27,7 +27,7 @@ Tool windows are two inches wide in landscape. Drag the bar at the top to move a
 | **OSRS Wiki** | The wiki in a window over the game, shrunk to fit. Can also open the game's own wiki links (the wiki button) in the bubble instead of your browser. |
 | **Puzzle Box Solver** | Finds the clue puzzle box on screen by itself, reads the tiles and shows your next moves on top of it, with "Move 3 of 42" above the puzzle. Choose colour-coded boxes or shrinking dots. Follows your moves as you slide tiles, and re-plans if you make a different move. |
 | **Light Box Solver** | Finds the light box by itself, asks you to press each button once to learn what it does, then outlines the buttons that turn every bulb on. Instructions appear right on the light box. |
-| **ToA Puzzle Helper (Beta)** | Answers for the five Path of Scabaras puzzles in the Tombs of Amascut. Tap what you see on a small map of the room and the answer is marked on it: which plates to step on for the light puzzle, the walk for any addition number (worked out again if you go a different way), the sequence in order, the obelisk order found so far, and the matching pairs you've seen. |
+| **ToA Puzzle Helper (Beta)** | Answers for the five Path of Scabaras puzzles in the Tombs of Amascut, on a small map of each room. **Light**: one tap reads which plates are lit and marks the ones to step on. **Addition**: reads the tablet's number from the chat box and marks the walk (worked out again if you go a different way). **Sequence**: watches the tiles flash and numbers them in order. **Matching**: watches the boards as you walk, fills in each symbol you reveal and marks the pairs, with the window shrunk into a corner out of the way. **Obelisk**: a tap-along tracker for the order found so far. Everything can also be tapped in by hand. Works best with the camera facing east, looking straight down, zoom at 25%. |
 | **Inventory Setups** | Save pictures of your inventory, equipment, spellbook and rune pouch under a name, so you can check them while gearing up. Each part is found on screen automatically. |
 | **XP Calculator** | [oldschool.tools](https://oldschool.tools) calculators, with dropdown menus that work inside the window. |
 | **DPS Calculator** | The OSRS Wiki DPS calculator. **Import my gear** finds your equipment tab by itself, recognises your worn equipment and loads it straight into the calculator. It copes with any brightness setting and tells look-alike items apart, such as enchanted and plain bolts. |
@@ -44,7 +44,7 @@ Tool windows are two inches wide in landscape. Drag the bar at the top to move a
 
 ## Battery and privacy
 
-- The screen is only captured when you use a tool that needs it (the Puzzle Box and Light Box Solvers, Inventory Setups and DPS gear import). Capture pauses itself whenever no tool is using it.
+- The screen is only captured when you use a tool that needs it (the Puzzle Box and Light Box Solvers, the ToA Puzzle Helper's screen reading, Inventory Setups and DPS gear import). Capture pauses itself whenever no tool is using it.
 - Website tools pause while their window is closed.
 - Timers don't keep anything running. Android wakes the app once when a timer is due.
 - On Android 14 and newer you can share just the game instead of the whole screen, so your notifications and other apps are never captured.

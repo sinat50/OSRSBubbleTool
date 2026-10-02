@@ -172,7 +172,8 @@ object ToaPuzzles {
     // ---------------- Obelisk puzzle ----------------
     // Hit the obelisks in the right order. A right one lights up; a wrong one drops rocks and puts every
     // obelisk out, so you start again. The order stays the same, so remember what you've found.
-    // Obelisks are numbered down the left wall (0-2), then down the right wall (3-5).
+    // There are three on each long wall. Obelisks are numbered along the top wall as you see it facing east
+    // (0-2), then along the bottom wall (3-5). A lit obelisk turns light pink.
     const val OBELISKS = 6
 
     // The obelisks still worth trying next
