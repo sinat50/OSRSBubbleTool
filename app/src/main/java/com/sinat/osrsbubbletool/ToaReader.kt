@@ -424,15 +424,13 @@ object ToaReader {
     private const val GREY: Byte = 1
     private const val YELLOW: Byte = 2
 
-    // Finds the patches of hidden-tile grey and of yellow, in one pass over the shrunk picture (or just over
-    // `area`: left, top, right, bottom in shrunk-picture pixels)
-    private fun markPatches(p: LightBoxReader.PixelSource, step: Int, skip: Skip, area: IntArray?): Pair<List<Patch>, List<Patch>> {
+    // Finds the patches of hidden-tile grey and of yellow, in one pass over the shrunk picture
+    private fun markPatches(p: LightBoxReader.PixelSource, step: Int, skip: Skip): Pair<List<Patch>, List<Patch>> {
         val w = p.width / step
         val h = p.height / step
         if (workKind.size < w * h) { workKind = ByteArray(w * h); workSeen = BooleanArray(w * h); workStack = IntArray(w * h) }
         val kind = workKind; val seen = workSeen; val stack = workStack
-        val x0 = (area?.get(0) ?: 0).coerceIn(0, w); val y0 = (area?.get(1) ?: 0).coerceIn(0, h)
-        val x1 = (area?.get(2) ?: w).coerceIn(x0, w); val y1 = (area?.get(3) ?: h).coerceIn(y0, h)
+        val x0 = 0; val y0 = 0; val x1 = w; val y1 = h   // the whole picture (searching only near the boards was tried: worse)
         for (y in y0 until y1) {
             val row = y * w
             for (x in x0 until x1) {
@@ -485,15 +483,15 @@ object ToaReader {
     // Finds the boards. With `previous` (the last picture's boards), one board on screen is enough: the
     // other is assumed to have moved the same way. Without it, both must be seen. Null if they can't be.
     fun findMatchBoards(p: LightBoxReader.PixelSource, skip: Skip, previous: MatchBoards? = null): MatchBoards? =
-        searchBoards(p, skip, previous, null)
+        searchBoards(p, skip, previous)
 
-    private fun searchBoards(p: LightBoxReader.PixelSource, skip: Skip, previous: MatchBoards?, area: IntArray?): MatchBoards? {
+    private fun searchBoards(p: LightBoxReader.PixelSource, skip: Skip, previous: MatchBoards?): MatchBoards? {
         val step = maxOf(1, p.height / WORK_ROWS)
         val h = p.height / step
         val hh = h.toFloat() * h
         // Marks: the grey squares of hidden tiles, and the yellow of symbols (dull or glowing)
         val marks = ArrayList<Patch>()
-        val (greyPatches, yellowPatches) = markPatches(p, step, skip, area)
+        val (greyPatches, yellowPatches) = markPatches(p, step, skip)
         greyPatches.filter {
             // (as small as they are at 25% zoom)
             it.count > hh * 0.0005f && it.count < hh * 0.012f && it.w.toFloat() / it.h in 0.6f..1.7f &&

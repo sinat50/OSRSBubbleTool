@@ -338,7 +338,7 @@ class ToaPuzzleTool(
             if (lightManual) { lightLit = lightLit xor (1 shl i); lightEntered = true; show() }
         }) { canvas, i, r ->
             if (lightLit shr i and 1 == 1) litPlate(canvas, r) else plate(canvas, r)
-            if (lightEntered && answer shr i and 1 == 1) ring(canvas, r, STEP_GREEN)
+            if (lightEntered && answer shr i and 1 == 1) stepHere(canvas, r)
         }
     }
 
@@ -492,7 +492,7 @@ class ToaPuzzleTool(
             tile(canvas, r, if (lit) TILE_LIT else TILE)
             glyph(canvas, sym, r, if (lit) GLYPH_LIT else YELLOW)
             text(canvas, values[sym.ordinal], r.left + r.width() * 0.17f, r.top + r.height() * 0.2f, r.height() * 0.22f, if (lit) DARK_BROWN else Color.WHITE)
-            if (answer != null && i in answer) ring(canvas, r, STEP_GREEN)
+            if (answer != null && i in answer) stepHere(canvas, r)
         }
     }
 
@@ -981,7 +981,7 @@ class ToaPuzzleTool(
             val sym = memory.symbols[t]
             tile(canvas, r, when { t in memory.done -> TILE_LIT; sym != null -> TILE; else -> TILE_HIDDEN })
             sym?.let { glyph(canvas, it, r, if (t in memory.done) GLYPH_LIT else YELLOW) }
-            if (green != null && (t == green.first || t == green.second)) ring(canvas, r, STEP_GREEN)
+            if (green != null && (t == green.first || t == green.second)) stepHere(canvas, r)
         }
     }
 
@@ -1046,8 +1046,9 @@ class ToaPuzzleTool(
         canvas.drawRect(plateSquare, fill)
     }
 
-    private fun ring(canvas: Canvas, r: RectF, colour: Int) {
-        stroke.color = colour
+    // A green border: "step here"
+    private fun stepHere(canvas: Canvas, r: RectF) {
+        stroke.color = STEP_GREEN
         stroke.strokeWidth = r.width() * 0.1f
         val corner = r.width() * 0.12f
         canvas.drawRoundRect(r, corner, corner, stroke)
