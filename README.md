@@ -17,7 +17,7 @@ OSRS Bubble Tool puts a small bubble on top of the game. Tap it to open a tool i
 - **Drag** the bubble to move it anywhere on screen
 - **Long-press** the bubble to pick a different tool
 
-Tool windows are two inches wide in landscape. Drag the bar at the top to move a window anywhere, and drag the corner at the bottom right to resize it. Each tool remembers its size, and double-tapping the corner puts it back to normal.
+Tool windows are two inches wide in landscape. Drag the bar at the top to move a window anywhere, and drag the corner at the bottom right to resize it. Each tool remembers its size, and double-tapping the corner puts it back to normal. (The Puzzle Box and Light Box Solvers stay small in the top-right corner.) When the status bar is showing, windows and the bubble move just below it so they can always be dragged, and go back where you left them when it hides, as it does in the game.
 
 ## Tools
 
@@ -27,7 +27,7 @@ Tool windows are two inches wide in landscape. Drag the bar at the top to move a
 | **OSRS Wiki** | The wiki in a window over the game, shrunk to fit. Can also open the game's own wiki links (the wiki button) in the bubble instead of your browser. |
 | **Puzzle Box Solver** | Finds the clue puzzle box on screen by itself, reads the tiles and shows your next moves on top of it, with "Move 3 of 42" above the puzzle. Choose colour-coded boxes or shrinking dots. Follows your moves as you slide tiles, and re-plans if you make a different move. |
 | **Light Box Solver** | Finds the light box by itself, asks you to press each button once to learn what it does, then outlines the buttons that turn every bulb on. Instructions appear right on the light box. |
-| **ToA Puzzle Helper (Beta)** | Answers for the five Path of Scabaras puzzles in the Tombs of Amascut, on a small map of each room. Answers appear on a small map at the bottom of the screen, with the window shrunk to a few buttons in a corner. **Light**: one tap reads which plates are lit and marks the ones to step on. **Addition**: reads the tablet's number from the chat box and marks the walk (worked out again if you go a different way). **Sequence**: watches the tiles flash and numbers them in order. **Matching**: watches the boards as you walk, fills in each symbol you reveal, and when you flip a tile whose match is known, turns both green, with the boards drawn at the bottom of the screen and the window shrunk to a Stop button. **Obelisk**: a tap-along tracker for the order found so far. Everything can also be tapped in by hand. Works best with the camera facing east, looking straight down, zoom at 25%. |
+| **ToA Puzzle Helper (Beta)** | Answers for the five Path of Scabaras puzzles in the Tombs of Amascut, on a small map of each room. Answers appear on a small map at the bottom of the screen, with the window shrunk to a few buttons in a corner. **Light**: one tap reads which plates are lit and marks the ones to step on. **Addition**: reads the tablet's number from the chat box and marks the walk (worked out again if you go a different way). **Sequence**: watches the tiles flash and numbers them in order (keep the camera still while it waits). **Matching**: watches the boards as you walk, fills in each symbol you reveal, and when you flip a tile whose match is known, turns both green, with the boards drawn at the bottom of the screen and the window shrunk to a Stop button. **Obelisk**: a tap-along tracker for the order found so far. Everything can also be tapped in by hand. Works best with the camera facing east, looking straight down, zoom at 25%. |
 | **Inventory Setups** | Save pictures of your inventory, equipment, spellbook and rune pouch under a name, so you can check them while gearing up. Each part is found on screen automatically. |
 | **XP Calculator** | [oldschool.tools](https://oldschool.tools) calculators, with dropdown menus that work inside the window. |
 | **DPS Calculator** | The OSRS Wiki DPS calculator. **Import my gear** finds your equipment tab by itself, recognises your worn equipment and loads it straight into the calculator. It copes with any brightness setting and tells look-alike items apart, such as enchanted and plain bolts. |
@@ -35,16 +35,16 @@ Tool windows are two inches wide in landscape. Drag the bar at the top to move a
 | **Zulrah Helper** | A tap-along rotation guide, like the RuneLite plugin: Zulrah's colour and position, where to stand, and which prayer to use, with the possible next phases underneath. |
 | **Timers** | Farming and birdhouse timers. Tap **Planted** after a run and get a notification when it's ready. Covers herbs, trees, fruit trees, hardwoods, allotments, hops, seaweed and more. Growth times follow the game's growth ticks, and timers survive closing the app and restarting the phone. |
 | **GE Prices** | The OSRS Wiki [Real-time Prices](https://prices.runescape.wiki/osrs/) site. |
+| **Calculator** | A basic calculator that understands OSRS shorthand like 1.5m and 250k. |
+| **Notepad** | Write, save and read notes without leaving the game. |
 | **Quest Helper (Beta)** | Step-by-step guides for 195 quests and miniquests, with the dialogue options to pick, the items for each step and the enemies you'll face. Every quest's requirements are ticked off against your account through [WikiSync](https://oldschool.runescape.wiki/w/RuneScape:WikiSync), including the quests they need in turn. Includes the achievement diaries, and solutions for 50 quest puzzles: drawn maps for the Song of the Elves light puzzles, tap-in solvers for riddles and locks, and trackers for the trial-and-error ones. |
 | **Hunter Rumours** | Pick your tier and guild hunter, then the rumour you're on, to see where the creature lives, the fastest ways there and exactly what to bring. Rumours above your Hunter level are faded. |
 | **Teleport Finder (Beta)** | Type any NPC, monster or place (suggestions only show places it has teleports for) and see the teleports that land closest to it, from about 500 teleports. Distances are real walking routes over the game's walking map, counting walls, doors, ladders, cave entrances, boats and levers, and each result names its key step, like "Then: Climb-down Trapdoor". With WikiSync, routes skip shortcuts, doors and boats your levels and quests don't allow yet. Location buttons show monster levels, and teleports your quests or levels don't allow yet are faded. |
-| **Calculator** | A basic calculator that understands OSRS shorthand like 1.5m and 250k. |
-| **Notepad** | Write, save and read notes without leaving the game. |
 | **Game Room** | Games for while you wait. **2048**: the classic sliding-tile puzzle, saved after every move. **Wing It**: tap to flap a little bird through the gaps between pillars, with a best score. |
 
 ## Battery and privacy
 
-- The screen is only captured when you use a tool that needs it (the Puzzle Box and Light Box Solvers, the ToA Puzzle Helper's screen reading, Inventory Setups and DPS gear import). Capture pauses itself whenever no tool is using it.
+- The screen is only captured when you use a tool that needs it (the Puzzle Box and Light Box Solvers, the ToA Puzzle Helper's screen reading, Inventory Setups and DPS gear import). Capture pauses itself whenever no tool is using it. The ToA Puzzle Helper's matching Watch looks at the screen a few times a second while it's on, so it uses more battery than the other tools; tap Stop when you're done.
 - Website tools pause while their window is closed.
 - Timers don't keep anything running. Android wakes the app once when a timer is due.
 - On Android 14 and newer you can share just the game instead of the whole screen, so your notifications and other apps are never captured.
@@ -74,7 +74,7 @@ The app's **Permissions** screen explains each one and has a button to turn it o
 3. Open the project folder in Android Studio and let Gradle finish syncing.
 4. Connect your phone with USB debugging turned on and press **Run ▶**.
 
-The scripts that build the bundled data files (teleports, walking map, item list) are in [`tools/`](tools/README.md).
+The scripts that build the bundled data files (teleports, walking map, item list, game pictures) are in [`tools/`](tools/README.md).
 
 ## Is it allowed?
 

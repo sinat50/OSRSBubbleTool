@@ -32,3 +32,6 @@ __pycache__/
 
 # The trailer kit: videos, stills and their source (kept on this computer only, not part of the app)
 /trailer/
+
+# The update checker (tools/update-check): the owner's own research tool, kept on this computer only
+/tools/update-check/

@@ -4,6 +4,16 @@ A free, ad-free Android app for Old School RuneScape mobile: a floating bubble o
 small tool windows. Kotlin, Android Views (no Compose), one app module. Package `com.sinat.osrsbubbletool`.
 GitHub: sinat50/OSRSBubbleTool. The README is the user-facing description of every tool.
 
+## At the start of every new chat
+
+Run `python tools/update-check/check_updates.py` (from the project folder) and tell the owner in a few plain
+lines what changed upstream (wiki pages, pictures, source projects, new quests, game updates) and what it
+would mean for the app. Only report: don't update anything unless the owner asks. It reuses its report for
+6 hours, so running it often costs nothing. When a change has been dealt with, or the owner says it doesn't
+matter, mark it with `--checked NAME` (that writes `tools/update-check/checked.json`). The whole
+`tools/update-check/` folder is in `.gitignore` (the owner's own research tool, not on GitHub); how to use it
+is at the top of the script.
+
 ## Working with the owner
 
 - The owner has no coding experience. Explain in plain language, give exact click-by-click steps for
@@ -219,14 +229,17 @@ Each release is worked on in its own branch (named like `v1.0.6`), then merged i
 5. GitHub → Releases → new release, tag `vX.Y.Z` (the update checker reads the tag), not a pre-release,
    attach `OSRSBubbleTool-X.Y.Z.apk`.
 
-## Current state (1 October 2026)
+## Current state (3 October 2026)
+
+- v1.0.7 released on 3 October 2026 (tag `v1.0.7`, versionCode 8, merged into `master`): the new ToA Puzzle
+  Helper (Beta). The ToA notes below still list what hasn't been tested live.
 
 - v1.0.6 released on 1 October 2026 (tag `v1.0.6`, versionCode 7, merged into `master`). Changes since v1.0.5:
   smarter Teleport Finder, bubble remembers its spot, tools set up only when first opened, Puzzle Box re-plan
   and stutter fixes, solvers stop when you leave the game, smaller backups, Notepad moves and resizes,
   windows stay clear of the status bar, DPS calculator item pictures and puzzle/quest pictures included,
   code tidy-up, themed app icon. `HANDOFF.md` described the start of this release and can be deleted.
-- Release tags: `v1.0.0`-`v1.0.6` use the "v" form except `1.0.3`. Never rename a published release's tag on
+- Release tags: `v1.0.0`-`v1.0.7` use the "v" form except `1.0.3`. Never rename a published release's tag on
   GitHub: it creates the new tag on the latest master (that happened to v1.0.5 and was fixed by
   force-pushing the tag back to its commit, from Android Studio's terminal, which has the GitHub login).
 - Tested on the phone: Notepad moving/resizing, status bar handling (Notepad and Wiki).
@@ -235,14 +248,14 @@ Each release is worked on in its own branch (named like `v1.0.6`), then merged i
   unplanned move, solvers stopping when you leave the game (single-app sharing), the code tidy-up
   (colours, settings, Zulrah taps, Wing It, wiki links), the themed icon.
 
-## In progress: v1.0.7 (branch `v1.0.7`, October 2026)
+## ToA Puzzle Helper status (released in v1.0.7)
 
 - New ToA Puzzle Helper (Beta), committed in stages ("New ToA Puzzle Helper", "ToA Puzzle Helper reads the
   screen", then the matching/battery work). Credits for the LlemonDuck plugin are on the Legal screen and in
-  the README. `versionCode`/`versionName` not bumped yet.
+  the README.
 - Tested live on the phone: light reading, addition number, sequence watching, matching Watch (many runs),
   the map at the bottom with the shrunk window, the redrawn symbols.
-- 2 October 2026 (not committed yet when written): matching Watch made quicker (quick looks after an unsettled
+- 2 October 2026: matching Watch made quicker (quick looks after an unsettled
   symbol, pairs green after 0.8 s); sequence Watch's 20 s countdown next to Stop and the "keep the camera still"
   tip. Replays of both recordings unchanged apart from pairs marked ~0.7 s sooner. Seen in one live raid (the
   demo recording): matching finished with all nine pairs and the sequence watch numbered all five flashes.
