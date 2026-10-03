@@ -63,6 +63,20 @@ Data: `app/src/main/assets/`
 
 See `tools/README.md` for how to run the scripts.
 
+`trailer/` (at the top of the project, and in `.gitignore`, so it's only on the owner's computer, not on
+GitHub) holds the finished trailer, its opening and closing cards as clips and stills (`trailer/out/`), and
+the source for all of it. To update the cards for new features, edit `trailer/splash.json` and follow
+`trailer/README.md`. The closing card lists all 18 tools from the README (no "Also:"); the full 36 s trailer
+in `trailer/full-trailer/` still has the old list and says "17 tools". The PC has no Node.js or ffmpeg: the
+cards were recorded with a Python port of `render.js` (Playwright for Python plus imageio-ffmpeg in a
+throwaway environment). `trailer/toa-demo/` holds a 62 s ToA Puzzle Helper demo (`toa-demo.mp4`, made from
+`raw/toa_demo.mp4`, a phone screen recording, by `edit.py` and `captions.py`: cuts, speed-ups with "3× speed"
+labels, captions, the owner's name in the chat smeared, then `outro-wide.mp4`, the closing card at the phone's
+2340×1080). Phone screen recordings: `adb shell screenrecord --time-limit 0 /sdcard/Movies/<name>.mp4` with
+the game already sideways; stop it with `kill -INT` on the `screenrecord` process (`pkill` hits the wrong one)
+so the file is finished properly, then copy it off and delete it from the phone. In Git Bash, set
+`MSYS_NO_PATHCONV=1` or phone paths get mangled.
+
 Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're generated and huge.
 
 ## How things work (the parts that aren't obvious)
@@ -113,9 +127,14 @@ Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're gener
     number N has been hastily chipped into the stone." (digit templates typed by the owner into the chat; only
     the left 60% of the screen is searched, so a red HP orb can't fool it). The symbol layout is fixed every
     raid. Sequence: one picture finds the 9 tiles, then `capture.sample` checks just those tiles ~12×/s for
-    the 5 flashes. Obelisk: tap-in only (obelisks are small and hard to see from the safe spot).
+    the 5 flashes. The tiles are found only once, when Watch is tapped, so the camera must stay still until they
+    flash (the page's tip under Watch says so). It waits 20 s for the first flash (`WATCH_FIRST_FLASH_MS`; the
+    owner tried 2 minutes and found it excessive), with a seconds countdown next to Stop in the shrunk window
+    (`sequenceSecondsLeft`), then 5 s for each next one. Obelisk: tap-in only (obelisks are small and hard to see from the safe spot).
   - Matching ("Watch"): the camera follows the player, so both 3×3 boards are found again in every picture,
-    3 looks a second (~150 ms each on the phone). Hard-won rules, each found from real failures:
+    3 looks a second (~130 ms each on the phone), plus up to 3 quick looks in a row (40 ms apart) right after a
+    look that saw a symbol not settled yet (`MatchMemory.unsure`), so it's caught before the player steps off it.
+    A pair counts as matched after glowing 0.8 s (was 1.5 s; replays unchanged apart from marking sooner). Hard-won rules, each found from real failures:
     first look needs both boards side by side, and picks the pair with the most yellow on both (the
     see-through inventory over the next room's floor makes a perfect fake board of "hidden-grey" squares);
     after that each board keeps its identity and direction from the last picture (`orientLike`; players turn
@@ -133,7 +152,9 @@ Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're gener
     (`BubbleService.setWindowCompact`: `COMPACT_TOP_LEFT`, or `COMPACT_BOTTOM_LEFT` for the addition puzzle so
     the chat stays clear) and the puzzle's map is drawn alone at the bottom of the screen in a separate
     untouchable overlay. Both areas are skipped when reading. Each page: a tip line, main buttons, a `?` for
-    instructions, and tap-in controls behind "Solve manually".
+    instructions, and tap-in controls behind "Solve manually". The list of puzzles shows a small picture of
+    each board (`puzzleIcon`, drawn with the same helpers as the maps, part-way through the puzzle); the owner
+    liked them as they are.
   - Per-pixel code must not use Kotlin function types like `(Int, Int) -> Boolean`: on Android every call
     boxes its arguments (a million objects per look, 500 ms instead of 85). `ToaReader.Skip` is a
     `fun interface` for that reason.
@@ -221,7 +242,12 @@ Each release is worked on in its own branch (named like `v1.0.6`), then merged i
   the README. `versionCode`/`versionName` not bumped yet.
 - Tested live on the phone: light reading, addition number, sequence watching, matching Watch (many runs),
   the map at the bottom with the shrunk window, the redrawn symbols.
-- Not yet tested live: the light/addition/sequence answers-at-the-bottom layout in a real raid, the addition
+- 2 October 2026 (not committed yet when written): matching Watch made quicker (quick looks after an unsettled
+  symbol, pairs green after 0.8 s); sequence Watch's 20 s countdown next to Stop and the "keep the camera still"
+  tip. Replays of both recordings unchanged apart from pairs marked ~0.7 s sooner. Seen in one live raid (the
+  demo recording): matching finished with all nine pairs and the sequence watch numbered all five flashes.
+- Not yet tested live: the quick looks' effect on missed symbols (the owner's complaint: waiting on a tile or
+  going back to it), the light/addition/sequence answers-at-the-bottom layout in a real raid, the addition
   number with digits other than 3 and 0, group raids (no starting pairs; line/crook/hand/bird samples come
   from the addition room only), the release build's speed.
 - Owner's preferences for these tools: compact windows (few words, one row of buttons, `?` for instructions),

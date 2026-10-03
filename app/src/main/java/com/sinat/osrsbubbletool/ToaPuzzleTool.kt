@@ -52,6 +52,9 @@ class ToaPuzzleTool(
         private const val ICON_W_DP = 64          // the little board pictures on the list of puzzles
         private const val ICON_H_DP = 44
         private const val MATCH_INTERVAL_MS = 333L        // how often Watch looks at the matching boards (3 times a second)
+        private const val MATCH_QUICK_MS = 40L            // …or this soon after a look that saw a symbol not settled yet
+        private const val MATCH_QUICK_LOOKS = 3           // at most this many quick looks in a row (a symbol you stand on
+                                                          // that can't be made out mustn't keep it looking flat out)
         private const val MATCH_WATCH_MAX_MS = 300_000L   // Watch stops by itself after 5 minutes
         private const val CAPTURE_DELAY_MS = 500L  // wait after hiding the bubble before the screenshot
         private const val WATCH_INTERVAL_MS = 80L         // how often the sequence tiles are checked
@@ -106,6 +109,8 @@ class ToaPuzzleTool(
     private val additionLit = mutableSetOf<Int>()     // tiles already lit (walked on)
     private val sequence = mutableListOf<Int>()       // the tiles that lit up, in order
     private var watchingSequence = false              // Watch is following the flashes
+    private var sequenceSecondsLeft = 0               // seconds left to press the button (0 once the first tile flashed)
+    private var sequenceCountdown: TextView? = null   // where those seconds show, next to the Stop button
     private var sequenceTurn = 0f                     // how far the map is turned to match the camera
     private var sequenceNote: String? = null          // what the last watch found
     private val obeliskOrder = mutableListOf<Int>()   // the right order, as far as it's known
@@ -516,7 +521,11 @@ class ToaPuzzleTool(
         tip("close your chat and inventory first, so all nine tiles can be seen.")
         addView(bar(button("Watch", SELECTED) { watchSequence() } to 1.4f,
             button("Clear") { sequence.clear(); sequenceTurn = 0f; sequenceNote = null; show() } to 1f), full(4))
-        help("Stand still with all nine tiles on screen, tap Watch, then press the button in the game. This window " +
+        // Watch finds the tiles once, when tapped, then keeps looking at those spots on the screen
+        addView(label("Tap Watch where you'll press the button, then keep the camera still until the tiles flash " +
+            "(it waits ${WATCH_FIRST_FLASH_MS / 1000} seconds).", 10f), full(4))
+        help("Stand still with all nine tiles on screen, tap Watch, then press the button in the game. Watch finds " +
+            "the tiles when you tap it, so don't walk, turn or zoom the camera until they've flashed. This window " +
             "shrinks to a Stop button and the tiles are numbered at the bottom of the screen as they flash; Done " +
             "brings the window back. Or tap Solve manually and tap each tile yourself as " +
             "it flashes (it glows pale, with a beam of light). Step on them from 1 to 5. Forgot it? Press the " +
@@ -555,8 +564,12 @@ class ToaPuzzleTool(
     // The window while the tiles are at the bottom of the screen: Stop while watching, then Watch again or Done
     private fun LinearLayout.sequenceSmall() {
         if (watchingSequence) {
-            addView(smallButton("Stop", WARN) { endWatch("Stopped.") })
+            // the seconds left to press the button in the game, counting down
+            val countdown = label(countdownText(), 12f, bold = true)
+            sequenceCountdown = countdown
+            addView(smallRow(smallButton("Stop", WARN) { endWatch("Stopped.") }, countdown))
         } else {
+            sequenceCountdown = null
             addView(smallRow(smallButton("Watch again", SELECTED) { watchSequence() }, smallButton("Done", WARN) { leaveOnScreen() }))
             sequenceNote?.takeIf { !it.startsWith("Saw all") }?.let { addView(label(it, 9f).apply { setTextColor(WARN) }, full(2)) }
         }
@@ -608,15 +621,22 @@ class ToaPuzzleTool(
         }, CAPTURE_DELAY_MS)
     }
 
+    private fun countdownText() = if (sequenceSecondsLeft > 0) "${sequenceSecondsLeft}s" else ""
+
     private fun watchTiles(id: Int, tiles: ToaReader.SequenceTiles) {
         val started = SystemClock.uptimeMillis()
         var lastFlash = 0L
         var lastLit = -1
+        sequenceSecondsLeft = (WATCH_FIRST_FLASH_MS / 1000).toInt()
+        sequenceCountdown?.text = countdownText()
         val watch = object : Runnable {
             override fun run() {
                 if (destroyed || id != reading) return
                 val now = SystemClock.uptimeMillis()
                 if (capture.gameHidden) { endWatch("You left the game, so watching stopped."); return }
+                // the countdown next to Stop: seconds left to press the button, gone once a tile has flashed
+                val left = if (lastFlash != 0L) 0 else ((WATCH_FIRST_FLASH_MS - (now - started) + 999) / 1000).toInt().coerceAtLeast(0)
+                if (left != sequenceSecondsLeft) { sequenceSecondsLeft = left; sequenceCountdown?.text = countdownText() }
                 // null = the screen hasn't changed since last time
                 val lit = capture.sample { ToaReader.litSequenceTile(it, tiles) }
                 if (lit != null) {
@@ -742,12 +762,14 @@ class ToaPuzzleTool(
 
     // ---- Watching the matching boards ----
     // 3 times a second: one picture, find the boards in it (they move as you walk), and read each tile. A symbol
-    // counts once two pictures agree. Stops by itself when all pairs are matched.
+    // counts once two pictures agree, so when one has just been seen Watch looks again right away (it can vanish as
+    // soon as you step onto the next tile). Stops by itself when all pairs are matched.
 
     private val watchPixels = ReusablePixels()
     private var watchBusy = false
     private var watchStarted = 0L
     private var watchRun = 0                      // counts Watch starts, so a look from before a restart is ignored
+    private var quickLooks = 0                    // quick looks in a row (see MATCH_QUICK_MS)
     private var lastBoards: ToaReader.MatchBoards? = null
     private var mapOverlay: FrameLayout? = null   // the boards drawn on their own at the bottom of the screen
     private var onScreen = false                  // the light, addition or sequence answer is shown at the bottom
@@ -771,6 +793,7 @@ class ToaPuzzleTool(
         showMapOverlay()
         matchNote = "Watching. Walk the tiles."
         lastBoards = null
+        quickLooks = 0
         memory.startWatch()
         watchStarted = SystemClock.uptimeMillis()
         show()
@@ -788,7 +811,7 @@ class ToaPuzzleTool(
         if (!destroyed && ::holder.isInitialized) show()
     }
 
-    private val matchTick = object : Runnable {
+    private val matchTick: Runnable = object : Runnable {
         override fun run() {
             if (!matchWatching || destroyed) return
             if (capture.gameHidden) { stopMatchWatch("You left the game, so watching stopped."); return }
@@ -850,7 +873,13 @@ class ToaPuzzleTool(
                     showMatchNote("Watching. Walk the tiles.")
                     val screenW = context.resources.displayMetrics.widthPixels
                     if (memory.merge(tiles, boards, screenW, SystemClock.uptimeMillis())) { show(); refreshMapOverlay() }
-                    if (memory.done.size == 18) stopMatchWatch("All nine pairs matched: done! ✓")
+                    if (memory.done.size == 18) { stopMatchWatch("All nine pairs matched: done! ✓"); return@post }
+                    // a symbol not settled yet: look again now instead of at the next regular look
+                    if (memory.unsure && quickLooks < MATCH_QUICK_LOOKS) {
+                        quickLooks++
+                        handler.removeCallbacks(matchTick)
+                        handler.postDelayed(matchTick, MATCH_QUICK_MS)
+                    } else quickLooks = 0
                 }
             }.start()
         }

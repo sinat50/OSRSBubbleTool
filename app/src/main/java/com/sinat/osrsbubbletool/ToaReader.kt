@@ -837,7 +837,7 @@ object ToaReader {
     // ---- What Watch remembers from one picture to the next ----
     // Kept here (no Android parts) so the PC replay test follows exactly the same rules as the app.
 
-    private const val MATCH_GLOW_MS = 1_500L   // a tile must glow this long to count as matched
+    private const val MATCH_GLOW_MS = 800L     // a tile must glow this long to count as matched
     private const val LONE_GLOW_MS = 4_000L    // …or this long if its partner can't be seen
     // The symbols that can turn up in a solo raid (the other four pairs start matched)
     private val SOLO_SYMBOLS = listOf(ToaPuzzles.Symbol.DIAMOND, ToaPuzzles.Symbol.KNIVES, ToaPuzzles.Symbol.STAR,
@@ -853,6 +853,9 @@ object ToaReader {
         private val glowSince = HashMap<Int, Long>()       // per tile: when it started glowing (it must keep glowing to count)
         private val glowNearUi = HashSet<Int>()            // glowing tiles seen near the game's buttons (orbs, minimap, inventory)
         private var soloRaid: Boolean? = null              // four pairs already matched on each board when watching began
+        // the last picture showed a symbol not settled yet: Watch looks again straight away, before you step off it
+        var unsure = false
+            private set
 
         // The symbols a tile could show: in a solo raid, only the five that start unmatched
         val allowed: List<ToaPuzzles.Symbol> get() = if (soloRaid == true) SOLO_SYMBOLS else ToaPuzzles.MATCHING_SYMBOLS
@@ -872,6 +875,7 @@ object ToaReader {
             // like a glowing tile; a glow seen there needs a partner to count
             fun nearUi(t: Int) = boards.tileX(t) !in (screenW * 0.1f)..(screenW * 0.72f)
             var changed = false
+            unsure = false
             for (t in 0 until 18) {
                 val tile = tiles[t]
                 when (tile.state) {
@@ -888,13 +892,13 @@ object ToaReader {
                         glowNearUi.remove(t)
                         // the tile you've just flipped (it shows its symbol while you stand on it)
                         if (active != t) { active = t; changed = true }
-                        val sym = tile.symbol ?: continue
+                        val sym = tile.symbol ?: run { unsure = true; continue }
                         val k = ToaPuzzles.MATCHING_SYMBOLS.indexOf(sym)
                         val v = votes.getOrPut(t) { IntArray(9) }
                         v[k]++
                         // the symbol most pictures agreed on, once at least two did (or one was very clear)
                         val best = v.indices.maxBy { v[it] }
-                        if (v[best] < 2 && tile.sure < 0.8f) continue
+                        if (v[best] < 2 && tile.sure < 0.8f) { unsure = true; continue }
                         val chosen = ToaPuzzles.MATCHING_SYMBOLS[best]
                         if (symbols[t] == chosen) continue
                         // each board has each symbol once: keep whichever tile it was seen on more

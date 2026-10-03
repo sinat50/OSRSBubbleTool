@@ -29,3 +29,6 @@ local.properties
 # Python leftovers from the scripts in tools/
 __pycache__/
 *.pyc
+
+# The trailer kit: videos, stills and their source (kept on this computer only, not part of the app)
+/trailer/
