@@ -1,26 +1,41 @@
 package com.sinat.osrsbubbletool
 
+import android.content.ContentValues
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.SeekBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.content.edit
 import androidx.core.graphics.toColorInt
 import java.io.File
 
-// The Game Room: small games to play while you wait in the game: 2048 and Wing It.
+// The Game Room: small games to play while you wait in the game: 2048, Wing It and the Zen Garden.
 // (The games are the app's own and use nothing from Old School RuneScape: Jagex's Fan Content Policy
 // doesn't allow games made with its content.)
-class GameRoomTool(private val context: Context) {
+// fadeWindow(faded, wake): fades the window's own move and resize symbols (or brings them back); `wake` is called
+// when one of them is touched while faded. frameless(on): the window shows without its top bar and background
+// (the Zen Garden's zen mode).
+class GameRoomTool(
+    private val context: Context,
+    private val fadeWindow: (Boolean, () -> Unit) -> Unit = { _, _ -> },
+    private val frameless: (Boolean) -> Unit = {},
+    private val pinCorners: (Int, Int, Int, Int) -> Unit = { _, _, _, _ -> },
+) {
 
     companion object {
         private val PARCHMENT = "#F2E3C0".toColorInt()
@@ -42,7 +57,32 @@ class GameRoomTool(private val context: Context) {
         "each one you pass scores a point. Touching a pillar or the ground ends the round.\n\n" +
         "The gaps slowly get smaller as your score goes up. If you close the window mid-flight, the game pauses: tap to carry on."
 
-    private enum class Screen { MENU, G2048, FLYER }
+    private val HELP_SAND = "The garden floats on its own (zen mode). Tap it to show the icons in the bottom left; they fade " +
+        "away after 3 seconds, or as soon as you start dragging. (A tap that places something doesn't bring them " +
+        "back; tap the tray's bottom-left corner, where the frame has a little arrow, to see them again.) The " +
+        "move and resize symbols work even while faded. Drag the four-way arrow in the top right to move the " +
+        "garden, and the corner in the bottom right to resize it (double-tap the corner for the normal size).\n\n" +
+        "Drag across the sand to rake. Hold your finger still on a stone (or anything placed) and the rake circles it; " +
+        "hold again for the next ring out.\n\n" +
+        "The icons, left to right:\n" +
+        "\u2022 The tool: the Rake (five lines), the Stick (one line) or the Brush (wipes a patch smooth), or something " +
+        "to place: a Stone, Flowers, a Lantern, a Bonsai or Fireflies. Tap the sand to place one, tap it again to take it " +
+        "away, or drag it to move it. Tap a glowing firefly to let it fly away.\n" +
+        "\u2022 Auto (the spiral): rakes calm patterns by itself, slowly, in a random order (Rows, Seed of Life, Spiral, " +
+        "Lotus, Waves, Golden Spiral, Ripples), smoothing between them and raking rings around what you've placed. Its " +
+        "name shows above the icons. You can place and move things while it works.\n" +
+        "\u2022 Undo (the back arrow): takes back your last few changes.\n" +
+        "\u2022 Smooth (the eraser): wipes the whole tray smooth; what you placed stays.\n" +
+        "\u2022 Brightness (the sun): darker makes the lanterns and fireflies glow.\n" +
+        "\u2022 Volume (the speaker): the raking sound; all the way left is off.\n" +
+        "\u2022 Settings (the gear): clear everything placed, scale the garden to the window (on: resizing makes it " +
+        "bigger or smaller; off: resizing adds sand or cuts it off), the triangle grid to snap things to, Steady hand " +
+        "(nearly straight lines become straight and nearly round ones perfect curves), the sand's colour, and saving a " +
+        "picture.\n" +
+        "\u2022 Help, and Exit (red), back to the Game Room.\n\n" +
+        "Your garden is saved as you go."
+
+    private enum class Screen { MENU, G2048, FLYER, SAND }
 
     private val prefs = context.getSharedPreferences("game_room", Context.MODE_PRIVATE)
 
@@ -63,10 +103,13 @@ class GameRoomTool(private val context: Context) {
         return holder
     }
 
-    // The bubble is shutting down (nothing runs in the background, so there's nothing to stop)
-    fun destroy() {}
+    // The bubble is shutting down (nothing runs in the background, so there's nothing to stop; the garden is saved)
+    fun destroy() { sandView?.save() }
 
-    // The window's ◀ button
+    // The window was closed: its symbols show again next time it opens
+    fun onWindowClosed() { fadeWindow(false) {} }
+
+    // The window's ◀ button (and the Zen Garden's exit)
     fun goBack() {
         flyerView?.pauseIfPlaying()
         screen = Screen.MENU
@@ -84,11 +127,17 @@ class GameRoomTool(private val context: Context) {
 
     private fun show() {
         if (!::holder.isInitialized) return
+        // the Zen Garden has no window around it: no top bar, no background
+        val zen = screen == Screen.SAND
+        frameless(zen)
+        holder.background?.alpha = if (zen) 0 else 255
+        if (!zen) { zenScreen = null; fadeWindow(false) {} }
         holder.removeAllViews()
         holder.addView(when (screen) {
             Screen.MENU -> menu()
             Screen.G2048 -> game2048()
             Screen.FLYER -> flyer()
+            Screen.SAND -> sandGarden()
         })
         openHelp?.let { (t, h) -> showHelp(t, h) }
     }
@@ -102,6 +151,7 @@ class GameRoomTool(private val context: Context) {
         val games = listOf(
             Triple(GameIcon.G2048, "2048", "Join the tiles, reach 2048") to { open(Screen.G2048) },
             Triple(GameIcon.FLYER, "Wing It", "Tap to fly through the gaps") to { open(Screen.FLYER) },
+            Triple(GameIcon.SAND, "Zen Garden", "Rake lines in the sand") to { open(Screen.SAND) },
         )
         for (row in games.chunked(2)) {
             addView(LinearLayout(context).apply {
@@ -257,6 +307,227 @@ class GameRoomTool(private val context: Context) {
         addView(game, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f).apply { topMargin = dp(6) })
     }
 
+    // ---------------- Zen Garden ----------------
+
+    private var sandView: SandGardenView? = null
+    private var zenScreen: ZenScreen? = null
+    private val ICON_BACK = Color.argb(190, 62, 44, 18)
+
+    // Zen mode: just the tray, with round icons in the bottom left that come and go (see ZenScreen). The garden
+    // scales to fit the window (or, with scaling off in the settings, grows and shrinks with it).
+    private fun sandGarden(): View {
+        val garden = SandGardenView(context, File(context.filesDir, "zen_garden.bin"),
+            prefs.getInt("sand_tool", SandGardenView.RAKE).coerceIn(0, SandGardenView.TOOL_NAMES.size - 1)).apply {
+            scaleToFit = prefs.getBoolean("sand_scale", true)
+            val vol = prefs.getInt("sand_volume", 50)
+            soundOn = vol > 0
+            volume = vol / 50f
+            steadyHand = prefs.getBoolean("sand_steady", false)
+            gridOn = prefs.getBoolean("sand_grid", false)
+            brightness = prefs.getInt("sand_brightness", 100) / 100f
+            sand = prefs.getInt("sand_colour", 0)
+        }
+        sandView = garden
+        val size = dp(34)
+        fun icon(kind: Int, color: Int = ICON_BACK, onClick: (ZenIcon) -> Unit) = ZenIcon(context, kind, color).apply {
+            tag = 0f   // keeps its size in the row
+            layoutParams = ViewGroup.LayoutParams(size, size)
+            setOnClickListener { onClick(this) }
+        }
+
+        // the sliders that open above the icons (one at a time)
+        val sliderSpot = FrameLayout(context)
+        var openSlider: View? = null
+        fun closeSlider() { sliderSpot.removeAllViews(); openSlider = null }
+        fun slider(left: String, right: String, value: Int, change: (Int) -> Unit, done: (Int) -> Unit) = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(4), dp(10), dp(4))
+            background = GradientDrawable().apply { setColor(ICON_BACK); cornerRadius = dp(18).toFloat() }
+            addView(label(left, 10f).apply { setTextColor(Color.WHITE) })
+            addView(SeekBar(context).apply {
+                max = 100
+                progress = value
+                progressTintList = android.content.res.ColorStateList.valueOf("#F2E3C0".toColorInt())
+                thumbTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(bar: SeekBar, v: Int, fromUser: Boolean) { change(v) }
+                    override fun onStartTrackingTouch(bar: SeekBar) {}
+                    override fun onStopTrackingTouch(bar: SeekBar) { done(bar.progress) }
+                })
+            }, LinearLayout.LayoutParams(dp(170), ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(label(right, 10f).apply { setTextColor(Color.WHITE) })
+        }
+        fun toggleSlider(make: () -> View) {
+            val was = openSlider
+            closeSlider()
+            if (was != null && was.tag == make) return   // tapped its icon again: just close it
+            openSlider = make().also { it.tag = make }
+            sliderSpot.addView(openSlider)
+        }
+        val makeLight: () -> View = {
+            slider("Dark", "Bright", prefs.getInt("sand_brightness", 100),
+                { garden.brightness = it / 100f }, { v -> prefs.edit { putInt("sand_brightness", v) } })
+        }
+        lateinit var volumeIcon: ZenIcon
+        val makeVolume: () -> View = {
+            slider("Off", "Loud", prefs.getInt("sand_volume", 50), { v ->
+                garden.soundOn = v > 0
+                garden.volume = v / 50f
+                volumeIcon.muted = v == 0
+            }, { v -> prefs.edit { putInt("sand_volume", v) } })
+        }
+
+        // the icons: tool, Auto, Undo, Smooth, brightness, volume, settings, help, exit
+        val toolIcon = icon(garden.tool) { me -> chooseSandTool(garden) { me.kind = garden.tool } }
+        val autoIcon = icon(ZenIcon.AUTO) {
+            garden.setAuto(!garden.autoOn)
+        }
+        val undoIcon = icon(ZenIcon.UNDO) { garden.undo() }
+        garden.onUndoChanged = { undoIcon.alpha = if (garden.canUndo) 1f else 0.45f }
+        undoIcon.alpha = 0.45f
+        volumeIcon = icon(ZenIcon.VOLUME) { toggleSlider(makeVolume) }.apply { muted = prefs.getInt("sand_volume", 50) == 0 }
+        val icons = FlowRow(context).apply {
+            addView(toolIcon)
+            addView(autoIcon)
+            addView(undoIcon)
+            addView(icon(ZenIcon.SMOOTH) { garden.smooth() })
+            addView(icon(ZenIcon.LIGHT) { toggleSlider(makeLight) })
+            addView(volumeIcon)
+            addView(icon(ZenIcon.GEAR) { sandSettings(garden) })
+            addView(icon(ZenIcon.HELP) { showHelp("Zen Garden", HELP_SAND) })
+            addView(icon(ZenIcon.EXIT, STOP_RED) { goBack() })
+        }
+        // the name of the pattern Auto is raking, above the icons
+        val pattern = label("", 11f).apply {
+            setTextColor(Color.WHITE)
+            setShadowLayer(dp(2).toFloat(), 0f, 0f, Color.BLACK)
+            visibility = View.GONE
+        }
+        garden.onAutoPattern = { name ->
+            pattern.text = name ?: ""
+            pattern.visibility = if (name == null) View.GONE else View.VISIBLE
+            autoIcon.setFill(if (name == null) ICON_BACK else GO_GREEN)
+        }
+        val dock = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            // inside the tray's frame, clear of the resize symbol in the bottom right
+            setPadding(dp(14), 0, dp(34), dp(14))
+            addView(pattern, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(4) })
+            addView(sliderSpot, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6) })
+            addView(icons, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+
+        return ZenScreen(context, garden, dock, icons).also { zen ->
+            zenScreen = zen
+            zen.keepShowing = { holder.childCount > 1 }   // a card is open
+            zen.onHide = { closeSlider() }
+            zen.onShownChanged = { shown -> fadeWindow(!shown) { zen.showControls() } }
+            garden.onDragging = { zen.hideControls() }    // out of the way while you drag a tool or an object
+            zen.onTrayPlaced = pinCorners                 // the window's move and resize symbols go on the tray's corners
+        }
+    }
+
+    // The tool button's card: what to draw with, or what to place
+    private fun chooseSandTool(garden: SandGardenView, picked: () -> Unit) = showCard("Tools") { close ->
+        val names = SandGardenView.TOOL_NAMES
+        fun row(tools: IntRange) = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            for (t in tools) addView(button(names[t], if (t == garden.tool) GO_GREEN else BUTTON_BROWN) {
+                garden.tool = t
+                prefs.edit { putInt("sand_tool", t) }
+                picked()
+                close()
+                // something to place (or fireflies to let out): the icons go at once, out of the way
+                if (t >= SandGardenView.STONE) zenScreen?.hideControls()
+            }.apply { textSize = 12f }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(4) })
+        }
+        addView(label("Draw in the sand", 11f).apply { setTextColor(FADED) }, full(6))
+        addView(row(SandGardenView.RAKE..SandGardenView.BRUSH), full(3))
+        addView(label("Place (tap the sand; tap one again to take it away)", 11f).apply { setTextColor(FADED) }, full(8))
+        addView(row(SandGardenView.STONE..SandGardenView.BONSAI), full(3))
+        addView(label("Let out (tap the sand; tap one to let it fly away)", 11f).apply { setTextColor(FADED) }, full(8))
+        addView(row(SandGardenView.FIREFLY..SandGardenView.FIREFLY), full(3))
+    }
+
+    // The More card: clearing, sound, steady hand, the triangle grid, the sand's colour, and saving a picture
+    private fun sandSettings(garden: SandGardenView) = showCard("Garden") { close ->
+        addView(toggleRow("Scale garden to window", "sand_scale", true) { garden.scaleToFit = it }, full(6))
+        addView(toggleRow("Steady hand", "sand_steady", false) { garden.steadyHand = it }, full(4))
+        addView(toggleRow("Triangle grid", "sand_grid", false) { garden.gridOn = it }, full(4))
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(label("Sand", 12f), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            val swatches = ArrayList<View>()
+            fun mark() = swatches.forEachIndexed { i, v ->
+                (v.background as GradientDrawable).setStroke(if (i == garden.sand) dp(3) else dp(1), if (i == garden.sand) DARK_BROWN else FADED)
+            }
+            SandGardenView.SANDS.forEachIndexed { i, colours ->
+                val v = View(context).apply {
+                    contentDescription = SandGardenView.SAND_NAMES[i]
+                    background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(colours[1]) }
+                    setOnClickListener {
+                        garden.sand = i
+                        prefs.edit { putInt("sand_colour", i) }
+                        mark()
+                    }
+                }
+                swatches.add(v)
+                addView(v, LinearLayout.LayoutParams(dp(30), dp(30)).apply { leftMargin = dp(6) })
+            }
+            mark()
+        }, full(8))
+        addView(button("Clear placed things", STOP_RED) { garden.clearItems(); close() }, full(10))
+        addView(button("Save picture to phone") { saveGardenPicture(garden) }, full(6))
+        addView(button("Done", GO_GREEN) { close() }, full(6))
+    }
+
+    // A setting with an On/Off button, remembered in the Game Room's settings
+    private fun toggleRow(text: String, key: String, default: Boolean, apply: (Boolean) -> Unit) = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        addView(label(text, 12f), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val b = button("") {}.apply { textSize = 11f; setPadding(dp(8), dp(5), dp(8), dp(5)) }
+        fun show(on: Boolean) {
+            b.text = if (on) "On" else "Off"
+            (b.background as GradientDrawable).setColor(if (on) GO_GREEN else BUTTON_BROWN)
+        }
+        show(prefs.getBoolean(key, default))
+        b.setOnClickListener {
+            val on = !prefs.getBoolean(key, default)
+            prefs.edit { putBoolean(key, on) }
+            show(on)
+            apply(on)
+        }
+        addView(b, LinearLayout.LayoutParams(dp(52), ViewGroup.LayoutParams.WRAP_CONTENT))
+    }
+
+    // Saves the garden as a PNG in Pictures/OSRS Bubble Tool (like the DPS tool's "Save picture")
+    private fun saveGardenPicture(garden: SandGardenView) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            Toast.makeText(context, "Saving pictures needs Android 10 or newer.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val picture = garden.picture() ?: return
+        try {
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "zen-garden-${System.currentTimeMillis()}.png")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/OSRS Bubble Tool")
+            }
+            val resolver = context.contentResolver
+            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: throw IllegalStateException("couldn't create the file")
+            resolver.openOutputStream(uri)?.use { picture.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            Toast.makeText(context, "Saved to Pictures/OSRS Bubble Tool.", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(context, "Couldn't save the picture: ${e.message}", Toast.LENGTH_LONG).show()
+        } finally {
+            picture.recycle()
+        }
+    }
+
     // ---------------- Small building blocks ----------------
 
     private fun helpButton(title: String, help: String) = TextView(context).apply {
@@ -274,11 +545,20 @@ class GameRoomTool(private val context: Context) {
 
     private fun showHelp(title: String, help: String) {
         openHelp = title to help
+        showCard("How to play: $title", onClose = { openHelp = null }) { close ->
+            addView(label(help, 12f).apply { setLineSpacing(0f, 1.1f) }, full(6))
+            addView(button("Got it", GO_GREEN) { close() }, full(10))
+        }
+    }
+
+    // A card on top of the screen; tapping outside it closes it
+    private fun showCard(title: String, onClose: () -> Unit = {}, build: LinearLayout.(close: () -> Unit) -> Unit) {
+        zenScreen?.showControls()
         val cover = FrameLayout(context).apply {
             setBackgroundColor("#993E2C12".toColorInt())
             isClickable = true
         }
-        val close = { openHelp = null; holder.removeView(cover) }
+        val close: () -> Unit = { onClose(); holder.removeView(cover); zenScreen?.showControls() }
         cover.setOnClickListener { close() }
         cover.addView(ScrollView(context).apply {
             addView(LinearLayout(context).apply {
@@ -286,9 +566,8 @@ class GameRoomTool(private val context: Context) {
                 setPadding(dp(12), dp(10), dp(12), dp(10))
                 background = GradientDrawable().apply { setColor(PAPER); setStroke(dp(1), BUTTON_BROWN); cornerRadius = dp(8).toFloat() }
                 isClickable = true   // taps on the card don't close it
-                addView(label("How to play: $title", 13f, bold = true), full())
-                addView(label(help, 12f).apply { setLineSpacing(0f, 1.1f) }, full(6))
-                addView(button("Got it", GO_GREEN) { close() }, full(10))
+                addView(label(title, 13f, bold = true), full())
+                build(close)
             })
         }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER).apply {
             setMargins(dp(10), dp(10), dp(10), dp(10))
@@ -336,6 +615,7 @@ class GameIcon(context: Context, private val kind: Int) : View(context) {
     companion object {
         const val G2048 = 2
         const val FLYER = 3
+        const val SAND = 4
     }
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -352,6 +632,7 @@ class GameIcon(context: Context, private val kind: Int) : View(context) {
         when (kind) {
             G2048 -> tiles(canvas, s)
             FLYER -> flyer(canvas, s)
+            SAND -> sand(canvas, s)
         }
     }
 
@@ -370,6 +651,26 @@ class GameIcon(context: Context, private val kind: Int) : View(context) {
             text.textSize = cell * if (label.length >= 4) 0.3f else 0.5f
             canvas.drawText(label, x + cell / 2, y + cell / 2 - (text.descent() + text.ascent()) / 2, text)
         }
+    }
+
+    // raked sand: straight lines at the top, rings around a stone below
+    private fun sand(canvas: Canvas, s: Float) {
+        paint.color = "#DCC594".toColorInt()
+        canvas.drawRoundRect(s * 0.08f, s * 0.08f, s * 0.92f, s * 0.92f, s * 0.1f, s * 0.1f, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = s * 0.035f
+        paint.color = "#A88D60".toColorInt()
+        canvas.drawLine(s * 0.14f, s * 0.2f, s * 0.86f, s * 0.2f, paint)
+        canvas.drawLine(s * 0.14f, s * 0.29f, s * 0.86f, s * 0.29f, paint)
+        canvas.drawCircle(s * 0.6f, s * 0.64f, s * 0.19f, paint)
+        canvas.drawCircle(s * 0.6f, s * 0.64f, s * 0.27f, paint)
+        paint.style = Paint.Style.FILL
+        paint.color = "#55000000".toColorInt()
+        canvas.drawCircle(s * 0.62f, s * 0.67f, s * 0.11f, paint)
+        paint.color = "#7A746C".toColorInt()
+        canvas.drawCircle(s * 0.6f, s * 0.64f, s * 0.1f, paint)
+        paint.color = "#A39C92".toColorInt()
+        canvas.drawCircle(s * 0.57f, s * 0.61f, s * 0.04f, paint)
     }
 
     // a little bird between two pillars

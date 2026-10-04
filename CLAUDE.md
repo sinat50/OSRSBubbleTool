@@ -18,8 +18,13 @@ is at the top of the script.
 
 - The owner has no coding experience. Explain in plain language, give exact click-by-click steps for
   Android Studio (Windows), and write code comments in plain language too.
+- **Always ask the owner before sending any input to their phone.** No taps, swipes, key presses or other
+  input (`adb shell input`, `monkey`, and so on), and no opening the app on their screen (`am start`), without
+  asking first, every time. The app is made for Old School RuneScape: any automated input while the game is
+  running could get the owner's account banned. Installing a build is fine without asking. Taking a screenshot
+  is fine when they ask for one or agree to it.
 - They test by pressing ▶ in Android Studio on a Samsung phone (SM-S942W), usually in landscape. The phone
-  is often plugged into the PC, so builds can be installed and checked directly (see Checking your work).
+  is often plugged into the PC, so builds can be installed directly (see Checking your work).
 - Priorities, in order: battery, storage, accuracy. Nothing runs in the background unless it must.
 - The signing key lives in `C:\Users\Tanis\Documents\Androiddev\Keys\` and must never be uploaded, moved
   into the project or committed. Don't ask for access to that folder.
@@ -51,7 +56,7 @@ Code: `app/src/main/java/com/sinat/osrsbubbletool/` (one file per tool, roughly)
 | `HunterRumourTool.kt`, `HunterRumours.kt` | Hunter Rumours |
 | `ZulrahTool.kt` | Zulrah Helper |
 | `FarmingTool.kt`, `FarmingTimers.kt`, `FarmingTimerReceiver.kt` | Timers (one exact alarm per timer, no background work) |
-| `GameRoomTool.kt`, `Game2048View.kt`, `FlyerView.kt`, `GameData.kt` | Game Room: 2048 and Wing It |
+| `GameRoomTool.kt`, `Game2048View.kt`, `FlyerView.kt`, `GameData.kt`, `SandGardenView.kt`, `SandSound.kt`, `SandGardenLayout.kt` | Game Room: 2048, Wing It and the Zen Garden (`SandSound` = its raking sound, made in code: filtered noise whose tone was fitted to the owner's recording `tools/sandsound.mp3`; placed things are baked into the sand's own surface (`bake`: height, colour and soft outline per square) so the sun, lantern and firefly light and shadows treat them like the sand; `SandGardenLayout` = zen mode: `ZenScreen` (the tray with round `ZenIcon`s in its bottom-left corner that hide after 3 s or when a drag starts; a tap brings them back unless it placed something) and `FlowRow`; the window has no top bar or background (`BubbleService.setGamesFrameless`, with a move symbol top right; both symbols are pinned to the tray's corners by `pinGamesCorners`) and its move/resize symbols fade with the icons (`setWindowFaded`); the garden scales to fit the window unless "Scale garden to window" is off) |
 | `CalculatorTool.kt`, `NotesTool.kt`, `UpdateChecker.kt`, `WikiLinkActivity.kt` | Calculator, Notepad, GitHub update check, wiki links opening in the bubble |
 
 Resources: `app/src/main/res/`: `drawable/ic_bubble.xml` (the bubble), `ic_launcher_bubble*.xml` and
@@ -122,7 +127,13 @@ Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're gener
   if only the game is shared and you leave it (`capture.gameHidden`), they stop and take their outlines off
   the screen. A re-plan needs a fresh picture, so it must `grab()` before anything `sample()`s that tick.
   Heavy work (finding the puzzle, reading tiles, recognising gear) runs on background threads.
-- **Battery**: web pages in hidden windows are paused; Wing It only animates while you're playing; nothing
+- **Battery**: web pages in hidden windows are paused; Wing It only animates while you're playing; the Zen
+  Garden's sand is a height grid (one square per dp) redrawn only where the rake touched it, its sound thread
+  runs only while raking, and its light is fixed (a slider only changes a wash and the lantern strength); while a lantern is
+  out and the garden is on screen it redraws ~25 times a second for the flame flicker (only the brightness of each
+  lantern's own ready-made light picture changes, each in its own time, nothing is recalculated); the auto rake and the fireflies each run ~30 frames a
+  second only while switched on / let out and the garden is on screen (a glowing firefly relights only its own
+  patch, every other square); nothing
   allocates objects in `onDraw`.
 - **Teleport Finder routes**: `WalkMap` spreads out from the target (reverse Dijkstra over the collision
   map plus `walks.txt`). Walks can carry requirements ("70 Agility; Regicide"); with WikiSync set up, ones
@@ -207,9 +218,10 @@ Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're gener
 - The owner is happy to be asked for screenshots ("screenshot") or to describe what they see; taking one with
   `adb exec-out screencap -p` while they play is the fastest way to understand a problem.
 - Phone plugged in: `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe install -r
-  app\build\outputs\apk\debug\app-debug.apk` installs the build (same as ▶; it closes the bubble, so the
-  owner has to tap Start Bubble again), and `adb shell dumpsys window windows` shows where the app's
-  windows really are on screen.
+  app\build\outputs\apk\debug\app-debug.apk` installs the build (fine without asking; same as ▶; it closes the bubble, so
+  the owner has to tap Start Bubble again), and `adb shell dumpsys window windows` shows where the app's
+  windows really are on screen. Never send input (`adb shell input` taps or swipes) to the phone without asking
+  first, every time: the game may be running, and automated input could get their account banned.
 - `TeleportData.kt` and `WalkMap.kt` have no Android parts, so routes can be tested on a computer with
   `tools/teleport-finder/test/` (see its README section).
 - When writing files to the owner's computer remotely: write, wait a few seconds, then read the file back

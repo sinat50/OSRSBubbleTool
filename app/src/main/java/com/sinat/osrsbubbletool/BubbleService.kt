@@ -576,6 +576,7 @@ class BubbleService : Service() {
 
     private fun showToolWindow() {
         val window = toolWindows.getOrPut(currentTool) { buildToolWindow(currentTool) }
+        if (currentTool == Tool.GAMES) applyFrameless(window)
         val params = makeWindowParams()
         shownWantY = params.y
         shownWantH = params.height
@@ -591,6 +592,10 @@ class BubbleService : Service() {
 
     private fun hideToolWindow() {
         if (compactSaved != null) setWindowCompact(COMPACT_OFF)   // a shrunk window opens whole, at its normal size, next time
+        if (windowFaded) {   // a faded window opens whole next time
+            windowFaded = false
+            shownWindow?.let { w -> showChrome(w, 1f, 0) }
+        }
         val wasShowing = shownWindow != null
         shownWindow?.let { windowManager.removeView(it) }
         shownWindow = null
@@ -599,6 +604,85 @@ class BubbleService : Service() {
             setWebPagesRunning(false)
             toolParts[currentTool]?.onClosed?.invoke()
         }
+    }
+
+    // A tool asks for its window's frame (the top bar, the resize corner and the background) to fade away, leaving
+    // only what the tool shows (the Zen Garden's zen mode), or to come back. While faded, touching the top bar only
+    // brings it back (through `onWake`); the move and resize symbols work straight away and bring it back too.
+    private var windowFaded = false
+    private var fadeWake: (() -> Unit)? = null
+
+    private fun setWindowFaded(faded: Boolean, onWake: () -> Unit) {
+        fadeWake = onWake
+        val window = shownWindow ?: return
+        if (faded == windowFaded) return
+        windowFaded = faded
+        showChrome(window, if (faded) 0f else 1f, if (faded) 1500L else 250L)
+    }
+
+    private fun showChrome(window: LinearLayout, alpha: Float, time: Long) {
+        val bar = window.getChildAt(0)
+        val body = window.getChildAt(1) as? ViewGroup
+        val corner = body?.let { if (it.childCount > 1) it.getChildAt(1) else null }
+        val mover = body?.let { if (it.childCount > 2) it.getChildAt(2) else null }
+        for (v in listOfNotNull(bar, corner, mover)) {
+            v.animate().cancel()
+            if (time == 0L) v.alpha = alpha else v.animate().alpha(alpha).setDuration(time).start()
+        }
+        if (gamesFrameless && window === toolWindows[Tool.GAMES]) return   // no background to fade
+        val back = window.background ?: return
+        val to = (alpha * 255).toInt()
+        if (time == 0L) back.alpha = to
+        else android.animation.ValueAnimator.ofInt(back.alpha, to).apply {
+            duration = time
+            addUpdateListener { back.alpha = it.animatedValue as Int }
+            start()
+        }
+    }
+
+    // The Game Room's Zen Garden shows with no window around it: no top bar or background, just a move symbol in
+    // the top right (with the resize symbol in the bottom right). Asked for while the window is being built, so
+    // it's remembered and applied once the window exists.
+    private var gamesFrameless = false
+
+    private fun setGamesFrameless(on: Boolean) {
+        gamesFrameless = on
+        toolWindows[Tool.GAMES]?.let { applyFrameless(it) }
+    }
+
+    private fun applyFrameless(window: LinearLayout) {
+        val on = gamesFrameless
+        window.getChildAt(0).visibility = if (on) View.GONE else View.VISIBLE
+        window.background?.alpha = if (on) 0 else 255
+        (window.getChildAt(1) as? ViewGroup)?.let { if (it.childCount > 2) it.getChildAt(2).visibility = if (on) View.VISIBLE else View.GONE }
+        if (!on) pinGamesCorners(-1, -1, -1, -1)   // the resize corner back in the window's corner
+    }
+
+    // The Zen Garden's tray may not fill its window (it keeps its shape when scaled): put the move and resize
+    // symbols on the tray's own top-right and bottom-right corners (given in the window's content; -1 = the window's)
+    private fun pinGamesCorners(left: Int, top: Int, right: Int, bottom: Int) {
+        val body = toolWindows[Tool.GAMES]?.getChildAt(1) as? ViewGroup ?: return
+        if (body.childCount < 3) return
+        val corner = body.getChildAt(1)
+        val mover = body.getChildAt(2)
+        val reset = right < 0
+        (corner.layoutParams as? FrameLayout.LayoutParams)?.let {
+            it.rightMargin = if (reset) 0 else maxOf(0, body.width - right)
+            it.bottomMargin = if (reset) 0 else maxOf(0, body.height - bottom)
+            corner.layoutParams = it
+        }
+        (mover.layoutParams as? FrameLayout.LayoutParams)?.let {
+            it.rightMargin = if (reset) 0 else maxOf(0, body.width - right)
+            it.topMargin = if (reset) 0 else maxOf(0, top)
+            mover.layoutParams = it
+        }
+    }
+
+    // Touched the faded frame: bring it back (returns true if it was faded, so the touch does nothing else)
+    private fun wakeChrome(): Boolean {
+        if (!windowFaded) return false
+        fadeWake?.invoke()
+        return true
     }
 
     // A tool asks for its window to shrink to just what's in it (no title bar) in a corner (COMPACT_TOP_LEFT or
@@ -808,7 +892,9 @@ class BubbleService : Service() {
         }
         Tool.CALCULATOR -> CalculatorTool(this).let { t -> ToolParts(t::buildView, onBack = null) }
         Tool.NOTES -> NotesTool(this).let { t -> ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed) }
-        Tool.GAMES -> GameRoomTool(this).let { t -> ToolParts(t::buildView, t::goBack, onDestroy = t::destroy) }
+        Tool.GAMES -> GameRoomTool(this, ::setWindowFaded, ::setGamesFrameless, ::pinGamesCorners).let { t ->
+            ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed, onDestroy = t::destroy)
+        }
         Tool.HUNTER -> HunterRumourTool(this, openWikiSync = { openWikiSync(Tool.HUNTER) }).let { t ->
             ToolParts(t::buildView, t::goBack)
         }
@@ -834,7 +920,7 @@ class BubbleService : Service() {
             textSize = 15f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            setOnClickListener { onClick() }
+            setOnClickListener { if (!wakeChrome()) onClick() }
             layoutParams = LinearLayout.LayoutParams(dp(BAR_BUTTON_WIDTH_DP), ViewGroup.LayoutParams.MATCH_PARENT)
         }
 
@@ -858,8 +944,11 @@ class BubbleService : Service() {
         var startWindowY = 0
         val canResize = isResizable(currentTool)
         if (canResize) dragHandle.text = "✥"   // these windows move up and down too
+        var wokeOnly = false   // this touch only brought a faded frame back
         dragHandle.setOnTouchListener { _, event ->
             val params = shownParams ?: return@setOnTouchListener false
+            if (event.action == MotionEvent.ACTION_DOWN) wokeOnly = wakeChrome()
+            if (wokeOnly) return@setOnTouchListener true
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     downRawX = event.rawX
@@ -896,6 +985,8 @@ class BubbleService : Service() {
         val body = FrameLayout(this).apply {
             addView(content, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             if (canResize) addView(resizeCorner(), FrameLayout.LayoutParams(dp(26), dp(26), Gravity.BOTTOM or Gravity.END))
+            // the move symbol, only shown in a window without its top bar (see setGamesFrameless)
+            if (canResize) addView(moveCorner().apply { visibility = View.GONE }, FrameLayout.LayoutParams(dp(30), dp(30), Gravity.TOP or Gravity.END))
         }
 
         return LinearLayout(this).apply {
@@ -919,6 +1010,56 @@ class BubbleService : Service() {
 
     private val minWindowWidth get() = dp(150)
     private val minWindowHeight get() = dp(140)
+
+    // The move symbol (for windows without a top bar): drag it to move the window anywhere
+    @SuppressLint("ClickableViewAccessibility")
+    private fun moveCorner(): View = object : View(this) {
+        private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            strokeWidth = dp(2).toFloat()
+            strokeCap = android.graphics.Paint.Cap.ROUND
+            style = android.graphics.Paint.Style.STROKE
+        }
+        private val back = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = "#B33E2C12".toColorInt() }
+        override fun onDraw(canvas: android.graphics.Canvas) {
+            val w = width.toFloat()
+            val c = w / 2
+            // a dark circle with a four-way arrow, like the top bar's move symbol
+            canvas.drawCircle(c, c, c * 0.95f, back)
+            paint.color = "#F2E3C0".toColorInt()
+            val r = w * 0.3f
+            val head = w * 0.1f
+            canvas.drawLine(c - r, c, c + r, c, paint)
+            canvas.drawLine(c, c - r, c, c + r, paint)
+            for ((dx, dy) in listOf(1 to 0, -1 to 0, 0 to 1, 0 to -1)) {
+                val tx = c + dx * r; val ty = c + dy * r
+                canvas.drawLine(tx, ty, tx - dx * head + dy * head, ty - dy * head + dx * head, paint)
+                canvas.drawLine(tx, ty, tx - dx * head - dy * head, ty - dy * head - dx * head, paint)
+            }
+        }
+    }.apply {
+        var downRawX = 0f; var downRawY = 0f
+        var startX = 0; var startY = 0
+        setOnTouchListener { _, e ->
+            val params = shownParams ?: return@setOnTouchListener false
+            if (e.actionMasked == MotionEvent.ACTION_DOWN) wakeChrome()   // works even while faded (and brings it back)
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downRawX = e.rawX; downRawY = e.rawY
+                    startX = params.x; startY = params.y
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    params.x = (startX + (e.rawX - downRawX).toInt()).coerceIn(0, maxOf(0, screenWidth() - params.width))
+                    windowX = params.x
+                    val maxY = maxOf(0, screenHeight() - params.height)
+                    params.y = (startY + (e.rawY - downRawY).toInt()).coerceIn(minOf(statusBarTop, maxY), maxY)
+                    windowY = params.y
+                    shownWantY = params.y
+                    shownWindow?.let { windowManager.updateViewLayout(it, params) }
+                }
+            }
+            true
+        }
+    }
 
     // Drag the corner to resize. Double-tap it to go back to the normal size.
     @SuppressLint("ClickableViewAccessibility")
@@ -945,6 +1086,7 @@ class BubbleService : Service() {
         var moved = false
         setOnTouchListener { _, e ->
             val params = shownParams ?: return@setOnTouchListener false
+            if (e.actionMasked == MotionEvent.ACTION_DOWN) wakeChrome()   // works even while faded (and brings it back)
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = e.rawX; downY = e.rawY

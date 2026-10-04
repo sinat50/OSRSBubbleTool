@@ -35,3 +35,6 @@ __pycache__/
 
 # The update checker (tools/update-check): the owner's own research tool, kept on this computer only
 /tools/update-check/
+
+# the owner's sand recording (the Zen Garden's sound was matched to it; not shipped)
+tools/sandsound.mp3
