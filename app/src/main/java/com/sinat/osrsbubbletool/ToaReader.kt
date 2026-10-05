@@ -3,6 +3,7 @@ package com.sinat.osrsbubbletool
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -132,7 +133,7 @@ object ToaReader {
             // Neighbours a sensible distance apart
             for (k in 0 until 8) {
                 val d = hypot(ring[k].x - ring[(k + 7) % 8].x, ring[k].y - ring[(k + 7) % 8].y) / size
-                if (d < 2f || d > 7f) return
+                if (d !in 2f..7f) return
             }
             // A plate in the middle for the sequence puzzle; none for the light puzzle (or the sequence
             // puzzle's nine tiles could pass for its ring)
@@ -179,7 +180,7 @@ object ToaReader {
 
     // Maps are kept straight: a camera a little off one of the four directions turns the map a whole
     // quarter turn (or not at all), never part of one
-    private fun straight(turn: Float) = Math.round(turn / 90f) * 90f
+    private fun straight(turn: Float) = floor(turn / 90f + 0.5f) * 90f
 
     // ---------------- Light puzzle ----------------
 
@@ -505,7 +506,7 @@ object ToaReader {
         val w = p.width / step
         val pts = marks.sortedBy { hypot(it.x - w / 2f, it.y - h / 2f) }.take(48)
         val n = pts.size
-        val follow = { previous?.let { followBoards(pts.map { it.x * step to it.y * step }, it) } }
+        val follow = { previous?.let { last -> followBoards(pts.map { it.x * step to it.y * step }, last) } }
         if (n < 7) return follow()
 
         // Try each mark as any tile of a board, with pairs of its nearest marks as the steps to the next tiles
@@ -559,7 +560,7 @@ object ToaReader {
                 }
             }
         }
-        boards.sortWith(compareBy<Board>({ -it.hits }, { it.err }))
+        boards.sortWith(compareBy({ -it.hits }, { it.err }))
         debugLog?.let { log ->
             boards.take(12).forEach { b ->
                 log("board at (%.0f, %.0f) step (%.0f, %.0f) hits %d err %.1f grey %d yellow %d".format(b.cx * step, b.cy * step,

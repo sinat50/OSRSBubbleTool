@@ -53,7 +53,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         // turning the phone rebuilds the screen; stay on the same page
         val saved = savedInstanceState?.getString("screen")
-        show(Screen.values().firstOrNull { it.name == saved } ?: Screen.MAIN)
+        show(Screen.entries.firstOrNull { it.name == saved } ?: Screen.MAIN)
         if (savedInstanceState == null) Thread { removeOldDownloads() }.start()
     }
 
@@ -160,7 +160,7 @@ class MainActivity : Activity() {
             addView(button("Permissions") { show(Screen.PERMISSIONS) }.compact())
         }
 
-        return page(scrolling = true, padTop = if (landscape) 6 else 16, padBottom = if (landscape) 6 else 16) {
+        return page(padTop = if (landscape) 6 else 16, padBottom = if (landscape) 6 else 16) {
             // top right: "Up To Date" or "Update Available"
             addView(LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -211,7 +211,7 @@ class MainActivity : Activity() {
     // ---------------- Settings screen ----------------
 
     // The same settings as the bubble's Settings window
-    private fun settingsScreen(): View = page(scrolling = true) {
+    private fun settingsScreen(): View = page {
         addView(backButton(), wrap())
         addView(label("Settings", 20f, bold = true), matchWidth(10))
         // dark mode switched: draw this screen again in the new colours
@@ -222,7 +222,7 @@ class MainActivity : Activity() {
 
     // ---------------- Permissions screen ----------------
 
-    private fun permissionsScreen(): View = page(scrolling = true) {
+    private fun permissionsScreen(): View = page {
         addView(backButton(), wrap())
         addView(label("Permissions", 20f, bold = true), matchWidth(10))
         addView(label("What the app asks for, and why. Nothing here is sent anywhere.", 13f), matchWidth(4))
@@ -346,7 +346,7 @@ class MainActivity : Activity() {
 
     // ---------------- Legal screen ----------------
 
-    private fun legalScreen(): View = page(scrolling = true) {
+    private fun legalScreen(): View = page {
         addView(backButton(), wrap())
         addView(label("Legal", 20f, bold = true), matchWidth(10))
 
@@ -437,18 +437,15 @@ class MainActivity : Activity() {
 
     // ---------------- Small building blocks ----------------
 
-    // A full screen with the app's background, kept clear of the status and navigation bars
-    private fun page(scrolling: Boolean, padTop: Int = 16, padBottom: Int = 16, fill: LinearLayout.() -> Unit): View {
+    // A full screen with the app's background, scrolling, kept clear of the status and navigation bars
+    private fun page(padTop: Int = 16, padBottom: Int = 16, fill: LinearLayout.() -> Unit): View {
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(padTop), dp(20), dp(padBottom))
             fill()
         }
         // (the scroll view stretches short pages to fill the screen, so they can still be centred)
-        val root: ViewGroup = if (scrolling) ScrollView(this).apply { isFillViewport = true; addView(column) }
-                              else LinearLayout(this).apply {
-                                  addView(column, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-                              }
+        val root: ViewGroup = ScrollView(this).apply { isFillViewport = true; addView(column) }
         root.setBackgroundColor(PARCHMENT)
         root.setOnApplyWindowInsetsListener { v, insets ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

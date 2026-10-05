@@ -56,7 +56,7 @@ class InventorySetupsTool(
     private val handler = Handler(Looper.getMainLooper())
     private val prefs = context.getSharedPreferences("inventory_setups", Context.MODE_PRIVATE)
     private val folder = File(context.filesDir, "setups")
-    private val regions = Section.values().associateWith {
+    private val regions = Section.entries.associateWith {
         RegionOverlay(context, windowManager, it.prefsName, it.label)
     }
     private val setups = loadSetups()
@@ -226,7 +226,7 @@ class InventorySetupsTool(
             "The app finds your side panel by itself; Set area is only needed if it can't.")
         column.addView(status, fullWidth(4))
 
-        for (section in Section.values()) {
+        for (section in Section.entries) {
             column.addView(label(section.label, 15f, bold = true), fullWidth(14))
 
             val buttons = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }

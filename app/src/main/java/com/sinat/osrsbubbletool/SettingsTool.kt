@@ -67,7 +67,7 @@ object AppSettings {
 class SettingsTool(private val context: Context, private val onRedraw: () -> Unit = {}) {
 
     companion object {
-        private var scrollY = 0   // where the bubble's Settings window was scrolled to (kept when it's rebuilt)
+        private var savedScroll = 0   // where the bubble's Settings window was scrolled to (kept when it's rebuilt)
     }
 
     private fun dp(v: Int) = (v * context.resources.displayMetrics.density).toInt()
@@ -82,9 +82,9 @@ class SettingsTool(private val context: Context, private val onRedraw: () -> Uni
             addView(label("Settings", 16f, bold = true))
             addSettings(this)
         })
-        val saved = scrollY
+        val saved = savedScroll   // (not scrollY: in here that would be the page's own)
         post { scrollTo(0, saved) }
-        setOnScrollChangeListener { _, _, y, _, _ -> scrollY = y }
+        setOnScrollChangeListener { _, _, y, _, _ -> savedScroll = y }
     }
 
     // The settings themselves, added to a column (the app's screen adds its own title and Back button)
@@ -158,7 +158,7 @@ class SettingsTool(private val context: Context, private val onRedraw: () -> Uni
     // The tools, two to a row: green with a tick when they're in the menu, faded when they're not
     private fun toolTicks(): View = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        val tools = BubbleService.Tool.values().filter { it.inMenu }
+        val tools = BubbleService.Tool.entries.filter { it.inMenu }
         for (pair in tools.chunked(2)) {
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL

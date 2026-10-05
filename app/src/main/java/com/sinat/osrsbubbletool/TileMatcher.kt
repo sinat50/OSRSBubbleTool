@@ -20,34 +20,12 @@ object TileMatcher {
         val puzzleName: String,
         val board: IntArray,
         val difference: Float,         // average colour difference of the best puzzle (lower = better)
-        val runnerUpName: String,
-        val runnerUpDifference: Float,
         val solvable: Boolean,
         val correctedPositions: List<Int>  // tiles that were swapped to make the layout solvable
     )
 
     // Reference features are worked out once per puzzle and kept
     private val referenceCache = mutableMapOf<String, Array<FloatArray>>()
-
-    // How close a square must look to the empty space to count as it
-    private const val EMPTY_MAX_DIFFERENCE = 25f
-
-    // Finds which position (0-24) the empty space is in, or null if none looks empty
-    // (for example, while a tile is halfway through sliding). Used to follow your moves.
-    fun findEmpty(scan: Bitmap, puzzleName: String): Int? {
-        val reference = referenceCache[puzzleName] ?: return null
-        val scanned = features(scan)
-        var best = -1
-        var bestDiff = Float.MAX_VALUE
-        for (pos in 0 until TILES) {
-            val d = difference(scanned[pos], reference[EMPTY])
-            if (d < bestDiff) {
-                bestDiff = d
-                best = pos
-            }
-        }
-        return if (bestDiff < EMPTY_MAX_DIFFERENCE) best else null
-    }
 
     // Runs in the background. One at a time, since the remembered solved pictures are shared.
     @Synchronized
@@ -59,8 +37,6 @@ object TileMatcher {
         var bestBoard = IntArray(TILES)
         var bestCost: Array<DoubleArray>? = null
         var bestDiff = Float.MAX_VALUE
-        var secondName = ""
-        var secondDiff = Float.MAX_VALUE
 
         for (puzzle in puzzles) {
             val reference = referenceCache.getOrPut(puzzle.name) { features(tileArea(puzzle.image)) }
@@ -73,15 +49,10 @@ object TileMatcher {
             val average = (total / TILES).toFloat()
 
             if (average < bestDiff) {
-                secondName = bestName
-                secondDiff = bestDiff
                 bestName = puzzle.name
                 bestBoard = board
                 bestCost = cost
                 bestDiff = average
-            } else if (average < secondDiff) {
-                secondName = puzzle.name
-                secondDiff = average
             }
         }
 
@@ -99,7 +70,7 @@ object TileMatcher {
             }
         }
 
-        return Result(bestName, bestBoard, bestDiff, secondName, secondDiff,
+        return Result(bestName, bestBoard, bestDiff,
             isSolvable(bestBoard), corrected)
     }
 

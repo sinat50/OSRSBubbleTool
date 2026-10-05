@@ -13,7 +13,7 @@ class Game2048(val size: Int = 4, private val random: Random = Random.Default) {
 
     // What a move did, so it can be animated: every tile's slide, which squares merged, and the new tile
     class Slide(val from: Int, val to: Int, val value: Int)
-    class Move(val slides: List<Slide>, val merged: Set<Int>, val spawned: Int, val gained: Int)
+    class Move(val slides: List<Slide>, val merged: Set<Int>, val spawned: Int)
 
     var cells = IntArray(size * size)   // 0 = empty, otherwise 2, 4, 8…
         private set
@@ -76,7 +76,7 @@ class Game2048(val size: Int = 4, private val random: Random = Random.Default) {
         cells = next
         score += gained
         val spawned = spawn()
-        return Move(slides, merged, spawned, gained)
+        return Move(slides, merged, spawned)
     }
 
     fun canMove(): Boolean {

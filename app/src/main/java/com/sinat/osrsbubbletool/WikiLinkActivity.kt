@@ -28,9 +28,9 @@ class WikiLinkActivity : Activity() {
         val uri = intent?.data
         if (uri != null) {
             val from = referrer?.takeIf { it.scheme == "android-app" }?.host   // the app that sent it, if known
-            val toBubble = when {
-                from == GAME_PACKAGE -> true
-                from == null -> BubbleService.isRunning   // sender unknown: the game, if you're playing
+            val toBubble = when (from) {
+                GAME_PACKAGE -> true
+                null -> BubbleService.isRunning   // sender unknown: the game, if you're playing
                 else -> false                              // another app: its links go to the browser
             }
             // remembered so the Permissions screen can show what happened

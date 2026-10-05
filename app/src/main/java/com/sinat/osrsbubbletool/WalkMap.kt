@@ -137,10 +137,9 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
     // via: for each tile, the notable way in or out (cave entrance, boat, portal…) nearest that tile on
     // its route, so a teleport's result can say "via Climb-down Trapdoor". guess: the route goes through a
     // way into a cave that isn't on the walking map, so its distance is an estimate.
-    // shutIn: the walking map has no way out of the area around the target (so any routes out are guesses)
     // needs: when the only ways out are ones you can't use yet, what they need (e.g. "70 Agility")
     class Field internal constructor(private val cost: Array<ShortArray?>, private val via: Array<ShortArray?>,
-                                     private val guess: Array<BooleanArray?>, val shutIn: Boolean = false,
+                                     private val guess: Array<BooleanArray?>,
                                      val needs: List<String> = emptyList()) {
         fun at(x: Int, y: Int, z: Int): Int? {
             val k = slot(x, y, z); if (k < 0) return null
@@ -283,12 +282,12 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
             if (!spread(1)) return Field(cost, via, guess)
         }
         val shutIn = pending == 0 && !cutOff && found < want
-        if (!rescue) return Field(cost, via, guess, shutIn)
+        if (!rescue) return Field(cost, via, guess)
         // Closed off because ways out need something you don't have yet: don't guess at another way round
         // that. If no teleport you can use was reached at all, say what's needed.
         if (shutIn && skipped.isNotEmpty())
-            return Field(cost, via, guess, true,
-                if (found > 0) emptyList() else skipped.sorted().mapNotNull { requirements.getOrNull(it) }.distinct())
+            return Field(cost, via, guess,
+                needs = if (found > 0) emptyList() else skipped.sorted().mapNotNull { requirements.getOrNull(it) }.distinct())
 
         // Shut in: nowhere left to walk, and not enough teleports reached. The walking map has no way out of
         // here (newer areas, lairs reached by a hole or a boat, bosses behind doors), so come out at the most
@@ -328,7 +327,7 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
                     if (c <= maxCost && !blocked(px(p), py(p) - 6400, 0)) { push(px(p), py(p) - 6400, 0, c, NO_WAY, true); restart = minOf(restart, c) }
                 }
             }
-            if (restart <= maxCost && !spread(restart)) return Field(cost, via, guess, shutIn)
+            if (restart <= maxCost && !spread(restart)) return Field(cost, via, guess)
         }
 
         // Last resort, if hardly anything was reached: squeeze through walls, at a price for each one
@@ -347,7 +346,7 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
             settled.clear()
             if (low <= maxCost) spread(low)
         }
-        return Field(cost, via, guess, shutIn)
+        return Field(cost, via, guess)
     }
 }
 

@@ -29,8 +29,6 @@ class PuzzleReferences(context: Context) {
     private val assets = context.applicationContext.assets
     private var loaded: List<Puzzle>? = null
 
-    val isLoaded: Boolean get() = loaded != null
-
     // Reads all the solved pictures (the first time, in the background).
     // Calls onDone on the main thread with the puzzles, or with an error message.
     fun load(onDone: (List<Puzzle>?, String?) -> Unit) {

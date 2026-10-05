@@ -10,7 +10,6 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -43,16 +42,16 @@ class GameRoomTool(
     private val pinCorners: (Int, Int, Int, Int) -> Unit = { _, _, _, _ -> },
 ) {
 
-    private val HELP_2048 = "Swipe up, down, left or right to slide all the tiles. When two tiles with the same number touch, " +
+    private val help2048 = "Swipe up, down, left or right to slide all the tiles. When two tiles with the same number touch, " +
         "they join into one: 2 and 2 make 4, 4 and 4 make 8, and so on. A new tile appears after every swipe.\n\n" +
         "Try to make a 2048 tile. The game ends when the board is full and nothing can join.\n\n" +
         "Your game is saved after every move, so you can close the window any time."
 
-    private val HELP_FLYER = "Tap anywhere on the game to flap. Keep the bird in the air and fly through the gaps between the pillars: " +
+    private val helpFlyer = "Tap anywhere on the game to flap. Keep the bird in the air and fly through the gaps between the pillars: " +
         "each one you pass scores a point. Touching a pillar or the ground ends the round.\n\n" +
         "The gaps slowly get smaller as your score goes up. If you close the window mid-flight, the game pauses: tap to carry on."
 
-    private val HELP_SAND = "The garden floats on its own (zen mode), in a wooden frame with a button carved into each " +
+    private val helpSand = "The garden floats on its own (zen mode), in a wooden frame with a button carved into each " +
         "corner:\n" +
         "\u2022 Top left: Exit, back to the Game Room.\n" +
         "\u2022 Top right: drag it to move the garden.\n" +
@@ -251,7 +250,7 @@ class GameRoomTool(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             addView(label("2048", 18f, bold = true).apply { setTextColor("#C8900E".toColorInt()) })
-            addView(helpButton("2048", HELP_2048), LinearLayout.LayoutParams(dp(22), dp(22)).apply { leftMargin = dp(5) })
+            addView(helpButton("2048", help2048), LinearLayout.LayoutParams(dp(22), dp(22)).apply { leftMargin = dp(5) })
             addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
             addView(scoreBox, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(4) })
             addView(bestBox, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(4) })
@@ -295,7 +294,7 @@ class GameRoomTool(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             addView(label("Wing It", 17f, bold = true).apply { setTextColor("#C8900E".toColorInt()) })
-            addView(helpButton("Wing It", HELP_FLYER), LinearLayout.LayoutParams(dp(22), dp(22)).apply { leftMargin = dp(5) })
+            addView(helpButton("Wing It", helpFlyer), LinearLayout.LayoutParams(dp(22), dp(22)).apply { leftMargin = dp(5) })
             addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
             addView(scoreBox, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(4) })
             addView(bestBox)
@@ -313,7 +312,7 @@ class GameRoomTool(
 
     private var sandView: SandGardenView? = null
     private var zenScreen: ZenScreen? = null
-    private val ICON_BACK = Color.argb(190, 62, 44, 18)
+    private val iconBack = Color.argb(190, 62, 44, 18)
 
     // Zen mode: just the tray, with round icons in the bottom left that come and go (see ZenScreen). The garden
     // scales to fit the window (or, with scaling off in the settings, grows and shrinks with it).
@@ -332,7 +331,7 @@ class GameRoomTool(
         }
         sandView = garden
         val size = dp(34)
-        fun icon(kind: Int, color: Int = ICON_BACK, onClick: (ZenIcon) -> Unit) = ZenIcon(context, kind, color).apply {
+        fun icon(kind: Int, color: Int = iconBack, onClick: (ZenIcon) -> Unit) = ZenIcon(context, kind, color).apply {
             tag = 0f   // keeps its size in the row
             layoutParams = ViewGroup.LayoutParams(size, size)
             setOnClickListener { onClick(this) }
@@ -346,7 +345,7 @@ class GameRoomTool(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(4), dp(10), dp(4))
-            background = GradientDrawable().apply { setColor(ICON_BACK); cornerRadius = dp(18).toFloat() }
+            background = GradientDrawable().apply { setColor(iconBack); cornerRadius = dp(18).toFloat() }
             addView(label(left, 10f).apply { setTextColor(Color.WHITE) })
             addView(SeekBar(context).apply {
                 max = 100
@@ -384,7 +383,7 @@ class GameRoomTool(
         // the icons: tool, Auto, Undo, Smooth, brightness, volume, settings, help (Exit is carved into the frame)
         val toolIcon = icon(garden.tool) { me -> chooseSandTool(garden) { me.kind = garden.tool } }
         // Automatic: a rounded button with its name (green while it's raking)
-        val autoBack = GradientDrawable().apply { setColor(ICON_BACK); cornerRadius = size / 2f }
+        val autoBack = GradientDrawable().apply { setColor(iconBack); cornerRadius = size / 2f }
         val autoIcon = TextView(context).apply {
             text = "Automatic"
             textSize = 12f
@@ -409,7 +408,7 @@ class GameRoomTool(
             addView(icon(ZenIcon.LIGHT) { toggleSlider(makeLight) })
             addView(volumeIcon)
             addView(icon(ZenIcon.GEAR) { sandSettings(garden) })
-            addView(icon(ZenIcon.HELP) { showHelp("Zen Garden", HELP_SAND) })
+            addView(icon(ZenIcon.HELP) { showHelp("Zen Garden", helpSand) })
         }
         // the name of the pattern Auto is raking, above the icons
         val pattern = label("", 11f).apply {
@@ -420,7 +419,7 @@ class GameRoomTool(
         garden.onAutoPattern = { name ->
             pattern.text = name ?: ""
             pattern.visibility = if (name == null) View.GONE else View.VISIBLE
-            autoBack.setColor(if (name == null) ICON_BACK else GO_GREEN)
+            autoBack.setColor(if (name == null) iconBack else GO_GREEN)
         }
         val dock = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL

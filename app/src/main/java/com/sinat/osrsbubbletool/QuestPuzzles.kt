@@ -116,7 +116,7 @@ object QuestPuzzles {
     // A puzzle the app could solve by itself (reading the screen) with real phone screenshots
     class ScreenshotRequest(val puzzle: String, val better: String, val needed: List<String>)
 
-    val GITHUB_REPO = "https://github.com/sinat50/OSRSBubbleTool"
+    const val GITHUB_REPO = "https://github.com/sinat50/OSRSBubbleTool"
 
     val HELP_WANTED: Map<String, List<ScreenshotRequest>> = mapOf(
         "Icthlarin's Little Helper" to listOf(ScreenshotRequest("Door tiles",

@@ -330,23 +330,23 @@ class PuzzleDiagramView(context: Context, private val diagram: QuestPuzzles.Diag
         // drawn on a 350 x 383 plan of the machine, scaled to fit
         val s = min((width - 16 * density) / 350f, (height - 16 * density) / 383f)
         val ox = (width - 350 * s) / 2f; val oy = (height - 383 * s) / 2f
-        fun X(v: Float) = ox + (v - 225f) * s
-        fun Y(v: Float) = oy + (v - 33f) * s
+        fun px(v: Float) = ox + (v - 225f) * s
+        fun py(v: Float) = oy + (v - 33f) * s
         fill.color = "#6E6E76".toColorInt()
-        canvas.drawRoundRect(RectF(X(245f), Y(40f), X(555f), Y(330f)), 10 * s, 10 * s, fill)
+        canvas.drawRoundRect(RectF(px(245f), py(40f), px(555f), py(330f)), 10 * s, 10 * s, fill)
         fill.color = "#55555C".toColorInt()
-        canvas.drawRect(X(262f), Y(58f), X(540f), Y(320f), fill)
+        canvas.drawRect(px(262f), py(58f), px(540f), py(320f), fill)
 
         val pipe = "#E4E4EA".toColorInt()
         val edge = "#9A9AA3".toColorInt()
         fun run(width: Float, colour: Int, vararg pts: Float) {
             val p = Path()
-            p.moveTo(X(pts[0]), Y(pts[1]))
+            p.moveTo(px(pts[0]), py(pts[1]))
             var i = 2
             while (i + 3 < pts.size) {   // pairs of (control, end) points for smooth bends
-                p.quadTo(X(pts[i]), Y(pts[i + 1]), X(pts[i + 2]), Y(pts[i + 3])); i += 4
+                p.quadTo(px(pts[i]), py(pts[i + 1]), px(pts[i + 2]), py(pts[i + 3])); i += 4
             }
-            if (i + 1 < pts.size) p.lineTo(X(pts[i]), Y(pts[i + 1]))
+            if (i + 1 < pts.size) p.lineTo(px(pts[i]), py(pts[i + 1]))
             line.color = colour; line.strokeWidth = width * s
             canvas.drawPath(p, line)
         }
@@ -370,8 +370,8 @@ class PuzzleDiagramView(context: Context, private val diagram: QuestPuzzles.Diag
         pipes(24f, pipe)
         // the four outlets and the inlet
         fill.color = "#C8C8D0".toColorInt()
-        for (x in listOf(297f, 365f, 432f, 502f)) canvas.drawRoundRect(RectF(X(x - 26f), Y(58f), X(x + 26f), Y(76f)), 4 * s, 4 * s, fill)
-        canvas.drawRoundRect(RectF(X(373f), Y(298f), X(427f), Y(322f)), 4 * s, 4 * s, fill)
+        for (x in listOf(297f, 365f, 432f, 502f)) canvas.drawRoundRect(RectF(px(x - 26f), py(58f), px(x + 26f), py(76f)), 4 * s, 4 * s, fill)
+        canvas.drawRoundRect(RectF(px(373f), py(298f), px(427f), py(322f)), 4 * s, 4 * s, fill)
     }
 
     // ---------------- Icthlarin's Little Helper door tiles ----------------

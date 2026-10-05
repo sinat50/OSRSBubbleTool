@@ -1471,6 +1471,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     }
 
     // Runs `act` for each square within `scale` × the item's size, with its distance in item sizes
+    @Suppress("SameParameterValue")   // (kept general on purpose)
     private inline fun eachNear(s: Item, scale: Float, act: (Int, Float) -> Unit) {
         val reach = s.r * scale
         for (y in max(0, (s.y - reach).toInt())..min(gh - 1, (s.y + reach).toInt())) {
@@ -2501,6 +2502,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     }
 
     // Straight lines across the tray the other way from rows(), `spacing` apart, back and forth (with `kind`)
+    @Suppress("SameParameterValue")   // (kept general on purpose)
     private fun crossLines(spacing: Float, kind: Int): List<Stroke> {
         val across = gw >= gh                       // (the rows run left-right: these run up and down)
         val length = (if (across) gh else gw).toFloat()
@@ -2525,6 +2527,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
 
     // A smooth curve (with `kind`), traced through at(t) for t from 0 to `until` in `samples` steps, then evened out
     // to points a square apart; a `closed` one goes on a little past its start, so the join doesn't show
+    @Suppress("SameParameterValue")   // (kept general on purpose)
     private fun traced(kind: Int, until: Float, samples: Int, closed: Boolean, at: (Float, FloatArray) -> Unit): Stroke {
         val o = FloatArray(2)
         val raw = FloatArray(2 * (samples + 1))

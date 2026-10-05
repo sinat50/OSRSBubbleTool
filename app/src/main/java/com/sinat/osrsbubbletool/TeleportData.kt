@@ -2,6 +2,7 @@ package com.sinat.osrsbubbletool
 
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 // The Teleport Finder's logic: every teleport destination (from the Shortest Path RuneLite plugin's data,
 // bundled as assets/teleports.tsv), finding a place's coordinates on its OSRS Wiki page, and ranking
@@ -354,7 +355,7 @@ object TeleportData {
     // "~40 tiles, 12 s run"
     fun describe(tiles: Int): String = when {
         tiles <= 6 -> "right there"
-        else -> "~$tiles tiles · ${Math.max(1, Math.round(tiles * 0.3)).toInt()} s run"
+        else -> "~$tiles tiles · ${maxOf(1, (tiles * 0.3).roundToInt())} s run"
     }
 
     // ---------------- What you can use ----------------

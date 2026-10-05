@@ -117,6 +117,7 @@ class HunterRumourTool(private val context: Context, private val openWikiSync: (
             (if (h == HunterRumours.Hunter.GILMAN) " · can give every rumour" else ""), 11f).apply { setTextColor(FADED) }, full(4))
 
         addView(label("Tap the rumour you're on:", 12f, bold = true), full(10))
+        val cur = current   // (read out here: inside the row's background below, "current" is the drawable's own)
         for (r in HunterRumours.ALL.filter { h in it.hunters }) {
             val tooHigh = level != null && level < r.level
             addView(LinearLayout(context).apply {
@@ -125,13 +126,13 @@ class HunterRumourTool(private val context: Context, private val openWikiSync: (
                 setPadding(dp(10), dp(7), dp(10), dp(7))
                 background = GradientDrawable().apply {
                     setColor(ROW_BROWN); cornerRadius = dp(6).toFloat()
-                    if (r == current) setStroke(dp(2), GO_GREEN)
+                    if (r == cur) setStroke(dp(2), GO_GREEN)
                 }
                 if (tooHigh) alpha = 0.5f
                 addView(LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
                     addView(label(r.name, 13f, bold = true))
-                    addView(label("${r.method.name}" + (r.requires?.let { " · needs $it" } ?: ""), 10f).apply { setTextColor(FADED) })
+                    addView(label(r.method.name + (r.requires?.let { " · needs $it" } ?: ""), 10f).apply { setTextColor(FADED) })
                 }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                 addView(label("Lv ${r.level}", 11f, bold = true).apply { setTextColor(FADED) })
                 setOnClickListener {

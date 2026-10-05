@@ -86,7 +86,7 @@ class WikiSyncTool(private val context: Context) {
         if (sync.username.isEmpty() || editing) {
             addView(label("Your RuneScape name", 12f, bold = true), full(12))
             val field = EditText(context).apply {
-                setHintTextColor(Palette.FADED)
+                setHintTextColor(FADED)
                 setText(sync.username)
                 hint = "e.g. Zezima"
                 textSize = 14f

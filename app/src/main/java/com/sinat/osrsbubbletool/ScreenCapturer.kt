@@ -279,7 +279,7 @@ class ScreenCapturer(
         } catch (e: Exception) {
             null
         } ?: return null
-        try {
+        image.use {
             val plane = image.planes[0]
             if (singleApp()) {
                 val (w, h, _) = screenSize()
@@ -289,8 +289,6 @@ class ScreenCapturer(
                 }
             }
             return block(Frame(plane.buffer, plane.rowStride, plane.pixelStride, image.width, image.height))
-        } finally {
-            image.close()
         }
     }
 

@@ -223,7 +223,7 @@ class QuestHelperTool(
         fun strings(a: org.json.JSONArray?) = if (a == null) emptyList() else List(a.length()) { a.getString(it) }
         val secs = o.getJSONArray("sec")
         return Quest(
-            key = "guide_" + name,
+            key = "guide_$name",
             name = name,
             wikiPage = QuestBook.wikiUrl(if (QuestBook.quest(name)?.miniquest == true) name else "$name/Quick_guide"),
             items = strings(o.optJSONArray("items")),
@@ -362,8 +362,8 @@ class QuestHelperTool(
         }
 
         val field = EditText(context).apply {
-            setTextColor(Palette.DARK_BROWN)
-            setHintTextColor(Palette.FADED)
+            setTextColor(DARK_BROWN)
+            setHintTextColor(FADED)
             setText(search)
             hint = "Search quests"
             textSize = 13f
@@ -663,9 +663,9 @@ class QuestHelperTool(
 
     // "Members  ·  Intermediate  ·  1 Quest point"
     private fun questFacts(info: QuestBook.QuestInfo): View =
-        label(listOf(if (info.miniquest) "Miniquest" else if (info.members) "Members" else "Free to play",
+        label(listOfNotNull(if (info.miniquest) "Miniquest" else if (info.members) "Members" else "Free to play",
             info.difficulty, if (info.questPoints > 0) "${info.questPoints} Quest point" + (if (info.questPoints > 1) "s" else "") else null)
-            .filterNotNull().filter { it.isNotEmpty() }.joinToString("  ·  "), 11f).apply { setTextColor(FADED) }
+            .filter { it.isNotEmpty() }.joinToString("  ·  "), 11f).apply { setTextColor(FADED) }
 
     // ---------------- A quest with a step-by-step guide ----------------
 
@@ -715,7 +715,7 @@ class QuestHelperTool(
                 addView(label(section.title, 11f, bold = true).apply { setTextColor(FADED) })
                 addView(sectionInfo(section), full(2))
                 addView(label("Step ${at + 1} of ${steps.size}" + (if (step.optional) " (optional)" else ""), 11f), full(6))
-                addView(stepBody(step, big = true), full(2))
+                addView(stepBody(step), full(2))
                 QuestPuzzles.forStep(q.name, section.title, step.text).forEach { p ->
                     addView(button("🧩 Solution: ${p.title}", BLUE) { openPuzzleScreen(p) }, full(6))
                 }
@@ -787,9 +787,9 @@ class QuestHelperTool(
     }
 
     // A step's instructions, what to say, what to bring, and any tip
-    private fun stepBody(step: Step, big: Boolean): View = LinearLayout(context).apply {
+    private fun stepBody(step: Step): View = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
-        addView(label(step.text, if (big) 14f else 12f, bold = big))
+        addView(label(step.text, 14f, bold = true))
         if (step.say.isNotEmpty()) {
             addView(label("Choose:", 11f, bold = true), full(6))
             step.say.forEachIndexed { n, option ->

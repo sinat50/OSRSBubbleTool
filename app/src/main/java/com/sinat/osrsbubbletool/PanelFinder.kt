@@ -89,7 +89,7 @@ object PanelFinder {
             val width = rightLine.at - leftLine.at
             if (width < 40 || width < 0.8f * minOf(top.length, bottom.length)) continue
             val aspect = height / width.toFloat()
-            if (aspect < minAspect || aspect > maxAspect) continue
+            if (aspect !in minAspect..maxAspect) continue
             // the inside of the black outline
             val r = Rect(leftLine.at + 1, top.at + 1, rightLine.at, bottom.at)
             if (best == null || r.width() * r.height() > best.width() * best.height()) best = r

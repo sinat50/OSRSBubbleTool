@@ -98,7 +98,7 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
                 }, full())
                 addView(label("Type an NPC, monster or place.", 11f).apply { setTextColor(FADED) }, full(1))
                 field = EditText(context).apply {
-                    setHintTextColor(Palette.FADED)
+                    setHintTextColor(FADED)
                     hint = "e.g. Zaff, Barrows, abyssal demon"
                     textSize = 14f
                     setSingleLine()
@@ -309,7 +309,7 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
             // still typing: suggestions, or recent searches
             val list = if (query.trim().length >= 2) suggestions else recent()
             if (list.isNotEmpty() && query.trim().length < 2) results.addView(label("Recent", 11f, bold = true).apply { setTextColor(FADED) }, full(4))
-            for (t in list) results.addView(row(t, null) { pick(t) }, full(3))
+            for (t in list) results.addView(row(t) { pick(t) }, full(3))
             return
         }
         if (spots.isEmpty()) return
@@ -409,7 +409,7 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
                 addView(LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
                     addView(label(r.teleport.name, 13f, bold = true))
-                    val how = listOf(r.teleport.category, r.teleport.how.takeIf { it.isNotEmpty() }).filterNotNull().joinToString(" · ")
+                    val how = listOfNotNull(r.teleport.category, r.teleport.how.takeIf { it.isNotEmpty() }).joinToString(" · ")
                     addView(label(how, 10f).apply { setTextColor(FADED) })
                     // other teleports landing in the same place
                     if (r.also.isNotEmpty()) {
@@ -437,12 +437,11 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
             .apply { setTextColor(FADED) }, full(6))
     }
 
-    private fun row(text: String, sub: String?, onClick: () -> Unit) = LinearLayout(context).apply {
+    private fun row(text: String, onClick: () -> Unit) = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(10), dp(8), dp(10), dp(8))
         background = GradientDrawable().apply { setColor(ROW_BROWN); cornerRadius = dp(6).toFloat() }
         addView(label(text, 13f, bold = true))
-        sub?.let { addView(label(it, 10f).apply { setTextColor(FADED) }) }
         setOnClickListener { onClick() }
     }
 

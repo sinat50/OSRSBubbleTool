@@ -17,8 +17,8 @@ class ToaReaderTest {
 
     private class Shot(file: File) : LightBoxReader.PixelSource {
         private val image = ImageIO.read(file)
-        override val width = image.width
-        override val height = image.height
+        override val width: Int = image.width
+        override val height: Int = image.height
         override fun rgb(x: Int, y: Int) = image.getRGB(x, y) and 0xFFFFFF
     }
 
@@ -41,11 +41,11 @@ class ToaReaderTest {
             println("${f.name}: $text$number$sequence")
             // Matching boards: each tile as . grey, * glowing, ? can't tell, or the symbol's first letters
             val started = System.nanoTime()
-            val found = ToaReader.findMatchBoards(shot, ToaReader.Skip { _, _ -> false })
+            val found = ToaReader.findMatchBoards(shot, { _, _ -> false })
             val ms = (System.nanoTime() - started) / 1_000_000
             found?.let { boards ->
                 val tiles = (0 until 18).map { t ->
-                    val r = ToaReader.readMatchTile(shot, boards, t, ToaReader.Skip { _, _ -> false }, ToaPuzzles.MATCHING_SYMBOLS)
+                    val r = ToaReader.readMatchTile(shot, boards, t, { _, _ -> false }, ToaPuzzles.MATCHING_SYMBOLS)
                     when (r.state) {
                         ToaReader.TILE_HIDDEN -> "."
                         ToaReader.TILE_MATCHED -> "*"

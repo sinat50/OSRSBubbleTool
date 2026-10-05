@@ -12,6 +12,9 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.animation.LinearInterpolator
 import androidx.core.graphics.toColorInt
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.sin
 
 // The 2048 board: draws the tiles, slides them smoothly, and turns swipes into moves.
 // It stays square and as big as the space allows.
@@ -52,6 +55,7 @@ class Game2048View(context: Context, private val game: Game2048, private val onM
     private var progress = 1f
     private var animator: ValueAnimator? = null
 
+    @Suppress("SameParameterValue")   // (kept general on purpose)
     private fun dp(v: Float) = v * resources.displayMetrics.density
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -82,9 +86,9 @@ class Game2048View(context: Context, private val game: Game2048, private val onM
                     val dx = e.x - downX
                     val dy = e.y - downY
                     // react as soon as the finger has clearly moved, so it feels snappy
-                    if (Math.max(Math.abs(dx), Math.abs(dy)) > dp(22f)) {
+                    if (maxOf(abs(dx), abs(dy)) > dp(22f)) {
                         swiped = true
-                        val dir = if (Math.abs(dx) > Math.abs(dy)) {
+                        val dir = if (abs(dx) > abs(dy)) {
                             if (dx > 0) Game2048.Dir.RIGHT else Game2048.Dir.LEFT
                         } else {
                             if (dy > 0) Game2048.Dir.DOWN else Game2048.Dir.UP
@@ -160,7 +164,7 @@ class Game2048View(context: Context, private val game: Game2048, private val onM
             val scale = when {
                 m == null -> 1f
                 i == m.spawned -> easeOut(q)                                     // grows from nothing
-                i in m.merged -> 1f + 0.15f * Math.sin(Math.PI * q).toFloat()     // a little bounce
+                i in m.merged -> 1f + 0.15f * sin(PI * q).toFloat()     // a little bounce
                 else -> 1f
             }
             if (scale <= 0.01f) continue

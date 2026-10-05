@@ -30,6 +30,7 @@ import android.widget.TextView
 import androidx.core.content.edit
 import androidx.core.graphics.toColorInt
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 class BubbleService : Service() {
 
@@ -492,7 +493,7 @@ class BubbleService : Service() {
         val list = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val hidden = AppSettings.hiddenTools(this@BubbleService)
-            for (tool in Tool.values()) {
+            for (tool in Tool.entries) {
                 if (!tool.inMenu) continue            // (Settings: at the bottom, below)
                 if (tool.name in hidden) continue     // left out in Settings
                 // the active tool shows in gold
@@ -632,7 +633,7 @@ class BubbleService : Service() {
         // tool still in the menu instead (or Settings, if every tool was left out)
         val hidden = AppSettings.hiddenTools(this)
         if (currentTool.name in hidden) {
-            currentTool = Tool.values().firstOrNull { it.inMenu && it.name !in hidden } ?: Tool.SETTINGS
+            currentTool = Tool.entries.firstOrNull { it.inMenu && it.name !in hidden } ?: Tool.SETTINGS
         }
         showToolWindow()
     }
@@ -687,7 +688,7 @@ class BubbleService : Service() {
             val mover = body.getChildAt(2)
             mover.visibility = if (on) View.VISIBLE else View.GONE
             // carved into the frame (invisible here, and only their triangle answers), or the window's own symbols
-            val carved = dp(Math.round(SandGardenView.CORNER_DP + SandGardenView.FRAME_DP))
+            val carved = dp((SandGardenView.CORNER_DP + SandGardenView.FRAME_DP).roundToInt())
             for ((v, size) in listOf(corner to dp(26), mover to dp(30))) {
                 v.tag = if (on) CARVED else null
                 (v.layoutParams as? FrameLayout.LayoutParams)?.let {
@@ -738,7 +739,7 @@ class BubbleService : Service() {
         val params = shownParams ?: return false
         val body = window.getChildAt(1) as? ViewGroup ?: return false
         val (l, t, r, b) = gamesTray
-        if (l < 0 || r <= l || b <= t) return false
+        if (l !in 0 until r || b <= t) return false
         // already a snug fit (a few pixels either way is just rounding)
         val slack = dp(4)
         if (l < slack && t < slack && body.width - r < slack && body.height - b < slack) return false
@@ -1022,8 +1023,10 @@ class BubbleService : Service() {
         Tool.PUZZLE_BOX -> PuzzleBoxTool(toolContext, windowManager, capture, ::setOverlaysVisible) { hideToolWindow() }.let { t ->
             ToolParts(t::buildView, onBack = null, onClosed = t::onWindowClosed, onRotated = t::onRotated, onDestroy = t::destroy)
         }
+        // (closing the Light Box window keeps it solving: the instructions stay on the light box; tap the bubble to
+        // bring the window back, and Stop to end it)
         Tool.LIGHT_BOX -> LightBoxTool(toolContext, windowManager, capture, ::setOverlaysVisible) { hideToolWindow() }.let { t ->
-            ToolParts(t::buildView, onBack = null, onClosed = t::onWindowClosed, onRotated = t::onRotated, onDestroy = t::destroy)
+            ToolParts(t::buildView, onBack = null, onRotated = t::onRotated, onDestroy = t::destroy)
         }
         Tool.INVENTORY_SETUPS -> InventorySetupsTool(toolContext, windowManager, capture, ::setOverlaysVisible).let { t ->
             ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed, onRotated = t::onRotated, onDestroy = t::destroy)
@@ -1035,12 +1038,12 @@ class BubbleService : Service() {
         Tool.FARMING -> FarmingTool(toolContext).let { t ->
             ToolParts(t::buildView, onBack = null, onClosed = t::onWindowClosed, onDestroy = t::destroy)
         }
-        Tool.WIKISYNC -> WikiSyncTool(toolContext).let { t -> ToolParts(t::buildView, onBack = { syncReturnTo?.let { openTool(it) } }) }
+        Tool.WIKISYNC -> ToolParts(WikiSyncTool(toolContext)::buildView, onBack = { syncReturnTo?.let { openTool(it) } })
         Tool.QUESTS -> QuestHelperTool(toolContext, openWiki = { url -> openWikiLink(url, returnTo = Tool.QUESTS) },
             hideWindow = { hideToolWindow() }, openWikiSync = { openWikiSync(Tool.QUESTS) }).let { t ->
             ToolParts(t::buildView, t::goBack)
         }
-        Tool.CALCULATOR -> CalculatorTool(toolContext).let { t -> ToolParts(t::buildView, onBack = null) }
+        Tool.CALCULATOR -> ToolParts(CalculatorTool(toolContext)::buildView, onBack = null)
         Tool.NOTES -> NotesTool(toolContext).let { t -> ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed) }
         Tool.GAMES -> GameRoomTool(toolContext, ::setGamesFrameless, ::pinGamesCorners).let { t ->
             ToolParts(t::buildView, t::goBack, onDestroy = t::destroy)
@@ -1051,7 +1054,7 @@ class BubbleService : Service() {
         Tool.TELEPORTS -> TeleportFinderTool(toolContext, openWikiSync = { openWikiSync(Tool.TELEPORTS) }).let { t ->
             ToolParts(t::buildView, t::goBack, onDestroy = t::destroy)
         }
-        Tool.SETTINGS -> SettingsTool(toolContext).let { t -> ToolParts(t::buildView, onBack = null) }
+        Tool.SETTINGS -> ToolParts(SettingsTool(toolContext)::buildView, onBack = null)
     }
 
     // A tool that's just a web page, with ◀ going back a page

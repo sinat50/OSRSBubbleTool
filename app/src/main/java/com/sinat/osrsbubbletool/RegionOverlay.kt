@@ -37,9 +37,6 @@ class RegionOverlay(
 
     val isShowing: Boolean get() = frame != null
 
-    // True if this area has been set at least once
-    val hasSavedArea: Boolean get() = prefs.contains("width")
-
     // The saved area in screen pixels, or null if it hasn't been set for this screen size
     fun savedArea(screenWidth: Int, screenHeight: Int): Rect? {
         if (!matchesSavedScreen(screenWidth, screenHeight)) return null

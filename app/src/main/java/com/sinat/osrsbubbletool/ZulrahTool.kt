@@ -110,7 +110,7 @@ class ZulrahTool(private val context: Context) {
         val prayers: List<Pray>,
         val attacks: Int,
         val venom: Int,
-        val snakelings: Int,
+        @Suppress("unused") val snakelings: Int,   // (from the plugin's phase list; not shown)
         val stands: List<Stand>
     ) {
         var title: String? = null
@@ -329,7 +329,7 @@ class ZulrahTool(private val context: Context) {
 
             val totalH = big + gap + small
             val top = (h - totalH) / 2f
-            drawCard(canvas, cur, (w - big) / 2f, top, big, restart = false, border = CURRENT_BORDER)
+            drawCard(canvas, cur, (w - big) / 2f, top, big, border = CURRENT_BORDER)
 
             val rowW = small * n + gap * (n - 1)
             var x = (w - rowW) / 2f
@@ -337,7 +337,7 @@ class ZulrahTool(private val context: Context) {
             // remembered so a tap can be matched to a picture
             optionsLeft = x; optionsTop = y; optionSize = small; optionStep = small + gap
             for (o in options) {
-                drawCard(canvas, o.phase, x, y, small, o.restart, NEXT_BORDER)
+                drawCard(canvas, o.phase, x, y, small, NEXT_BORDER)
                 x += small + gap
             }
         }
@@ -362,7 +362,7 @@ class ZulrahTool(private val context: Context) {
         }
 
         // Draws one phase picture, the same way the plugin does, at the given place and size
-        private fun drawCard(canvas: Canvas, ph: Phase, left: Float, top: Float, size: Float, restart: Boolean, border: Int) {
+        private fun drawCard(canvas: Canvas, ph: Phase, left: Float, top: Float, size: Float, border: Int) {
             canvas.save()
             canvas.translate(left, top)
             canvas.scale(size / CARD, size / CARD)

@@ -40,16 +40,6 @@ class PuzzleAreaOverlay(private val context: Context, private val windowManager:
         return Rect(left, top, left + size, top + size)
     }
 
-    // How far an overlay window's position is from the matching screenshot position.
-    // Other overlays add this so they line up exactly with what's in the screenshot.
-    fun windowOffset(): Point =
-        if (prefs.contains("size")) {
-            Point(prefs.getInt("winX", 0) - prefs.getInt("left", 0),
-                  prefs.getInt("winY", 0) - prefs.getInt("top", 0))
-        } else {
-            Point(0, 0)
-        }
-
     fun show() {
         if (frame != null) return
         val screen = realScreenSize()

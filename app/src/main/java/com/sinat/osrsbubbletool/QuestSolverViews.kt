@@ -136,7 +136,7 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
                 addView(label("For each number, press Up or Down until it shows, then press Enter.", 12f), full(4))
             })
         }
-        c.addView(letterBox("metal_door", 4, "e.g. IFCB") { update(it) }, full(4))
+        c.addView(letterBox("metal_door", "e.g. IFCB") { update(it) }, full(4))
         c.addView(result, full(8))
         update(texts["metal_door"] ?: "")
     }
@@ -159,7 +159,7 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
                 S.HOD_DIALS.forEachIndexed { i, d -> addView(label("Dial ${i + 1}: " + d.toList().joinToString(" "), 11f), full(1)) }
             })
         }
-        c.addView(letterBox("hod_chest", 4, "e.g. RANK") { update(it) }, full(4))
+        c.addView(letterBox("hod_chest", "e.g. RANK") { update(it) }, full(4))
         c.addView(result, full(8))
         update(texts["hod_chest"] ?: "")
     }
@@ -495,21 +495,22 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
         return picked
     }
 
-    private fun letterBox(key: String, length: Int, hint: String, onChange: (String) -> Unit) = EditText(context).apply {
-        setTextColor(Palette.DARK_BROWN)
-        setHintTextColor(Palette.FADED)
+    // A box for a 4-letter code
+    private fun letterBox(key: String, hint: String, onChange: (String) -> Unit) = EditText(context).apply {
+        setTextColor(DARK_BROWN)
+        setHintTextColor(FADED)
         setText(texts[key] ?: "")
         this.hint = hint
         textSize = 18f
         setSingleLine()
         inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-        filters = arrayOf(InputFilter.LengthFilter(length), InputFilter.AllCaps())
+        filters = arrayOf(InputFilter.LengthFilter(4), InputFilter.AllCaps())
         addTextChangedListener(watcher { texts[key] = it; onChange(it) })
     }
 
     private fun numberBox(key: String, hint: String, onChange: () -> Unit) = EditText(context).apply {
-        setTextColor(Palette.DARK_BROWN)
-        setHintTextColor(Palette.FADED)
+        setTextColor(DARK_BROWN)
+        setHintTextColor(FADED)
         setText(texts[key] ?: "")
         this.hint = hint
         textSize = 16f

@@ -6,7 +6,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Rect
 import android.os.Process
-import org.json.JSONArray
 import java.util.Locale
 import java.util.concurrent.Callable
 import java.util.concurrent.Executors
@@ -14,7 +13,9 @@ import java.util.concurrent.Future
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.roundToInt
+import org.json.JSONArray
 
 // Recognizes the gear in a picture of the equipment window, using the item pictures
 // that come with the app (see GearIcons). Slow work: call it from a background thread.
@@ -89,9 +90,8 @@ class GearRecognizer(private val context: Context) {
         private const val MAX_THREADS = 4   // more rarely helps: phones mix fast and slow cores
     }
 
-    // iconFile: the picture's name in the DPS calculator's repository; fromWiki: download it from the OSRS Wiki
-    class Item(val id: Int, val name: String, val version: String, val slot: String, val iconFile: String,
-               val fromWiki: Boolean = false) {
+    // iconFile: the picture's name in the DPS calculator's repository
+    class Item(val id: Int, val name: String, val version: String, val slot: String, val iconFile: String) {
         val label: String get() = if (version.isEmpty()) name else "$name ($version)"
     }
 
@@ -175,7 +175,7 @@ class GearRecognizer(private val context: Context) {
         for (i in 0 until array.length()) {
             val o = array.getJSONObject(i)
             list.add(Item(o.getInt("id"), o.getString("name"), o.optString("version", ""),
-                o.getString("slot"), o.getString("icon"), o.optBoolean("wiki", false)))
+                o.getString("slot"), o.getString("icon")))
         }
         // Items whose versions are just numbers are charges or degradation (Amulet of glory 1-6,
         // Barrows 0-100), which don't change damage. Keep only the highest number of each.
@@ -259,8 +259,7 @@ class GearRecognizer(private val context: Context) {
     private fun loadIcon(file: String): Icon? = iconCache.getOrPut(file) { readIcon(file) }
 
     private fun readIcon(file: String): Icon? {
-        val bmp: Bitmap? = pictures.decode(file)
-        if (bmp == null) return null
+        val bmp = pictures.decode(file) ?: return null
         val w = bmp.width
         val h = bmp.height
         val px = IntArray(w * h)
@@ -417,7 +416,7 @@ class GearRecognizer(private val context: Context) {
         val lut = synchronized(lutCache) {
             lutCache.getOrPut(gamma) {
                 IntArray(256) { v ->
-                    (DIMMING * 255f * Math.pow(v / 255.0, gamma.toDouble()).toFloat()).roundToInt().coerceIn(0, 255)
+                    (DIMMING * 255f * (v / 255.0).pow(gamma.toDouble()).toFloat()).roundToInt().coerceIn(0, 255)
                 }
             }
         }

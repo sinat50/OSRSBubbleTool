@@ -198,7 +198,7 @@ class NotesTool(private val context: Context) {
 
         // Title and Done on one row, so the note itself gets as much room as possible
         val title = EditText(context).apply {
-            setHintTextColor(Palette.FADED)
+            setHintTextColor(FADED)
             setText(note.title)
             hint = "Title"
             textSize = 14f
@@ -228,7 +228,7 @@ class NotesTool(private val context: Context) {
 
         // The note. It fills the rest of the window (resize the window to make it bigger) and scrolls inside.
         val body = EditText(context).apply {
-            setHintTextColor(Palette.FADED)
+            setHintTextColor(FADED)
             setText(note.body)
             hint = "Write your note…"
             textSize = 13f
@@ -292,7 +292,7 @@ class NotesTool(private val context: Context) {
     // ---------------- Keyboard ----------------
 
     private fun showKeyboard(v: View) {
-        (context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)?.showSoftInput(v, InputMethodManager.SHOW_IMPLICIT)
+        (context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)?.showSoftInput(v, 0)   // (0: a plain request; the old SHOW_IMPLICIT is out of date)
     }
 
     private fun hideKeyboard() {

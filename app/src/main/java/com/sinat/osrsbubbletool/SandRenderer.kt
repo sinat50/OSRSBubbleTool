@@ -49,6 +49,7 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
         // Catmull-Rom ("bicubic") blending of a picture of values, from its 16 nearest squares. `s` is a place in
         // squares; square (i, j) is the picture's pixel (i, j). (A function of its own for each picture, as the
         // graphics chip's language can't hand a picture to a function.)
+        @Suppress("SameParameterValue")   // (kept general on purpose)
         private fun cubic(name: String, input: String) = """
             float4 $name(float2 s) {
                 float2 t = s - 0.5;

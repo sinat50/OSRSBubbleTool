@@ -17,7 +17,7 @@ object HunterRumours {
     }
 
     val TIERS = listOf("Novice", "Adept", "Expert", "Master")
-    fun huntersFor(tier: String) = Hunter.values().filter { it.tier == tier }
+    fun huntersFor(tier: String) = Hunter.entries.filter { it.tier == tier }
 
     class Place(val name: String, val travel: List<String>, val note: String? = null)
 
@@ -92,7 +92,6 @@ object HunterRumours {
     private val MONS_GRATIA = Place("Mons Gratia", listOf("Quetzal to Quetzacalli Gorge"))
     private val TLATI = Place("Tlati Rainforest", listOf("Quetzal to Tal Teklan or Kastori", "Pendant of Ates to Kastori"))
     private val GREAT_CONCH = Place("The Great Conch", listOf("Fairy ring CJQ", "Charter ship"), "Needs Troubled Tortugans started")
-    private val AVIUM = Place("Avium Savannah", listOf("Fairy ring AJP", "Quetzal to Outer Fortis", "Walk from the Hunter Guild"))
     private val BURROW = Place("The Burrow", listOf("Under the Hunter Guild: Hunter cape, max cape or quetzal whistle to the guild"))
     private val NEYPOTZLI = Place("Neypotzli", listOf("Calcified moth", "Quetzal to Cam Torum, then run north"))
 
@@ -141,7 +140,7 @@ object HunterRumours {
         Rumour("Wyrmscraig goat", 60, GOAT_PIT, setOf(Hunter.GILMAN, Hunter.CERVUS, Hunter.TECO), listOf(
             Place("Wyrmscraig", listOf("Necklace of passage (after Fallen From Grace)", "Slayer ring (after Fallen From Grace)", "Sail there and dock (62 Sailing)"))),
             requires = "Sheep Herder, 62 Sailing"),
-        Rumour("Red chinchompa", 63, BOX_TRAP, Hunter.values().toSet(), listOf(
+        Rumour("Red chinchompa", 63, BOX_TRAP, Hunter.entries.toSet(), listOf(
             Place("Red chinchompa hunting ground", listOf("Feldip hills teleport scroll, then run south-west", "Fairy ring AKS, then run south-west"), "Needs the Hard Western Provinces Diary"),
             Place("Gwenith Hunter area", listOf("Spirit tree", "Teleport crystal")),
             FELDIP, TLATI, GREAT_CONCH,

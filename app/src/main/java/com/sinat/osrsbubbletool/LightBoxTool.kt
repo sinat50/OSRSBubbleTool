@@ -30,7 +30,7 @@ class LightBoxTool(
         const val SETTLE_MS = 160L         // a change counts as a press once seen twice, or after this long
         const val GONE_READS = 3           // light box missing this many looks in a row (~0.25 s) = closed
         const val SOLVED_SHOW_MS = 2_500L  // how long "Solved!" stays up
-        private val LETTERS = "ABCDEFGH"
+        private const val LETTERS = "ABCDEFGH"
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -278,10 +278,6 @@ class LightBoxTool(
     }
 
     // ---------------- Called by BubbleService ----------------
-
-    // Closing the window yourself keeps solving going; the instructions stay on the light box.
-    // Tap the bubble to bring the window back, and Stop to end it.
-    fun onWindowClosed() {}
 
     fun onRotated() {
         session++   // a search still running was for the old layout

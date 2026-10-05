@@ -16,7 +16,7 @@ class GearIcons(context: Context) {
     companion object {
         // The version of the DPS calculator's repository the item list and pictures come from
         // (tools/dps/build_equipment_json.py and fetch_pictures.py read it from here)
-        const val COMMIT = "89c3e25b344aea90d0189746e4b5f73dde0f0383"
+        @Suppress("unused") const val COMMIT = "89c3e25b344aea90d0189746e4b5f73dde0f0383"
         private const val FOLDER = "dps/icons"
     }
 
