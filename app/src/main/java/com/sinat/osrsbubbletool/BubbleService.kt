@@ -59,6 +59,7 @@ class BubbleService : Service() {
         const val MENU_WIDTH_DP = 170       // width of the long-press menu
         const val MENU_MAX_PORTRAIT_DP = 340 // tallest the long-press menu gets in portrait (it scrolls past that)
         const val LONG_PRESS_MS = 600L      // how long to hold the bubble to open the menu
+        private const val CARVED = "carved"  // a window corner carved into the Zen Garden's frame (see applyFrameless)
 
         // Messages from CapturePermissionActivity
         const val ACTION_CAPTURE_RESULT = "com.sinat.osrsbubbletool.CAPTURE_RESULT"
@@ -592,10 +593,6 @@ class BubbleService : Service() {
 
     private fun hideToolWindow() {
         if (compactSaved != null) setWindowCompact(COMPACT_OFF)   // a shrunk window opens whole, at its normal size, next time
-        if (windowFaded) {   // a faded window opens whole next time
-            windowFaded = false
-            shownWindow?.let { w -> showChrome(w, 1f, 0) }
-        }
         val wasShowing = shownWindow != null
         shownWindow?.let { windowManager.removeView(it) }
         shownWindow = null
@@ -606,43 +603,11 @@ class BubbleService : Service() {
         }
     }
 
-    // A tool asks for its window's frame (the top bar, the resize corner and the background) to fade away, leaving
-    // only what the tool shows (the Zen Garden's zen mode), or to come back. While faded, touching the top bar only
-    // brings it back (through `onWake`); the move and resize symbols work straight away and bring it back too.
-    private var windowFaded = false
-    private var fadeWake: (() -> Unit)? = null
-
-    private fun setWindowFaded(faded: Boolean, onWake: () -> Unit) {
-        fadeWake = onWake
-        val window = shownWindow ?: return
-        if (faded == windowFaded) return
-        windowFaded = faded
-        showChrome(window, if (faded) 0f else 1f, if (faded) 1500L else 250L)
-    }
-
-    private fun showChrome(window: LinearLayout, alpha: Float, time: Long) {
-        val bar = window.getChildAt(0)
-        val body = window.getChildAt(1) as? ViewGroup
-        val corner = body?.let { if (it.childCount > 1) it.getChildAt(1) else null }
-        val mover = body?.let { if (it.childCount > 2) it.getChildAt(2) else null }
-        for (v in listOfNotNull(bar, corner, mover)) {
-            v.animate().cancel()
-            if (time == 0L) v.alpha = alpha else v.animate().alpha(alpha).setDuration(time).start()
-        }
-        if (gamesFrameless && window === toolWindows[Tool.GAMES]) return   // no background to fade
-        val back = window.background ?: return
-        val to = (alpha * 255).toInt()
-        if (time == 0L) back.alpha = to
-        else android.animation.ValueAnimator.ofInt(back.alpha, to).apply {
-            duration = time
-            addUpdateListener { back.alpha = it.animatedValue as Int }
-            start()
-        }
-    }
-
-    // The Game Room's Zen Garden shows with no window around it: no top bar or background, just a move symbol in
-    // the top right (with the resize symbol in the bottom right). Asked for while the window is being built, so
-    // it's remembered and applied once the window exists.
+    // The Game Room's Zen Garden shows with no window around it: no top bar or background. Its move and resize
+    // symbols are carved into the garden frame's top-right and bottom-right corners (SandGardenView draws them), so
+    // the window's own move and resize corners become invisible touch areas the size of those carved corners, on the
+    // tray's corners (see pinGamesCorners). Asked for while the window is being built, so it's remembered and
+    // applied once the window exists.
     private var gamesFrameless = false
 
     private fun setGamesFrameless(on: Boolean) {
@@ -654,7 +619,23 @@ class BubbleService : Service() {
         val on = gamesFrameless
         window.getChildAt(0).visibility = if (on) View.GONE else View.VISIBLE
         window.background?.alpha = if (on) 0 else 255
-        (window.getChildAt(1) as? ViewGroup)?.let { if (it.childCount > 2) it.getChildAt(2).visibility = if (on) View.VISIBLE else View.GONE }
+        (window.getChildAt(1) as? ViewGroup)?.let { body ->
+            if (body.childCount < 3) return@let
+            val corner = body.getChildAt(1)
+            val mover = body.getChildAt(2)
+            mover.visibility = if (on) View.VISIBLE else View.GONE
+            // carved into the frame (invisible here, and only their triangle answers), or the window's own symbols
+            val carved = dp(Math.round(SandGardenView.CORNER_DP + SandGardenView.FRAME_DP))
+            for ((v, size) in listOf(corner to dp(26), mover to dp(30))) {
+                v.tag = if (on) CARVED else null
+                (v.layoutParams as? FrameLayout.LayoutParams)?.let {
+                    it.width = if (on) carved else size
+                    it.height = if (on) carved else size
+                    v.layoutParams = it
+                }
+                v.invalidate()
+            }
+        }
         if (!on) pinGamesCorners(-1, -1, -1, -1)   // the resize corner back in the window's corner
     }
 
@@ -665,7 +646,9 @@ class BubbleService : Service() {
         if (body.childCount < 3) return
         val corner = body.getChildAt(1)
         val mover = body.getChildAt(2)
-        val reset = right < 0
+        gamesTray[0] = left; gamesTray[1] = top; gamesTray[2] = right; gamesTray[3] = bottom
+        // the window shrinks to the tray (then the symbols sit in its own corners)
+        val reset = right < 0 || (!resizingWindow && fitGamesWindowToTray())
         (corner.layoutParams as? FrameLayout.LayoutParams)?.let {
             it.rightMargin = if (reset) 0 else maxOf(0, body.width - right)
             it.bottomMargin = if (reset) 0 else maxOf(0, body.height - bottom)
@@ -678,10 +661,34 @@ class BubbleService : Service() {
         }
     }
 
-    // Touched the faded frame: bring it back (returns true if it was faded, so the touch does nothing else)
-    private fun wakeChrome(): Boolean {
-        if (!windowFaded) return false
-        fadeWake?.invoke()
+    // A garden scaled to fit a window of a different shape leaves a see-through band beside it, which you couldn't
+    // move off the screen edge (so the garden couldn't reach the top) and which caught taps meant for the game.
+    // So in zen mode the window is shrunk to the tray itself, keeping the tray where it is on screen. Done when the
+    // tray is placed, but not while the resize corner is being dragged (it's done when you let go instead).
+    // Returns true if the window was shrunk.
+    private val gamesTray = IntArray(4) { -1 }   // the tray's edges in the window, last time it was placed
+    private var resizingWindow = false
+
+    private fun fitGamesWindowToTray(): Boolean {
+        if (!gamesFrameless || currentTool != Tool.GAMES) return false
+        val window = shownWindow ?: return false
+        if (window !== toolWindows[Tool.GAMES]) return false
+        val params = shownParams ?: return false
+        val body = window.getChildAt(1) as? ViewGroup ?: return false
+        val (l, t, r, b) = gamesTray
+        if (l < 0 || r <= l || b <= t) return false
+        // already a snug fit (a few pixels either way is just rounding)
+        val slack = dp(4)
+        if (l < slack && t < slack && body.width - r < slack && body.height - b < slack) return false
+        params.x += l
+        params.y += t
+        params.width = r - l
+        params.height = b - t
+        windowX = params.x
+        windowY = params.y
+        shownWantY = params.y
+        shownWantH = params.height
+        windowManager.updateViewLayout(window, params)
         return true
     }
 
@@ -892,8 +899,8 @@ class BubbleService : Service() {
         }
         Tool.CALCULATOR -> CalculatorTool(this).let { t -> ToolParts(t::buildView, onBack = null) }
         Tool.NOTES -> NotesTool(this).let { t -> ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed) }
-        Tool.GAMES -> GameRoomTool(this, ::setWindowFaded, ::setGamesFrameless, ::pinGamesCorners).let { t ->
-            ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed, onDestroy = t::destroy)
+        Tool.GAMES -> GameRoomTool(this, ::setGamesFrameless, ::pinGamesCorners).let { t ->
+            ToolParts(t::buildView, t::goBack, onDestroy = t::destroy)
         }
         Tool.HUNTER -> HunterRumourTool(this, openWikiSync = { openWikiSync(Tool.HUNTER) }).let { t ->
             ToolParts(t::buildView, t::goBack)
@@ -920,7 +927,7 @@ class BubbleService : Service() {
             textSize = 15f
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
-            setOnClickListener { if (!wakeChrome()) onClick() }
+            setOnClickListener { onClick() }
             layoutParams = LinearLayout.LayoutParams(dp(BAR_BUTTON_WIDTH_DP), ViewGroup.LayoutParams.MATCH_PARENT)
         }
 
@@ -944,11 +951,8 @@ class BubbleService : Service() {
         var startWindowY = 0
         val canResize = isResizable(currentTool)
         if (canResize) dragHandle.text = "✥"   // these windows move up and down too
-        var wokeOnly = false   // this touch only brought a faded frame back
         dragHandle.setOnTouchListener { _, event ->
             val params = shownParams ?: return@setOnTouchListener false
-            if (event.action == MotionEvent.ACTION_DOWN) wokeOnly = wakeChrome()
-            if (wokeOnly) return@setOnTouchListener true
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     downRawX = event.rawX
@@ -1021,6 +1025,7 @@ class BubbleService : Service() {
         }
         private val back = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = "#B33E2C12".toColorInt() }
         override fun onDraw(canvas: android.graphics.Canvas) {
+            if (tag == CARVED) return   // (carved into the garden's frame instead)
             val w = width.toFloat()
             val c = w / 2
             // a dark circle with a four-way arrow, like the top bar's move symbol
@@ -1041,7 +1046,9 @@ class BubbleService : Service() {
         var startX = 0; var startY = 0
         setOnTouchListener { _, e ->
             val params = shownParams ?: return@setOnTouchListener false
-            if (e.actionMasked == MotionEvent.ACTION_DOWN) wakeChrome()   // works even while faded (and brings it back)
+            // carved into the garden's frame: only its top-right triangle (the sand beside it is still raked)
+            if (e.actionMasked == MotionEvent.ACTION_DOWN && tag == CARVED && (width - e.x) + e.y > width * 1.1f)
+                return@setOnTouchListener false
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downRawX = e.rawX; downRawY = e.rawY
@@ -1070,6 +1077,7 @@ class BubbleService : Service() {
         }
         private val back = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = "#B33E2C12".toColorInt() }
         override fun onDraw(canvas: android.graphics.Canvas) {
+            if (tag == CARVED) return   // (carved into the garden's frame instead)
             val w = width.toFloat(); val h = height.toFloat()
             // a dark quarter-circle in the corner with three diagonal lines, like a window's resize grip
             canvas.drawCircle(w, h, w * 0.95f, back)
@@ -1086,13 +1094,17 @@ class BubbleService : Service() {
         var moved = false
         setOnTouchListener { _, e ->
             val params = shownParams ?: return@setOnTouchListener false
-            if (e.actionMasked == MotionEvent.ACTION_DOWN) wakeChrome()   // works even while faded (and brings it back)
+            // carved into the garden's frame: only its bottom-right triangle (the sand beside it is still raked)
+            if (e.actionMasked == MotionEvent.ACTION_DOWN && tag == CARVED && (width - e.x) + (height - e.y) > width * 1.1f)
+                return@setOnTouchListener false
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     downX = e.rawX; downY = e.rawY
                     startW = params.width; startH = params.height
                     moved = false
+                    resizingWindow = true
                 }
+                MotionEvent.ACTION_CANCEL -> resizingWindow = false
                 MotionEvent.ACTION_MOVE -> {
                     val dx = (e.rawX - downX).toInt()
                     val dy = (e.rawY - downY).toInt()
@@ -1105,6 +1117,9 @@ class BubbleService : Service() {
                     }
                 }
                 MotionEvent.ACTION_UP -> {
+                    resizingWindow = false
+                    // the Zen Garden: once the tray has settled into the new size, the window shrinks to it
+                    if (gamesFrameless) postDelayed({ fitGamesWindowToTray() }, 150)
                     if (moved) {
                         sizes.edit {
                             putInt(sizeKey(currentTool) + "_w", params.width)

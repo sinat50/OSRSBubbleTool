@@ -19,7 +19,9 @@ class SandSound {
     companion object {
         private const val RATE = 44100      // samples a second (needed for the high part of the hiss)
         private const val CHUNK = 512       // samples made at a time (about 12 ms)
-        private const val VOLUME = 0.025f * 32767f   // very quiet, in the background, even at full speed
+        // very quiet, in the background, even at full speed (halved in October 2026: the volume slider's Loud end
+        // was too loud)
+        private const val VOLUME = 0.0125f * 32767f
         // how quickly the loudness follows: it swells in over about 0.15 s and fades out over about 0.25 s,
         // so a stroke never starts or stops with a jump
         private const val SWELL = 1f / (0.15f * RATE)

@@ -27,12 +27,10 @@ import java.io.File
 // The Game Room: small games to play while you wait in the game: 2048, Wing It and the Zen Garden.
 // (The games are the app's own and use nothing from Old School RuneScape: Jagex's Fan Content Policy
 // doesn't allow games made with its content.)
-// fadeWindow(faded, wake): fades the window's own move and resize symbols (or brings them back); `wake` is called
-// when one of them is touched while faded. frameless(on): the window shows without its top bar and background
-// (the Zen Garden's zen mode).
+// frameless(on): the window shows without its top bar and background (the Zen Garden's zen mode, whose move and
+// resize buttons are carved into its wooden frame). pinCorners: where the tray's corners are in the window.
 class GameRoomTool(
     private val context: Context,
-    private val fadeWindow: (Boolean, () -> Unit) -> Unit = { _, _ -> },
     private val frameless: (Boolean) -> Unit = {},
     private val pinCorners: (Int, Int, Int, Int) -> Unit = { _, _, _, _ -> },
 ) {
@@ -57,29 +55,34 @@ class GameRoomTool(
         "each one you pass scores a point. Touching a pillar or the ground ends the round.\n\n" +
         "The gaps slowly get smaller as your score goes up. If you close the window mid-flight, the game pauses: tap to carry on."
 
-    private val HELP_SAND = "The garden floats on its own (zen mode). Tap it to show the icons in the bottom left; they fade " +
-        "away after 3 seconds, or as soon as you start dragging. (A tap that places something doesn't bring them " +
-        "back; tap the tray's bottom-left corner, where the frame has a little arrow, to see them again.) The " +
-        "move and resize symbols work even while faded. Drag the four-way arrow in the top right to move the " +
-        "garden, and the corner in the bottom right to resize it (double-tap the corner for the normal size).\n\n" +
+    private val HELP_SAND = "The garden floats on its own (zen mode), in a wooden frame with a button carved into each " +
+        "corner:\n" +
+        "\u2022 Top left: Exit, back to the Game Room.\n" +
+        "\u2022 Top right: drag it to move the garden.\n" +
+        "\u2022 Bottom right: drag it to resize the garden (double-tap it for the normal size).\n" +
+        "\u2022 Bottom left: the arrow opens the tools and settings along the bottom; tap it again to close them.\n\n" +
         "Drag across the sand to rake. Hold your finger still on a stone (or anything placed) and the rake circles it; " +
         "hold again for the next ring out.\n\n" +
         "The icons, left to right:\n" +
         "\u2022 The tool: the Rake (five lines), the Stick (one line) or the Brush (wipes a patch smooth), or something " +
         "to place: a Stone, Flowers, a Lantern, a Bonsai or Fireflies. Tap the sand to place one, tap it again to take it " +
         "away, or drag it to move it. Tap a glowing firefly to let it fly away.\n" +
-        "\u2022 Auto (the spiral): rakes calm patterns by itself, slowly, in a random order (Rows, Seed of Life, Spiral, " +
-        "Lotus, Waves, Golden Spiral, Ripples), smoothing between them and raking rings around what you've placed. Its " +
-        "name shows above the icons. You can place and move things while it works.\n" +
+        "\u2022 Automatic: rakes calm patterns by itself, slowly, with the rake and the stick: Rows, Waves, " +
+        "Chevrons, Basket Weave, Spiral, Square Spiral, Golden Spiral, Ripples, Rain, Seed of Life, Flower of Life, " +
+        "Lotus, Rose Window, Spirograph, Lissajous, Mandala and Seven Star. They come in a random order, each once " +
+        "before any comes round again. It smooths the sand between them and rakes rings around what you've placed " +
+        "with the stick. The pattern's name shows above the icons. You can place and move things while it works.\n" +
         "\u2022 Undo (the back arrow): takes back your last few changes.\n" +
         "\u2022 Smooth (the eraser): wipes the whole tray smooth; what you placed stays.\n" +
         "\u2022 Brightness (the sun): darker makes the lanterns and fireflies glow.\n" +
         "\u2022 Volume (the speaker): the raking sound; all the way left is off.\n" +
         "\u2022 Settings (the gear): clear everything placed, scale the garden to the window (on: resizing makes it " +
         "bigger or smaller; off: resizing adds sand or cuts it off), the triangle grid to snap things to, Steady hand " +
-        "(nearly straight lines become straight and nearly round ones perfect curves), the sand's colour, and saving a " +
-        "picture.\n" +
-        "\u2022 Help, and Exit (red), back to the Game Room.\n\n" +
+        "(nearly straight lines become straight and nearly round ones perfect curves), Battery saver (a simpler " +
+        "drawing that's much lighter on your phone, with slightly softer curves and light; newer phones only), the " +
+        "sand's colour, and saving a picture.\n" +
+        "\u2022 Help: this page.\n\n" +
+        "Nothing can be placed under the corners.\n\n" +
         "Your garden is saved as you go."
 
     private enum class Screen { MENU, G2048, FLYER, SAND }
@@ -104,10 +107,10 @@ class GameRoomTool(
     }
 
     // The bubble is shutting down (nothing runs in the background, so there's nothing to stop; the garden is saved)
-    fun destroy() { sandView?.save() }
-
-    // The window was closed: its symbols show again next time it opens
-    fun onWindowClosed() { fadeWindow(false) {} }
+    fun destroy() {
+        sandView?.save(now = true)
+        SandGardenView.waitForSaves()   // (one started in the background when the window closed is finished first)
+    }
 
     // The window's ◀ button (and the Zen Garden's exit)
     fun goBack() {
@@ -131,7 +134,9 @@ class GameRoomTool(
         val zen = screen == Screen.SAND
         frameless(zen)
         holder.background?.alpha = if (zen) 0 else 255
-        if (!zen) { zenScreen = null; fadeWindow(false) {} }
+        // leaving the garden: let it go (it saves itself as it comes off the screen, just below), so its sand,
+        // light and undo steps don't take up memory while you're elsewhere
+        if (!zen) { zenScreen = null; sandView = null }
         holder.removeAllViews()
         holder.addView(when (screen) {
             Screen.MENU -> menu()
@@ -324,6 +329,7 @@ class GameRoomTool(
             volume = vol / 50f
             steadyHand = prefs.getBoolean("sand_steady", false)
             gridOn = prefs.getBoolean("sand_grid", false)
+            batterySaver = prefs.getBoolean("sand_battery_saver", false)
             brightness = prefs.getInt("sand_brightness", 100) / 100f
             sand = prefs.getInt("sand_colour", 0)
         }
@@ -378,10 +384,21 @@ class GameRoomTool(
             }, { v -> prefs.edit { putInt("sand_volume", v) } })
         }
 
-        // the icons: tool, Auto, Undo, Smooth, brightness, volume, settings, help, exit
+        // the icons: tool, Auto, Undo, Smooth, brightness, volume, settings, help (Exit is carved into the frame)
         val toolIcon = icon(garden.tool) { me -> chooseSandTool(garden) { me.kind = garden.tool } }
-        val autoIcon = icon(ZenIcon.AUTO) {
-            garden.setAuto(!garden.autoOn)
+        // Automatic: a rounded button with its name (green while it's raking)
+        val autoBack = GradientDrawable().apply { setColor(ICON_BACK); cornerRadius = size / 2f }
+        val autoIcon = TextView(context).apply {
+            text = "Automatic"
+            textSize = 12f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setPadding(dp(12), 0, dp(12), 0)
+            background = autoBack
+            tag = 0f   // keeps its size in the row
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, size)
+            setOnClickListener { garden.setAuto(!garden.autoOn) }
         }
         val undoIcon = icon(ZenIcon.UNDO) { garden.undo() }
         garden.onUndoChanged = { undoIcon.alpha = if (garden.canUndo) 1f else 0.45f }
@@ -396,7 +413,6 @@ class GameRoomTool(
             addView(volumeIcon)
             addView(icon(ZenIcon.GEAR) { sandSettings(garden) })
             addView(icon(ZenIcon.HELP) { showHelp("Zen Garden", HELP_SAND) })
-            addView(icon(ZenIcon.EXIT, STOP_RED) { goBack() })
         }
         // the name of the pattern Auto is raking, above the icons
         val pattern = label("", 11f).apply {
@@ -407,24 +423,20 @@ class GameRoomTool(
         garden.onAutoPattern = { name ->
             pattern.text = name ?: ""
             pattern.visibility = if (name == null) View.GONE else View.VISIBLE
-            autoIcon.setFill(if (name == null) ICON_BACK else GO_GREEN)
+            autoBack.setColor(if (name == null) ICON_BACK else GO_GREEN)
         }
         val dock = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            // inside the tray's frame, clear of the resize symbol in the bottom right
-            setPadding(dp(14), 0, dp(34), dp(14))
             addView(pattern, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(4) })
             addView(sliderSpot, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6) })
             addView(icons, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
 
-        return ZenScreen(context, garden, dock, icons).also { zen ->
+        return ZenScreen(context, garden, dock).also { zen ->
             zenScreen = zen
-            zen.keepShowing = { holder.childCount > 1 }   // a card is open
+            zen.onExit = { goBack() }
             zen.onHide = { closeSlider() }
-            zen.onShownChanged = { shown -> fadeWindow(!shown) { zen.showControls() } }
-            garden.onDragging = { zen.hideControls() }    // out of the way while you drag a tool or an object
-            zen.onTrayPlaced = pinCorners                 // the window's move and resize symbols go on the tray's corners
+            zen.onTrayPlaced = pinCorners                 // the window's move and resize corners go on the tray's corners
         }
     }
 
@@ -438,8 +450,6 @@ class GameRoomTool(
                 prefs.edit { putInt("sand_tool", t) }
                 picked()
                 close()
-                // something to place (or fireflies to let out): the icons go at once, out of the way
-                if (t >= SandGardenView.STONE) zenScreen?.hideControls()
             }.apply { textSize = 12f }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(4) })
         }
         addView(label("Draw in the sand", 11f).apply { setTextColor(FADED) }, full(6))
@@ -455,6 +465,9 @@ class GameRoomTool(
         addView(toggleRow("Scale garden to window", "sand_scale", true) { garden.scaleToFit = it }, full(6))
         addView(toggleRow("Steady hand", "sand_steady", false) { garden.steadyHand = it }, full(4))
         addView(toggleRow("Triangle grid", "sand_grid", false) { garden.gridOn = it }, full(4))
+        // (only phones with the smooth drawing, Android 13 and newer: older ones always use the lighter one)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+            addView(toggleRow("Battery saver", "sand_battery_saver", false) { garden.batterySaver = it }, full(4))
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -510,18 +523,26 @@ class GameRoomTool(
             return
         }
         val picture = garden.picture() ?: return
+        val resolver = context.contentResolver
+        var uri: android.net.Uri? = null
         try {
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "zen-garden-${System.currentTimeMillis()}.png")
                 put(MediaStore.Images.Media.MIME_TYPE, "image/png")
                 put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/OSRS Bubble Tool")
+                put(MediaStore.Images.Media.IS_PENDING, 1)   // hidden from the gallery until it's fully written
             }
-            val resolver = context.contentResolver
-            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
                 ?: throw IllegalStateException("couldn't create the file")
-            resolver.openOutputStream(uri)?.use { picture.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            val stream = resolver.openOutputStream(uri) ?: throw IllegalStateException("couldn't open the file")
+            stream.use {
+                if (!picture.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)) throw IllegalStateException("couldn't write the picture")
+            }
+            resolver.update(uri, ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }, null, null)
             Toast.makeText(context, "Saved to Pictures/OSRS Bubble Tool.", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
+            // don't leave an empty picture behind in the gallery
+            uri?.let { try { resolver.delete(it, null, null) } catch (e2: Exception) { } }
             Toast.makeText(context, "Couldn't save the picture: ${e.message}", Toast.LENGTH_LONG).show()
         } finally {
             picture.recycle()
@@ -553,12 +574,11 @@ class GameRoomTool(
 
     // A card on top of the screen; tapping outside it closes it
     private fun showCard(title: String, onClose: () -> Unit = {}, build: LinearLayout.(close: () -> Unit) -> Unit) {
-        zenScreen?.showControls()
         val cover = FrameLayout(context).apply {
             setBackgroundColor("#993E2C12".toColorInt())
             isClickable = true
         }
-        val close: () -> Unit = { onClose(); holder.removeView(cover); zenScreen?.showControls() }
+        val close: () -> Unit = { onClose(); holder.removeView(cover) }
         cover.setOnClickListener { close() }
         cover.addView(ScrollView(context).apply {
             addView(LinearLayout(context).apply {

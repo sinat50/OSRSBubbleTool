@@ -56,7 +56,7 @@ Code: `app/src/main/java/com/sinat/osrsbubbletool/` (one file per tool, roughly)
 | `HunterRumourTool.kt`, `HunterRumours.kt` | Hunter Rumours |
 | `ZulrahTool.kt` | Zulrah Helper |
 | `FarmingTool.kt`, `FarmingTimers.kt`, `FarmingTimerReceiver.kt` | Timers (one exact alarm per timer, no background work) |
-| `GameRoomTool.kt`, `Game2048View.kt`, `FlyerView.kt`, `GameData.kt`, `SandGardenView.kt`, `SandSound.kt`, `SandGardenLayout.kt` | Game Room: 2048, Wing It and the Zen Garden (`SandSound` = its raking sound, made in code: filtered noise whose tone was fitted to the owner's recording `tools/sandsound.mp3`; placed things are baked into the sand's own surface (`bake`: height, colour and soft outline per square) so the sun, lantern and firefly light and shadows treat them like the sand; `SandGardenLayout` = zen mode: `ZenScreen` (the tray with round `ZenIcon`s in its bottom-left corner that hide after 3 s or when a drag starts; a tap brings them back unless it placed something) and `FlowRow`; the window has no top bar or background (`BubbleService.setGamesFrameless`, with a move symbol top right; both symbols are pinned to the tray's corners by `pinGamesCorners`) and its move/resize symbols fade with the icons (`setWindowFaded`); the garden scales to fit the window unless "Scale garden to window" is off) |
+| `GameRoomTool.kt`, `Game2048View.kt`, `FlyerView.kt`, `GameData.kt`, `SandGardenView.kt`, `SandRenderer.kt`, `SandSound.kt`, `SandGardenLayout.kt` | Game Room: 2048, Wing It and the Zen Garden (`SandRenderer` = the smooth drawing on Android 13+: `shade` hands it each square's values (brightness, slopes, height, placed things), which two graphics-chip programs blend smoothly and colour per screen pixel, the lanterns' light included (worked out entirely on the graphics chip, ridge shadows and all); the sand and each lantern's light are kept in 64-square tiles, redrawn only where the sand changed; older phones use the garden's own square-by-square colours and `relight`; `SandSound` = its raking sound, made in code: filtered noise whose tone was fitted to the owner's recording `tools/sandsound.mp3`; placed things are baked into the sand's own surface (`bake`: height, colour and soft outline per square) so the sun, lantern and firefly light and shadows treat them like the sand; `SandGardenLayout` = zen mode: `ZenScreen` (the tray in its wooden frame, `SandGardenView.drawFrame`, with a button carved into each corner block: Exit top left, the arrow bottom left that opens and closes the row of round `ZenIcon`s along the bottom, and move/resize top and bottom right) and `FlowRow`; the window has no top bar or background (`BubbleService.setGamesFrameless`): its own move and resize corners become invisible touch areas on the carved corners (`pinGamesCorners`), and the window shrinks to the tray (`fitGamesWindowToTray`); the garden scales to fit the window unless "Scale garden to window" is off. The frame's wood is `res/drawable-nodpi/zen_wood.jpg` (Poly Haven, CC0, credited); `tools/gardenbox.png` is the owner's frame sketch, not committed) |
 | `CalculatorTool.kt`, `NotesTool.kt`, `UpdateChecker.kt`, `WikiLinkActivity.kt` | Calculator, Notepad, GitHub update check, wiki links opening in the bubble |
 
 Resources: `app/src/main/res/`: `drawable/ic_bubble.xml` (the bubble), `ic_launcher_bubble*.xml` and
@@ -128,7 +128,7 @@ Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're gener
   the screen. A re-plan needs a fresh picture, so it must `grab()` before anything `sample()`s that tick.
   Heavy work (finding the puzzle, reading tiles, recognising gear) runs on background threads.
 - **Battery**: web pages in hidden windows are paused; Wing It only animates while you're playing; the Zen
-  Garden's sand is a height grid (one square per dp) redrawn only where the rake touched it, its sound thread
+  Garden's sand is a height grid (1.5 squares per dp, `SandGardenView.RES`; every size in squares is written as dp × RES) redrawn only where the rake touched it (big changes, like placing something or Undo, are redrawn a band of rows per frame, `redrawAll`), its sound thread
   runs only while raking, and its light is fixed (a slider only changes a wash and the lantern strength); while a lantern is
   out and the garden is on screen it redraws ~25 times a second for the flame flicker (only the brightness of each
   lantern's own ready-made light picture changes, each in its own time, nothing is recalculated); the auto rake and the fireflies each run ~30 frames a
@@ -212,6 +212,26 @@ Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're gener
   nine pairs matched), `matching_2\` (114 pictures, a later run that started with the inventory open) and
   `screenshots\` (every puzzle room, used with TOA_SHOTS). Any change to the matching reader must replay both
   recordings without getting worse. Put new recordings there too.
+- Zen Garden smoothness: test builds log, once a second while the garden is busy, the main thread's time on
+  each step (`adb logcat -s ZenTiming`: rake, shade, light, draw). The game's frame rate while the garden runs:
+  `dumpsys SurfaceFlinger --timestats -enable -clear`, wait, `--timestats -dump` (the game's layer is its
+  `SurfaceView[com.jagex.oldscape.android...]`); the garden's own last ~120 frames: `dumpsys gfxinfo
+  com.sinat.osrsbubbletool framestats`. October 2026, with the smooth drawing: game 60-62 fps with 0 dropped
+  frames (garden idle, Auto, or raking); garden ~2 ms of graphics chip per frame; raking ~25% of the main thread.
+  Lessons: nothing slow may run on the main thread mid-stroke (the lantern light and saving both made strokes
+  stutter until moved off it: the light onto the graphics chip, saving onto a background thread), and only the
+  squares a press can touch are visited. The garden's Battery saver setting (Android 13+) switches to the
+  garden's own drawing; measured October 2026 with 4 lanterns and fireflies out (30 s each): idle, processor 25.5%
+  vs 27.8% of a core, graphics chip 4.0% vs 0.9% busy (`/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage`); raking,
+  78% vs 69% and 14% vs 2.7%. Lanterns and fireflies keep the garden redrawing ~25-30 times a second even when
+  idle (about a quarter of a core): worth trimming one day.
+  A fair before/after test (5 October 2026): the owner's garden (4 lanterns, fireflies, dark, small window) restored
+  from a backup before each run, then 30 s of scripted back-and-forth strokes (`adb shell input swipe`, only with
+  the owner's OK and the game closed). Sending the graphics chip only the changed value pictures, and redrawing
+  the frame only when it changes, took raking from 87% to 81% of a core, the graphics chip from 35% to 32% busy,
+  late frames from ~3.5% to ~2% and the slowest 1% from 13-14 ms to 11-12 ms; idle unchanged (10.6%, 3-4%). The
+  phone's screen runs at 120 Hz, so the garden draws ~118 frames a second while raking. Nonstop scripted strokes
+  are much heavier than October's hand measurement, so only compare runs done the same way.
 - Battery check: read the app's processor time from `/proc/<pid>/stat` (fields 14+15, in 1/100 s) at the start
   and end of a minute with the feature on and off, plus `dumpsys meminfo com.sinat.osrsbubbletool`.
   October 2026: matching Watch ≈ 45% of one core (the game itself ≈ 80%), about 20-30 MB extra memory.
@@ -222,6 +242,10 @@ Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're gener
   the owner has to tap Start Bubble again), and `adb shell dumpsys window windows` shows where the app's
   windows really are on screen. Never send input (`adb shell input` taps or swipes) to the phone without asking
   first, every time: the game may be running, and automated input could get their account banned.
+- Emulator: "Phone Emulator" (`emulator -avd Phone_Emulator`, Android 16, 2340×1080 like the owner's phone,
+  shows up as `emulator-5554`; pick it in Android Studio's device list next to ▶). Good for layouts, buttons and
+  crashes; not for speed or battery numbers (it runs on the PC's graphics card). Never install the game on it
+  (Jagex can flag emulator logins). The "ask before input" rule is about the owner's phone.
 - `TeleportData.kt` and `WalkMap.kt` have no Android parts, so routes can be tested on a computer with
   `tools/teleport-finder/test/` (see its README section).
 - When writing files to the owner's computer remotely: write, wait a few seconds, then read the file back

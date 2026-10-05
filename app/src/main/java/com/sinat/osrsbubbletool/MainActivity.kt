@@ -404,6 +404,11 @@ class MainActivity : Activity() {
             "Quest guides, quest requirements and achievement diary tasks adapted from the Quest Helper RuneLite plugin (github.com/Zoinkwiz/quest-helper).\n\n" +
             QuestGuides.COPYRIGHTS.joinToString("\n") + "\nAll rights reserved.\n\n" +
             BSD_TERMS, size = 11f)
+
+        section("Zen Garden: wood",
+            "The Zen Garden's wooden frame uses the \"Dark Wood\" texture from Poly Haven (polyhaven.com), by Dimitrios Savva " +
+            "(photography), Rico Cilliers (tiling) and Dario Barresi, released into the public domain (CC0). Its colour was " +
+            "toned for the app.", size = 11f)
     }
 
     // ---------------- Small building blocks ----------------

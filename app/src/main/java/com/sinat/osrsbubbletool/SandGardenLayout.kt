@@ -10,35 +10,23 @@ import androidx.core.view.isGone
 import kotlin.math.max
 import kotlin.math.min
 
-// Zen mode: the Zen Garden screen. No window around it, just the tray, with a row of round icons in the bottom
-// left (and the window's own move and resize symbols on the tray's top and bottom right corners). The icons fade
-// away after 3 seconds without a touch, and straight away when you start dragging a tool or an object. A tap on
-// the tray's bottom-left corner (marked on the frame) brings them back, and so does any other tap that didn't
-// place, take away or let out something. While they're hidden, touches where they sit go to the sand, so you
-// can place things there too.
+// Zen mode: the Zen Garden screen. No window around it, just the tray in its wooden frame, with the window's buttons
+// carved into the frame's corners (see SandGardenView.drawFrame): Exit in the top left, and the arrow in the bottom
+// left that opens the tools and settings (a row of round icons along the bottom) and closes them again. They stay
+// open or closed until the arrow is tapped again. (The move and resize corners, top and bottom right, are the
+// window's own: see BubbleService.applyFrameless.)
 @SuppressLint("ViewConstructor")
 class ZenScreen(
     context: Context,
     private val garden: SandGardenView,   // the tray of sand, filling the screen
-    private val dock: View,          // the icons, with any open slider and the pattern's name above them
-    private val icons: ViewGroup,    // just the icons (to know where they are)
-    private val hideAfter: Long = 3000,   // milliseconds without a touch before the icons go
+    private val dock: View,               // the icons, with any open slider and the pattern's name above them
 ) : FrameLayout(context) {
 
-    private val slop = 8 * context.resources.displayMetrics.density
-    var onShownChanged: ((Boolean) -> Unit)? = null   // the controls came or went (the window's symbols follow)
-    var keepShowing: () -> Boolean = { false }        // e.g. a card is open
-    var onHide: (() -> Unit)? = null                  // close any open slider
-    var shown = true
+    var onExit: (() -> Unit)? = null                  // the Exit corner was tapped
+    var onHide: (() -> Unit)? = null                  // the tools closed (close any open slider)
+    var open = false                                  // the tools are showing
         private set
-    private val hideLater = Runnable { hideControls() }
-    private var toSand = false         // this touch goes straight to the sand (it began where hidden icons sit)
-    private var onCorner = false       // this touch is on the tray's bottom-left corner (where the frame has a mark)
-    private val cornerSize = 44 * context.resources.displayMetrics.density   // a finger's width
-    private var downX = 0f
-    private var downY = 0f
-    private var dragged = false
-    private val box = android.graphics.Rect()
+    private var pressed = 0                           // the carved corner this touch began on (Exit or the arrow)
     private val tray = android.graphics.RectF()
     var onTrayPlaced: ((Int, Int, Int, Int) -> Unit)? = null   // the tray's edges here (left, top, right, bottom)
     private val placed = IntArray(4)
@@ -46,124 +34,80 @@ class ZenScreen(
     init {
         addView(garden, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(dock, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, android.view.Gravity.BOTTOM))
+        dock.visibility = GONE
     }
 
-    // Show the icons, and hide them again after 5 seconds of nothing
-    fun showControls() {
-        removeCallbacks(hideLater)
-        postDelayed(hideLater, hideAfter)
-        if (shown) return
-        shown = true
+    // Opens or closes the tools (the arrow in the corner turns to match)
+    fun setOpen(on: Boolean) {
+        if (open == on) return
+        open = on
+        garden.dockOpen = on
         dock.animate().cancel()
-        dock.animate().alpha(1f).setDuration(200).start()
-        onShownChanged?.invoke(true)
-    }
-
-    fun hideControls() {
-        removeCallbacks(hideLater)
-        if (keepShowing()) { postDelayed(hideLater, hideAfter); return }
-        if (!shown) return
-        shown = false
-        onHide?.invoke()
-        dock.animate().cancel()
-        dock.animate().alpha(0f).setDuration(600).start()
-        onShownChanged?.invoke(false)
+        if (on) {
+            dock.alpha = 0f
+            dock.visibility = VISIBLE
+            dock.animate().alpha(1f).setDuration(150).start()
+        } else {
+            onHide?.invoke()
+            dock.animate().alpha(0f).setDuration(150).withEndAction { if (!open) dock.visibility = GONE }.start()
+        }
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        // the tray's bottom-left corner while the icons are hidden: a tap there brings them back
-        if (onCorner && ev.actionMasked != MotionEvent.ACTION_DOWN) {
-            if (ev.actionMasked == MotionEvent.ACTION_UP) showControls()
-            if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) onCorner = false
+        // the carved Exit and arrow corners: a tap there (and letting go there) is a press of the button
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            val c = garden.cornerAt(ev.x, ev.y)
+            pressed = if (c == SandGardenView.CORNER_EXIT || c == SandGardenView.CORNER_TOOLS) c else 0
+        }
+        if (pressed != 0) {
+            if (ev.actionMasked == MotionEvent.ACTION_UP && garden.cornerAt(ev.x, ev.y) == pressed) {
+                if (pressed == SandGardenView.CORNER_EXIT) onExit?.invoke() else setOpen(!open)
+            }
+            if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) pressed = 0
             return true
         }
-        when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                downX = ev.x; downY = ev.y; dragged = false
-                garden.trayBounds(tray)
-                onCorner = !shown && ev.x < tray.left + cornerSize && ev.y > tray.bottom - cornerSize &&
-                    ev.x >= tray.left - cornerSize / 4 && ev.y <= tray.bottom + cornerSize / 4
-                if (onCorner) return true
-                toSand = !shown && onIcon(ev)
-                if (shown) showControls()   // still busy: start the 3 seconds again
-            }
-            MotionEvent.ACTION_MOVE -> {
-                if (!dragged && kotlin.math.hypot(ev.x - downX, ev.y - downY) > slop) dragged = true
-            }
-        }
-        // (the tray fills this screen, so the touch's position is the same for it)
-        val handled = if (toSand) garden.dispatchTouchEvent(ev) else super.dispatchTouchEvent(ev)
-        when (ev.actionMasked) {
-            MotionEvent.ACTION_UP -> {
-                // a tap brings the icons back, unless it was used to place something
-                if (!dragged && !garden.tapUsed) showControls()
-                toSand = false
-            }
-            MotionEvent.ACTION_CANCEL -> toSand = false
-        }
-        return handled || toSand
+        return super.dispatchTouchEvent(ev)
     }
 
-    // Is the touch on one of the icons?
-    private fun onIcon(ev: MotionEvent): Boolean {
-        for (i in 0 until icons.childCount) {
-            val v = icons.getChildAt(i)
-            if (v.visibility != VISIBLE) continue
-            v.getDrawingRect(box)
-            offsetDescendantRectToMyCoords(v, box)
-            if (box.contains(ev.x.toInt(), ev.y.toInt())) return true
-        }
-        return false
-    }
-
-    // The icons sit in the tray's own bottom-left corner and stay within its width (the tray doesn't fill the
+    // The tools sit along the bottom of the sand, between the two bottom corner blocks (the tray doesn't fill the
     // window when the garden is scaled to fit a window of a different shape)
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
         garden.trayBounds(tray)
         if (tray.width() <= 0f) return
-        dock.measure(MeasureSpec.makeMeasureSpec(tray.width().toInt(), MeasureSpec.EXACTLY),
-            MeasureSpec.makeMeasureSpec(tray.height().toInt(), MeasureSpec.AT_MOST))
-        val l = tray.left.toInt()
-        val b = tray.bottom.toInt()
+        val corner = garden.cornerSize.toInt()
+        val edge = (12 * resources.displayMetrics.density).toInt()   // (clear of the frame)
+        val l = tray.left.toInt() + corner
+        val w = max(0, tray.width().toInt() - 2 * corner)
+        val b = tray.bottom.toInt() - edge
+        dock.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(max(0, tray.height().toInt() - 2 * edge), MeasureSpec.AT_MOST))
         dock.layout(l, b - dock.measuredHeight, l + dock.measuredWidth, b)
-        // tell the window, so its move and resize symbols sit on the tray's corners (after this layout is done)
+        // tell the window, so its move and resize corners sit on the tray's corners (after this layout is done)
         val t = tray.top.toInt()
         val r = tray.right.toInt()
-        if (placed[0] != l || placed[1] != t || placed[2] != r || placed[3] != b) {
-            placed[0] = l; placed[1] = t; placed[2] = r; placed[3] = b
-            post { onTrayPlaced?.invoke(l, t, r, b) }
+        val tb = tray.bottom.toInt()
+        val tl = tray.left.toInt()
+        if (placed[0] != tl || placed[1] != t || placed[2] != r || placed[3] != tb) {
+            placed[0] = tl; placed[1] = t; placed[2] = r; placed[3] = tb
+            post { onTrayPlaced?.invoke(tl, t, r, tb) }
         }
-    }
-
-    override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
-        // the window opened: show the icons for a moment
-        shown = false
-        showControls()
-    }
-
-    override fun onDetachedFromWindow() {
-        removeCallbacks(hideLater)
-        super.onDetachedFromWindow()
     }
 }
 
-// A round icon for the Zen Garden's controls, drawn in code (sharp at any size): the tools, Auto, Undo, Smooth,
-// brightness, volume, settings, help and exit.
+// A round icon for the Zen Garden's controls, drawn in code (sharp at any size): the tools, Undo, Smooth,
+// brightness, volume, settings and help.
 @SuppressLint("ViewConstructor")
-class ZenIcon(context: Context, kind: Int, private var fill: Int) : View(context) {
+class ZenIcon(context: Context, kind: Int, private val fill: Int) : View(context) {
 
     companion object {
         // the tools use their own numbers (SandGardenView.RAKE and so on); these are the rest
-        const val AUTO = 20
         const val UNDO = 21
         const val SMOOTH = 22
         const val LIGHT = 23
         const val VOLUME = 24
         const val GEAR = 25
         const val HELP = 26
-        const val EXIT = 27
     }
 
     var kind = kind
@@ -186,8 +130,6 @@ class ZenIcon(context: Context, kind: Int, private var fill: Int) : View(context
     }
     private val lines = android.graphics.Path()     // drawn as lines
     private val shapes = android.graphics.Path()    // filled in
-
-    fun setFill(color: Int) { fill = color; invalidate() }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
@@ -259,16 +201,6 @@ class ZenIcon(context: Context, kind: Int, private var fill: Int) : View(context
                 dot(0.68f, -0.62f, 0.13f)
                 dot(-0.62f, 0.7f, 0.1f)
             }
-            AUTO -> {
-                // a spiral, like the patterns it rakes
-                var t = 0.0
-                lines.moveTo(x(0f), y(0f))
-                while (t <= 4.5 * Math.PI) {
-                    val r = 0.95 * t / (4.5 * Math.PI)
-                    lines.lineTo(x((r * kotlin.math.cos(t)).toFloat()), y((r * kotlin.math.sin(t)).toFloat()))
-                    t += 0.15
-                }
-            }
             UNDO -> arrowArc(0.05f, 0.2f, 0.65f, 0f, -200f)
             SMOOTH -> {
                 // a chunky eraser, tilted: its rubber end filled in, its sleeve outlined, and a few crumbs
@@ -315,12 +247,6 @@ class ZenIcon(context: Context, kind: Int, private var fill: Int) : View(context
                 shapes.close()
                 shapes.addCircle(x(0f), y(0f), 0.32f * g, android.graphics.Path.Direction.CW)
                 shapes.fillType = android.graphics.Path.FillType.EVEN_ODD   // the middle is a hole
-            }
-            EXIT -> {
-                // a doorway with an arrow walking out of it
-                lines.moveTo(x(0.1f), y(-0.85f)); lines.lineTo(x(-0.75f), y(-0.85f)); lines.lineTo(x(-0.75f), y(0.85f)); lines.lineTo(x(0.1f), y(0.85f))
-                line(-0.3f, 0f, 0.9f, 0f)
-                lines.moveTo(x(0.5f), y(-0.38f)); lines.lineTo(x(0.92f), y(0f)); lines.lineTo(x(0.5f), y(0.38f))
             }
         }
     }

@@ -38,3 +38,6 @@ __pycache__/
 
 # the owner's sand recording (the Zen Garden's sound was matched to it; not shipped)
 tools/sandsound.mp3
+
+# The owner's Zen Garden frame sketch
+tools/gardenbox.png
