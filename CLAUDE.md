@@ -30,7 +30,9 @@ is at the top of the script.
   into the project or committed. Don't ask for access to that folder.
 - Don't send the README every time; update it when features change and mention it at commit time.
 - Release notes and commit messages are written for players, not developers. The owner commits in Android
-  Studio themselves: finish a change with a suggested commit message.
+  Studio themselves: finish a change with a suggested commit message. Start every commit message with the version
+  being worked on, from the release branch's name (`git branch --show-current`, e.g. `v1.0.8 Zen Garden: ...`), not
+  `versionName`, which still shows the last release until it's bumped at release time.
 - When committing, remind them that brand-new files sit under "Unversioned Files" in the Commit window and
   are NOT ticked by default (a commit once left out `AssetDownloader.kt` and `GearIcons.kt`). `HANDOFF.md`
   (notes between work sessions) is in `.gitignore`, so it never shows up there.
@@ -288,7 +290,13 @@ Each release is worked on in its own branch (named like `v1.0.6`), then merged i
 5. GitHub → Releases → new release, tag `vX.Y.Z` (the update checker reads the tag), not a pre-release,
    attach `OSRSBubbleTool-X.Y.Z.apk`.
 
-## Current state (3 October 2026)
+## Current state (5 October 2026)
+
+- v1.0.8 released on 5 October 2026 (tag `v1.0.8`, versionCode 9, merged into `master`): the Zen Garden in the
+  Game Room (with zen mode, Automatic patterns, the reworked bonsai, stones, lanterns and flowers, shadows, and the
+  Tone slider), the Settings page with dark mode, and windows that avoid the navigation bar. Automatic rings only
+  stones and lanterns, with one stick (a two-stick version was tried and dropped). Not confirmed on the phone before
+  release: the pattern list (hold Automatic), the grid's side midpoints, the Tone slider, and the rings change.
 
 - v1.0.7 released on 3 October 2026 (tag `v1.0.7`, versionCode 8, merged into `master`): the new ToA Puzzle
   Helper (Beta). The ToA notes below still list what hasn't been tested live.
