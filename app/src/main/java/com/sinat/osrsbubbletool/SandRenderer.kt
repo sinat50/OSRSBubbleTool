@@ -39,9 +39,11 @@ import kotlin.math.min
 // (they're always moving).
 //
 // `glow`, `steps` and `res` are the lantern light's sizes from SandGardenView (LAMP_GLOW, LAMP_STEPS, RES);
-// `flyReach` how far a firefly's light reaches (in squares) and `maxFlies` how many fireflies there can be.
+// `flyReach` how far a firefly's light reaches (in squares), `maxFlies` how many fireflies there can be, and
+// `shadowDark` how much a placed thing's shadow darkens the sand at full strength (THING_SHADOW_DARK).
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, private val maxFlies: Int) {
+class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, private val maxFlies: Int,
+                   private val shadowDark: Float) {
 
     companion object {
         const val TILE = 64                       // a tile of kept sand, in squares
@@ -82,30 +84,57 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
             }
         """
 
+        // A placed thing's outline made crisp: how much of a square it covers fades out over its last square and a
+        // half, and blended between squares that fade is a few screen pixels wide, which made outlines look soft.
+        // Instead the outline is where the blended cover crosses 0.4, smoothed over about one screen pixel.
+        // (`cell` is one square, in pixels.)
+        // Soft things (moss) keep their soft edge instead, fading into the sand: `soft` is a picture of how soft
+        // each square's edge is (0 = crisp, 1 = soft), see SandGardenView.objSoft.
+        private const val SHARP = """
+            float sharp(float a, float2 s) {
+                float g = 0.5 / cell;
+                return mix(smoothstep(0.4 - g, 0.4 + g, a), clamp(a, 0.0, 1.0), linearSoft(s).a);
+            }
+        """
+
+        // The colour of a placed thing at a pixel: the things picture holds colour times cover, so it's divided back out
+        private const val THING_COLOUR = """
+            float3 thingColour(float4 t) {
+                return t.a > 0.001 ? max(t.rgb, 0.0) / t.a : float3(0.0);
+            }
+        """
+
         // The sand (and what's placed on it), one screen pixel at a time
         private val SAND = """
             uniform shader data;     // r: the sand's brightness (0-1), g: a placed thing's light, b, a: the surface's slope
             uniform shader things;   // rgb: a placed thing's colour times how much of the square it covers, a: how much
+            uniform shader soft;     // r: how much a placed thing's shadow falls here, g: the same on moss, a: how soft a placed thing's edge is
             uniform float2 origin;   // where the sand starts, in pixels
             uniform float cell;      // one square, in pixels
+            uniform float shadowDark; // how much a placed thing's shadow darkens the sand (less as it gets dark)
+            uniform float mossDark;   // and the moss lying in it
             uniform float3 shadowSand;
             uniform float3 plainSand;
             uniform float3 sunnySand;
             ${cubic("cubicData", "data")}
             ${linear("linearThings", "things")}
+            ${linear("linearSoft", "soft")}
+            $SHARP
+            $THING_COLOUR
             half4 main(float2 p) {
                 float2 s = (p - origin) / cell;
                 float4 d = cubicData(s);
                 float4 t = linearThings(s);
-                float v = d.r * 255.0;
+                float4 sh = linearSoft(s);
+                float v = d.r * 255.0 - sh.r * shadowDark;
                 // now and then a grain glints on the sunny side of a slope (one screen pixel, always the same ones)
                 float2 q = floor(p - origin);
                 float n = fract(sin(dot(q, float2(12.9898, 78.233))) * 43758.5453);
                 if (n > 0.996 && 2.0 * (d.b + d.a) > 0.3) v += 45.0;
                 v = clamp(v, 0.0, 255.0);
                 float3 c = v < 128.0 ? mix(shadowSand, plainSand, v / 128.0) : mix(plainSand, sunnySand, (v - 128.0) / 127.0);
-                float cover = clamp(t.a, 0.0, 1.0);
-                c = c * (1.0 - cover) + max(t.rgb, 0.0) * d.g;
+                float cover = sharp(t.a, s);
+                c = c * (1.0 - cover) + thingColour(t) * cover * d.g * (1.0 - mossDark * sh.g);
                 return half4(clamp(c, 0.0, 1.0), 1.0);
             }
         """
@@ -125,7 +154,9 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
     private val LAMP = """
         uniform shader data;     // the surface's slope (b, a)
         uniform shader things;   // placed things' colour times cover (rgb), and cover (a)
-        uniform shader shape;    // r: how high the surface is, g: 1 where something is placed
+        uniform shader soft;     // how soft a placed thing's edge is (a)
+        uniform shader shape;    // r: how high the surface is, g: 1 where something is placed, b: how high it stands
+                                 // for blocking the light (placed things smoothed, see SandGardenView.castSolid)
         uniform float2 origin;
         uniform float cell;
         uniform float2 flame;    // the flame, in squares
@@ -135,6 +166,9 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
         ${cubic("cubicData", "data")}
         ${linear("linearThings", "things")}
         ${linear("linearShape", "shape")}
+        ${linear("linearSoft", "soft")}
+        $SHARP
+        $THING_COLOUR
         half4 main(float2 p) {
             float2 s = (p - origin) / cell;
             float2 to = flame - s;
@@ -145,7 +179,7 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
             if (rho < roof * 0.9) return half4(0.0, 0.0, 0.0, 1.0);                 // under the roof
             float4 here = linearShape(s);
             if (rho < roof * 1.15 && here.g > 0.5) return half4(0.0, 0.0, 0.0, 1.0); // the lantern's own roof
-            float h0 = here.r;
+            float h0 = here.b;   // (placed things smoothed, so their bumps don't shade each other in a speckle)
             float up = ${glow * 1.3f} - h0;                                          // from here up to the flame
             if (up <= 0.0) return half4(0.0, 0.0, 0.0, 1.0);
             float d = sqrt(rho2 + up * up);
@@ -162,17 +196,17 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
             float near = rho - roof * 1.15;      // (the lantern doesn't shade its own light)
             float block = 0.0;
             ${steps.joinToString("\n            ") { step ->
-                "if ($step < near) block = max(block, (linearShape(s + u * $step).r - (h0 + up * $step / rho)) * ${0.45f / res});"
+                "if ($step < near) block = max(block, (linearShape(s + u * $step).b - (h0 + up * $step / rho)) * ${1f / (res * (2.2f + 0.3f * step / res))});"
             }}
-            block = min(block, 1.0);
+            block = smoothstep(0.0, 1.0, block);   // (as SandGardenView.lampBlock: soft edges, wider further out)
             float fade = 1.0 - rho2 / (reach * reach);
             fade *= fade;
             fade *= smoothstep(0.0, roof * 0.25, rho - roof * 0.9);   // fades in right at the roof's edge
             float light = fade * (${glow} / (d + ${glow * 0.25f})) * window * ((1.0 - block) * 2.0 * facing + 0.25);
             float k = min(light, 2.2);
             float4 t = linearThings(s);
-            float cover = clamp(t.a, 0.0, 1.0);
-            float3 c = plainSand * (1.0 - cover) + max(t.rgb, 0.0);
+            float cover = sharp(t.a, s);
+            float3 c = plainSand * (1.0 - cover) + thingColour(t) * cover;
             return half4(min(c * float3(k, 0.68 * k, 0.36 * k), 1.0), 1.0);
         }
     """
@@ -184,6 +218,7 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
     private val FLIES = """
         uniform shader data;     // the surface's slope (b, a)
         uniform shader things;   // placed things' colour times cover (rgb), and cover (a)
+        uniform shader soft;     // how soft a placed thing's edge is (a)
         uniform shader shape;    // r: how high the surface is
         uniform float2 origin;
         uniform float cell;
@@ -193,6 +228,9 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
         ${cubic("cubicData", "data")}
         ${linear("linearThings", "things")}
         ${linear("linearShape", "shape")}
+        ${linear("linearSoft", "soft")}
+        $SHARP
+        $THING_COLOUR
         half4 main(float2 p) {
             float2 s = (p - origin) / cell;
             float reach2 = ${flyReach * flyReach};
@@ -205,7 +243,7 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
             }
             if (!near) return half4(0.0, 0.0, 0.0, 1.0);
             float4 d = cubicData(s);
-            float h0 = linearShape(s).r;
+            float h0 = linearShape(s).b;
             float tilt = sqrt(d.b * d.b + d.a * d.a + 1.0);
             float light = 0.0;
             for (int k = 0; k < $maxFlies; k++) {
@@ -222,8 +260,8 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
             }
             if (light <= 0.0) return half4(0.0, 0.0, 0.0, 1.0);
             float4 t = linearThings(s);
-            float cover = clamp(t.a, 0.0, 1.0);
-            float3 c = plainSand * (1.0 - cover) + max(t.rgb, 0.0);
+            float cover = sharp(t.a, s);
+            float3 c = plainSand * (1.0 - cover) + thingColour(t) * cover;
             return half4(min(c * float3(0.62, 1.0, 0.78) * light, 1.0), 1.0);
         }
     """
@@ -246,6 +284,7 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
             fliesHaveInputs = true
             dataInput?.let { shader.setInputBuffer("data", it) }
             thingsInput?.let { shader.setInputBuffer("things", it) }
+            softInput?.let { shader.setInputBuffer("soft", it) }
             shapeInput?.let { shader.setInputBuffer("shape", it) }
         }
         if (plainSand != fliesSandColour) { fliesSandColour = plainSand; shader.setFloatUniform("plainSand", rgb(plainSand)) }
@@ -270,15 +309,21 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
     private var data = ShortArray(0)             // per square: brightness, a placed thing's light, slope x, slope y
     private var things = ShortArray(0)           // per square: placed thing's colour × cover (r, g, b), cover
     private var shape = ShortArray(0)            // per square: the surface's height, 1 if something is placed there
+    // per square: how much a placed thing's shadow falls there, the same on moss only, (unused), how soft a placed
+    // thing's edge is. (The shadows are kept apart from the sand's brightness so the brightness slider can fade them
+    // without the garden working out every square again: see shadowDark.)
+    private var soft = ShortArray(0)
     private var dataPicture: Bitmap? = null
     private var thingsPicture: Bitmap? = null
     private var shapePicture: Bitmap? = null
+    private var softPicture: Bitmap? = null
     // Which pictures changed since they were last handed to the graphics chip. Each is handed over only when it
     // changed: raking changes the sand's values but never the placed things', and the heights are only needed for
     // lantern and firefly light, so most raking frames hand over one picture instead of three.
     private var dataChanged = false
     private var thingsChanged = false
     private var shapeChanged = false
+    private var softChanged = false
 
     private var sandShader: RuntimeShader? = null
     private var lampShader: RuntimeShader? = null
@@ -288,6 +333,7 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
     private var dataInput: BitmapShader? = null
     private var thingsInput: BitmapShader? = null
     private var shapeInput: BitmapShader? = null
+    private var softInput: BitmapShader? = null
     private var sandHasInputs = false            // the sand program has been given the latest pictures
 
     // the kept sand, in tiles
@@ -298,6 +344,7 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
     private var drawnCell = -1f                  // the sizes the tiles were drawn at
     private var drawnInset = -1f
     private var sandColour = -1
+    private var drawnShadow = -1f                // how strong placed things' shadows were drawn
 
     // A new grid of nw by nh squares (everything is worked out again)
     fun resize(nw: Int, nh: Int) {
@@ -305,10 +352,12 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
         data = ShortArray(nw * nh * 4)
         things = ShortArray(nw * nh * 4)
         shape = ShortArray(nw * nh * 4)
+        soft = ShortArray(nw * nh * 4)
+        softPicture = valuePicture(nw, nh)
         dataPicture = valuePicture(nw, nh)
         thingsPicture = valuePicture(nw, nh)
         shapePicture = valuePicture(nw, nh)
-        dataChanged = true; thingsChanged = true; shapeChanged = true
+        dataChanged = true; thingsChanged = true; shapeChanged = true; softChanged = true
         tiles.forEach { it.discardDisplayList() }
         tilesX = (nw + TILE - 1) / TILE
         tilesY = (nh + TILE - 1) / TILE
@@ -319,10 +368,11 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
 
     // One square's values (see SandGardenView.shade). `alb` is a placed thing's colour (0 = none), `cover` how
     // much of the square it covers, and `height` how high the surface is there (the thing's, or the sand's).
+    // `shadow` is how much a placed thing's shadow falls on it, and `mossShadow` the same where it's moss.
     // (the values are stored as half-size numbers in a plain list of shorts, which is how the picture wants them)
     @SuppressLint("HalfFloat")
     fun putSquare(i: Int, brightness: Float, thingLight: Float, slopeX: Float, slopeY: Float, alb: Int, cover: Float,
-                  height: Float) {
+                  height: Float, castHeight: Float, softEdge: Float, shadow: Float, mossShadow: Float) {
         val k = 4 * i
         // (the sand's own values nearly always change where it's redrawn, so they're not checked, just handed over)
         data[k] = Half.toHalf(brightness)
@@ -335,7 +385,8 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
             else set(things, k, Half.toHalf(((alb shr 16) and 255) / 255f * cover), Half.toHalf(((alb shr 8) and 255) / 255f * cover),
                 Half.toHalf((alb and 255) / 255f * cover), Half.toHalf(cover))
         if (thingsNew) thingsChanged = true
-        if (set(shape, k, Half.toHalf(height), if (alb != 0) HALF_ONE else 0, 0, 0)) shapeChanged = true
+        if (set(soft, k, Half.toHalf(shadow), Half.toHalf(mossShadow), 0, Half.toHalf(softEdge))) softChanged = true
+        if (set(shape, k, Half.toHalf(height), if (alb != 0) HALF_ONE else 0, Half.toHalf(castHeight), 0)) shapeChanged = true
     }
 
     // Puts one square's four values in, and says whether any of them changed
@@ -393,9 +444,10 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
 
     // ---- drawing ----
 
-    // Draws the sand (in a canvas already moved to the tray's corner). Returns false if the garden's own drawing
-    // should be used instead.
-    fun drawSand(canvas: Canvas, inset: Float, cell: Float, sand: IntArray): Boolean {
+    // Draws the sand (in a canvas already moved to the tray's corner), with placed things' shadows `shadow` strong
+    // (1 = full, 0 = none, see SandGardenView.brightness). Returns false if the garden's own drawing should be used
+    // instead.
+    fun drawSand(canvas: Canvas, inset: Float, cell: Float, sand: IntArray, shadow: Float): Boolean {
         if (broken || !canvas.isHardwareAccelerated || gw == 0) return false
         val shader = sandShader ?: try {
             RuntimeShader(SAND).also { sandShader = it; sandPaint.shader = it }
@@ -410,10 +462,18 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
             shader.setFloatUniform("sunnySand", rgb(sand[2]))
             redrawAll()
         }
+        if (shadow != drawnShadow) {
+            // (the brightness slider moved: the tiles are drawn again, but nothing is worked out again)
+            drawnShadow = shadow
+            shader.setFloatUniform("shadowDark", shadowDark * shadow)
+            shader.setFloatUniform("mossDark", 0.4f * shadow)
+            tileStale.fill(true)
+        }
         if (!sandHasInputs) {
             sandHasInputs = true
             dataInput?.let { shader.setInputBuffer("data", it) }
             thingsInput?.let { shader.setInputBuffer("things", it) }
+            softInput?.let { shader.setInputBuffer("soft", it) }
         }
         for (ty in 0 until tilesY) for (tx in 0 until tilesX) {
             val k = ty * tilesX + tx
@@ -477,6 +537,7 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
                     shader.setFloatUniform("plainSand", rgb(plainSand))
                     dataInput?.let { shader.setInputBuffer("data", it) }
                     thingsInput?.let { shader.setInputBuffer("things", it) }
+                    softInput?.let { shader.setInputBuffer("soft", it) }
                     shapeInput?.let { shader.setInputBuffer("shape", it) }
                 }
                 val left = tileLeft(tx, inset, cell)
@@ -510,6 +571,13 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
             thingsChanged = false
             t.copyPixelsFromBuffer(ShortBuffer.wrap(things))
             thingsInput = input(t)
+            sandHasInputs = false
+            fliesHaveInputs = false
+        }
+        if (softChanged) softPicture?.let { p ->
+            softChanged = false
+            p.copyPixelsFromBuffer(ShortBuffer.wrap(soft))
+            softInput = input(p)
             sandHasInputs = false
             fliesHaveInputs = false
         }

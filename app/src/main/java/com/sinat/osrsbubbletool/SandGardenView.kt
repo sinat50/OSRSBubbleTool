@@ -10,6 +10,7 @@ import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RadialGradient
@@ -47,6 +48,7 @@ import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
+import kotlin.math.round
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -96,7 +98,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         private const val MAX_UNDO = 5
         private const val MAX_RINGS = 6
         private const val MAX_FLIES = 12
-        private const val LANTERN_SIZE = 10f * RES   // a lantern's roof, in squares from its middle to a corner
+        private const val LANTERN_SIZE = 9f * RES    // a lantern's roof, in squares from its middle to a corner
         private const val LAMP_GLOW = 13f * RES      // the size its light is worked out for (kept from the bigger lanterns)
         private val LAMP_SIZE = 2 * ceil(91 * RES).toInt() + 1   // each lantern's light picture, in squares (its reach, 7 x 13 dp, each way)
         private const val GRID = 32f * RES           // the triangle grid's spacing (32 dp): still easy to hit with a finger
@@ -142,24 +144,73 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         const val CORNER_MOVE = 2
         const val CORNER_RESIZE = 3
         const val CORNER_TOOLS = 4
-        private val STONE_COLORS = intArrayOf(
-            "#8E8A84".toColorInt(), "#7A746C".toColorInt(), "#A39C92".toColorInt(), "#6E6A66".toColorInt(),
+        // stones (middle, darker mottling, lighter mottling): granite grey, blue-grey, warm brown-grey, weathered
+        // green-grey, dark stone; their pale lichen, a white quartz vein, and the moss some groups sit in
+        private val ROCKS = arrayOf(
+            intArrayOf("#8C8880".toColorInt(), "#6A665F".toColorInt(), "#B4AFA5".toColorInt()),
+            intArrayOf("#6F747A".toColorInt(), "#52565C".toColorInt(), "#9AA0A4".toColorInt()),
+            intArrayOf("#8A7E70".toColorInt(), "#665C52".toColorInt(), "#B2A592".toColorInt()),
+            intArrayOf("#7C8172".toColorInt(), "#5A6052".toColorInt(), "#A4A894".toColorInt()),
+            intArrayOf("#55544F".toColorInt(), "#3C3B38".toColorInt(), "#807E78".toColorInt()),
         )
+        private val LICHEN = "#B8BCA0".toColorInt()
+        private val QUARTZ = "#E6E2D8".toColorInt()
+        private val ROCK_MOSS_DARK = "#3E5220".toColorInt()
+        private val ROCK_MOSS_LIGHT = "#6A7E34".toColorInt()
+        // the kinds of stone (see makeRock)
+        private const val CRAG = 0
+        private const val BOULDER = 1
+        private const val SLAB = 2
+        private const val PEBBLE = 3
+        // a lantern's weathered granite (middle, darker, lighter), and the moss in its roof's hollows
         private val LANTERN_GREY = "#8F8B83".toColorInt()
-        private val JEWEL_GREY = "#77736D".toColorInt()
-        private val POT_COLORS = intArrayOf("#3E5A78".toColorInt(), "#6B4B33".toColorInt(), "#7A3B2E".toColorInt())
-        private val SOIL = "#3B2E22".toColorInt()
-        private val LEAF_DARK = "#2F4A22".toColorInt()
-        private val LEAF_LIGHT = "#6F8F4A".toColorInt()
-        // the flowers' colours: blush pink, cream, lavender and pale yellow, with golden centres
-        private val PETALS = intArrayOf("#ECAABD".toColorInt(), "#F1ECE2".toColorInt(), "#B9A6D8".toColorInt(), "#EED67A".toColorInt())
-        private val FLOWER_EYE = "#E8BE46".toColorInt()
-        private val FLOWER_EYE_RING = "#B08020".toColorInt()
-        private val PINE_DEEP = "#17260F".toColorInt()
-        private val PINE_TIP = "#64843F".toColorInt()
-        private val PETAL_SCALE = floatArrayOf(1f, 0.72f, 0.42f)
-        private val PETAL_SHIFT = floatArrayOf(0f, 0.18f, 0.3f)
-        private val PETAL_TONE = floatArrayOf(0.84f, 1f, 1.12f)
+        private val LANTERN_DARK = "#5E5B55".toColorInt()
+        private val LANTERN_LIGHT = "#B3AEA4".toColorInt()
+        private val LANTERN_MOSS = "#5A6E2C".toColorInt()
+        // bonsai pots: unglazed brown and grey stoneware, a blue glaze, a red-brown clay
+        private val POT_COLORS = intArrayOf("#6B5443".toColorInt(), "#55504B".toColorInt(), "#3E5A78".toColorInt(), "#7A3B2E".toColorInt())
+        private val SOIL = "#5C4A38".toColorInt()
+        private val GRIT = "#9A8F7E".toColorInt()
+        private val MOSS = "#667A36".toColorInt()
+        private val BARK = "#54443A".toColorInt()
+        private val BARK_LIGHT = "#9C907F".toColorInt()
+        // a bonsai's leaves (shade, middle, sunlit tips): pine, juniper, autumn maple
+        private val FOLIAGE = arrayOf(
+            intArrayOf("#1B2C13".toColorInt(), "#40602A".toColorInt(), "#9AB060".toColorInt()),
+            intArrayOf("#183022".toColorInt(), "#386545".toColorInt(), "#93BA7C".toColorInt()),
+            intArrayOf("#4A1A10".toColorInt(), "#A8402A".toColorInt(), "#F09A50".toColorInt()),
+        )
+        // the kinds of flower (see makeFlowerLooks), each with its blossom colours, and its leaves (dark, light, vein):
+        // camellia (deep pink, red, white, coral), chrysanthemum (magenta, yellow, white, rust), cherry blossom
+        // (pale pinks, white)
+        private const val CAMELLIA = 0
+        private const val CHRYSANTHEMUM = 1
+        private const val CHERRY = 2
+        // Their rings of petals, outer first, 5 numbers each: how many petals, how long (part of the blossom's
+        // size), how wide, turned on by how much (part of a petal's step), and how round the tip (see petalWidth)
+        private val CAMELLIA_OPEN = floatArrayOf(6f, 1f, 0.62f, 0f, 1f, 5f, 0.72f, 0.55f, 0.5f, 1f)
+        private val CAMELLIA_HALF = floatArrayOf(5f, 0.95f, 0.6f, 0f, 1f, 3f, 0.6f, 0.6f, 0.3f, 1f)
+        private val CHRYSANTHEMUM_OPEN = floatArrayOf(18f, 1f, 0.16f, 0f, 1.6f, 14f, 0.75f, 0.17f, 0.5f, 1.6f, 10f, 0.5f, 0.2f, 0.25f, 1.6f)
+        private val CHRYSANTHEMUM_HALF = floatArrayOf(12f, 0.9f, 0.2f, 0f, 1.6f, 9f, 0.6f, 0.22f, 0.4f, 1.6f)
+        private val CHERRY_OPEN = floatArrayOf(5f, 1f, 0.58f, 0f, 1f)
+        private val CHERRY_HALF = floatArrayOf(5f, 0.75f, 0.5f, 0f, 1f)
+        private val PETAL_COLOURS = arrayOf(
+            intArrayOf("#D94A78".toColorInt(), "#C8303A".toColorInt(), "#F2EEE6".toColorInt(), "#E8735A".toColorInt()),
+            intArrayOf("#C8508C".toColorInt(), "#E8C040".toColorInt(), "#EEE8DA".toColorInt(), "#C46A30".toColorInt()),
+            intArrayOf("#F2C4D0".toColorInt(), "#F6EEF0".toColorInt(), "#EFB0C4".toColorInt()),
+        )
+        private val FLOWER_LEAVES = arrayOf(
+            intArrayOf("#1E3A1C".toColorInt(), "#4E7A36".toColorInt(), "#8AA060".toColorInt()),
+            intArrayOf("#2E4628".toColorInt(), "#6A8452".toColorInt(), "#9AAE80".toColorInt()),
+            intArrayOf("#2A4A20".toColorInt(), "#6A9040".toColorInt(), "#9CB870".toColorInt()),
+        )
+        private val STAMEN = "#ECC446".toColorInt()
+        private val CHERRY_EYE = "#C85A7A".toColorInt()
+        private val CHERRY_STAMEN = "#C87890".toColorInt()
+        private val BLOSSOM_SHADOW = Color.argb(22, 10, 20, 5)
+
+        // which kind of flower a clump is, from its seed
+        private fun flowerKind(seed: Int) = ((seed ushr 4) and 0xFFFF) % 3
         // The thread saving gardens to storage (one at a time, in order, at background importance so it always
         // gives way to the garden and to the game)
         private val SAVE_THREAD by lazy { backgroundThread("ZenSave") }
@@ -209,6 +260,14 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         // the sunlight's drop for each diagonal step towards the top-left (it comes in low, so shadows are long)
         private const val SHADOW_DROP = 0.39f * 1.2f
         private const val NO_LINE = -1e9f          // (no sunlight line yet: nothing casts a shadow)
+        // Placed things' shadows on the sand (see shadeUnder): the same way, from a higher sun so a lantern's shadow
+        // doesn't stretch across the tray; every thing counts as a little taller than it is, so even a low rounded
+        // stone has a short shadow tucked under it; how deep the shadow must be to be fully dark; and how much
+        // darker the sand is there (on the 0-255 brightness scale, see shade)
+        private const val THING_SHADOW_DROP = 1f
+        private const val THING_SHADOW_LIFT = 3f * RES
+        private const val THING_SHADOW_FULL = 0.8f * RES
+        private const val THING_SHADOW_DARK = 85f
         private const val T_RAKE = 0             // (the steps timed in test builds, see timed)
         private const val T_SHADE = 1
         private const val T_LIGHT = 2
@@ -216,8 +275,15 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         private val OBJ_STEPS = ceil(12 * RES).toInt()   // the most steps a ridge's shadow is looked for, in squares
         // how far around changed sand the lantern light is worked out again (a ridge's shade on it reaches 14 dp)
         private val LIGHT_PAD = ceil(14 * RES).toInt()
-        // how far out the lantern light looks for things blocking it, in squares (1 to 50 dp)
-        private val LAMP_STEPS = floatArrayOf(1f, 2f, 3f, 4f, 6f, 8f, 11f, 15f, 20f, 26f, 33f, 41f, 50f).map { it * RES }.toFloatArray()
+        // how far out the lantern light looks for things blocking it, in squares (1 to 50 dp; no more than 5.5 dp
+        // apart, or a thin part of a bonsai slipped between two looks and its shadow came out in jagged lines)
+        private val LAMP_STEPS = floatArrayOf(1f, 2f, 3f, 4f, 5f, 6f, 7.5f, 9f, 11f, 13f, 15.5f, 18f, 21f, 24f, 27.5f, 31f,
+            35f, 39.5f, 44.5f, 50f).map { it * RES }.toFloatArray()
+
+        // How much a thing standing `over` squares above the line to the flame, `step` squares away, blocks the
+        // light: fully once it's 2.2 dp above it close by, more gradually further away (shadows grow softer
+        // edges the further they fall from what casts them). SandRenderer works it out the same way.
+        fun lampBlock(over: Float, step: Float) = over / (RES * (2.2f + 0.3f * step / RES))
     }
 
     private fun dp(v: Float) = v * resources.displayMetrics.density
@@ -227,6 +293,8 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     var soundOn = true
     var volume = 1f                          // 1 = normal
         set(v) { field = v; sound.volume = v }
+    var tone = 0.5f                          // the raking sound's tone: 0 soft, 0.5 the usual, 1 sharp
+        set(v) { field = v; sound.tone = v }
     // Scale to fit (on by default): the garden keeps its squares and is drawn bigger or smaller to fit the
     // window, centred, with clear space at the sides if the window is a different shape. Off: RES squares per dp,
     // so resizing adds sand or cuts it off.
@@ -244,12 +312,16 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     var sand = 0
         set(v) { field = v.coerceIn(0, SANDS.size - 1); updateLight() }
     // How bright the garden is, from 0 (dark as night, lanterns glowing) to 1 (full daylight, lanterns faint).
-    // Only the wash over the garden and the strength of the lantern light change, so sliding it is cheap.
+    // Only the wash over the garden, the strength of the lantern light and how dark placed things' shadows are drawn
+    // change, so sliding it is cheap (nothing about the sand is worked out again).
     var brightness = 1f
         set(v) {
             field = v.coerceIn(0f, 1f)
             tint = Color.argb(((1 - field) * 150).toInt(), 20, 30, 60)
             lampPower = 0.3f + 0.7f * (1 - field)
+            // placed things' shadows fade as it gets dark (none below a quarter)
+            thingShadowDay = ((field - 0.25f) / 0.65f).coerceIn(0f, 1f)
+            showShadowStrength()
             frameChanged = true   // (the dusk falls on the frame too)
             invalidate()
         }
@@ -270,7 +342,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     private var markY1 = -1
     // The smooth drawing (Android 13 and newer, see SandRenderer), or null for the garden's own square-by-square
     // drawing (older phones, or if the graphics chip can't run it)
-    private var smooth: SandRenderer? = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) SandRenderer(LAMP_GLOW, LAMP_STEPS, RES, FLY_REACH.toFloat(), MAX_FLIES) else null
+    private var smooth: SandRenderer? = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) SandRenderer(LAMP_GLOW, LAMP_STEPS, RES, FLY_REACH.toFloat(), MAX_FLIES, THING_SHADOW_DARK) else null
     private var plainColours = false         // shade and relight work out plain colours for now (for Save picture)
     private val smoothKept = smooth          // (kept, for the test switch below)
 
@@ -337,6 +409,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         inset = dp(FRAME_DP)
+        val oldCell = cell
         val first = bitmap == null
         val saved = if (first) load() else null
         var regrown = first
@@ -379,6 +452,12 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         }
         sandRect.set(inset, inset, inset + gw * cell, inset + gh * cell)
         gridRect.set(sandRect)
+        // the flowers' blossoms are drawn again at the new size once it has stopped changing for a moment
+        if (!first && cell != oldCell) {
+            blossomsWait = true
+            removeCallbacks(blossomsResized)
+            postDelayed(blossomsResized, 300)
+        }
         if (regrown) {
             undoStack.clear()   // the old grid size doesn't fit any more
             onUndoChanged?.invoke()
@@ -433,6 +512,8 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         if (bitmap == null) return
         if (now) {
             redrawRow = -1   // (anything waiting is done here)
+            shadowsOnly = false
+            thingShadowDrawn = thingShadowDay
             shade(0, 0, gw - 1, gh - 1)
             relight(0, 0, gw - 1, gh - 1)
             invalidate()
@@ -441,7 +522,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
 
     // Colours the squares in a box from their heights: slopes facing the light are lit, the others shaded.
     // Placed things are part of the same surface (their own height and colour), so they're lit and shaded just
-    // like it (they don't cast shadows from this light, though: only the sand's ridges do).
+    // like it. Their shadows on the sand are worked out separately, when they're placed or moved (see shadeUnder).
     private fun shade(x0: Int, y0: Int, x1: Int, y1: Int) {
         if (bitmap == null) return
         val ax = max(0, x0); val ay = max(0, y0); val bx = min(gw - 1, x1); val by = min(gh - 1, y1)
@@ -459,7 +540,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         // stands higher than the sunlight's slope down from its top. Rather than look back along the light from
         // every square (the same squares again and again), the highest "sunlight line" is carried along each
         // diagonal from square to square, dropping a little each step: so the rows start a few squares before the
-        // box. (Placed things don't cast these shadows: they'd only clutter the garden.)
+        // box. (Placed things' shadows are much longer, so they're kept apart, in thingShadow.)
         val sx0 = max(0, ax - shadowSteps)
         val sy0 = max(0, ay - shadowSteps)
         val rowW = bx - sx0 + 1
@@ -495,8 +576,14 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                     val hollow = (left + right + above + below - 4 * own) * RES   // (× RES: the same at any fineness)
                     f = (0.72f + slope.coerceIn(-3f, 3f) * 0.2f - hollow.coerceIn(-3f, 3f) * 0.08f -
                         min(shadow / RES * 0.1f, 0.35f)).coerceIn(0.2f, 1.45f)
-                    thingX = (right - left) / 2
-                    thingY = (below - above) / 2
+                    // (moss lying in a stone's shadow is darker: added when it's drawn, see thingShadow)
+                    // (which way it faces for the lantern and firefly light: from its smoothed height, see
+                    // castSolid, or every tuft of a bonsai's needles flips between lit and dark)
+                    val c0 = castSolid[i]
+                    thingX = ((if (x < gw - 1 && objAlbedo[i + 1] != 0) castSolid[i + 1] else c0) -
+                        (if (x > 0 && objAlbedo[i - 1] != 0) castSolid[i - 1] else c0)) / 2
+                    thingY = ((if (y < gh - 1 && objAlbedo[i + down] != 0) castSolid[i + down] else c0) -
+                        (if (y > 0 && objAlbedo[i + up] != 0) castSolid[i + up] else c0)) / 2
                 }
                 val left = if (x > 0) h[i - 1] else h[i]
                 val right = if (x < gw - 1) h[i + 1] else h[i]
@@ -510,13 +597,16 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                 // the same at any fineness; the slope already is)
                 val hollow = (h[i - min(x, 2)] + h[i + min(gw - 1 - x, 2)] + h[i - min(y, 2) * gw] +
                     h[i + min(gh - 1 - y, 2) * gw] - 4 * h[i]) / 3f * RES
-                // how bright the sand is (128 = plain sand, lower in shade, higher in the sun)
+                // how bright the sand is (128 = plain sand, lower in shade, higher in the sun). Placed things'
+                // shadows are added when it's drawn (see thingShadow), so the brightness slider can fade them.
                 val bright = 128f + slope * 30f + h[i] / RES * 16f - hollow * 34f - min(shadow / RES * 40f, 45f)
                 if (gpu != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     // (the slope the lantern light sees: the placed thing's where there is one, else the sand's)
                     val sx = if (alb != 0) thingX else (right - left) / 2
                     val sy = if (alb != 0) thingY else (h[i + down] - h[i + up]) / 2
-                    gpu.putSquare(i, bright / 255f, f, sx, sy, alb, if (alb != 0) objCover[i] else 0f, own)
+                    gpu.putSquare(i, bright / 255f, f, sx, sy, alb, if (alb != 0) objCover[i] else 0f, own,
+                        if (alb != 0) castSolid[i] else own, if (alb != 0) objSoft[i] else 0f, thingShadow[i],
+                        if (alb != 0 && objSoft[i] > 0f) thingShadow[i] else 0f)
                     continue
                 }
                 // the garden's own drawing: the square's values, coloured below (see paintFine)
@@ -566,8 +656,9 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                 // the sand: its brightness, a little wobble from grain to grain, and now and then a glint on the
                 // sunny side of a slope
                 val n = hash(fx, fy)
-                var v = (squareBright[a] * wa + squareBright[b] * wb + squareBright[c] * wc + squareBright[d] * wd).toInt() +
-                    ((n ushr 24) and 7) - 3
+                val inShadow = thingShadow[a] * wa + thingShadow[b] * wb + thingShadow[c] * wc + thingShadow[d] * wd
+                var v = (squareBright[a] * wa + squareBright[b] * wb + squareBright[c] * wc + squareBright[d] * wd -
+                    inShadow * THING_SHADOW_DARK * thingShadowDrawn).toInt() + ((n ushr 24) and 7) - 3
                 if ((n ushr 16) and 1023 < 4 &&
                     squareSlope[a] * wa + squareSlope[b] * wb + squareSlope[c] * wc + squareSlope[d] * wd > 0.3f) v += 45
                 var colour = shades[v.coerceIn(0, 255)]
@@ -579,10 +670,18 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                         val sq = when (q) { 0 -> a; 1 -> b; 2 -> c; else -> d }
                         val alb = objAlbedo[sq]
                         if (alb == 0) continue
-                        val w = (when (q) { 0 -> wa; 1 -> wb; 2 -> wc; else -> wd }) * objCover[sq] * squareLight[sq]
+                        var w = (when (q) { 0 -> wa; 1 -> wb; 2 -> wc; else -> wd }) * objCover[sq] * squareLight[sq]
+                        // (moss lying in a stone's shadow is darker)
+                        if (objSoft[sq] > 0f) w *= 1 - 0.4f * thingShadow[sq] * thingShadowDrawn
                         red += ((alb shr 16) and 255) * w; green += ((alb shr 8) and 255) * w; blue += (alb and 255) * w
                     }
-                    val keep = 1 - min(cover, 1f)
+                    // (the outline made crisp, as in the smooth drawing (SandRenderer.SHARP): here a pixel is half a
+                    // square; moss keeps its soft edge)
+                    val softness = softAt(a) * wa + softAt(b) * wb + softAt(c) * wc + softAt(d) * wd
+                    val crisp = smoothStep((cover - 0.15f) / 0.5f) * (1 - softness) + min(cover, 1f) * softness
+                    val k = crisp / cover
+                    red *= k; green *= k; blue *= k
+                    val keep = 1 - crisp
                     colour = Color.rgb(min(255f, ((colour shr 16) and 255) * keep + red).toInt(),
                         min(255f, ((colour shr 8) and 255) * keep + green).toInt(), min(255f, (colour and 255) * keep + blue).toInt())
                 }
@@ -594,6 +693,9 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
 
     // how much of square i a placed thing covers (0 for bare sand)
     private fun coverAt(i: Int) = if (objAlbedo[i] != 0) objCover[i] else 0f
+
+    // how soft a placed thing's edge is at square i (see objSoft)
+    private fun softAt(i: Int) = if (objAlbedo[i] != 0) objSoft[i] else 0f
 
     // The height of the surface at a square: a placed thing's own height there, or the sand's
     private fun surface(i: Int) = if (objAlbedo[i] != 0) solid[i] else heights[i]
@@ -622,8 +724,17 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     private var lampR = FloatArray(0)
     private var lampTurn = FloatArray(0)
     private var solid = FloatArray(0)        // how tall whatever is placed on each square stands (0 = bare sand)
+    // The same, smoothed (a bonsai without its tufts of needles): what blocks the lanterns' light. With every bump
+    // blocking it, a bonsai's shadow in the lantern light came out speckled.
+    private var castSolid = FloatArray(0)
+    // How soft each square's edge is (0 = crisp, 1 = soft): moss fades into the sand instead of having a crisp
+    // outline like a stone's, and casts no shadow
+    private var objSoft = FloatArray(0)
     private var objAlbedo = IntArray(0)      // the colour of whatever is placed on each square (0 = bare sand)
     private var objCover = FloatArray(0)     // how much of the square it covers (its outline blends into the sand)
+    private var thingShadow = FloatArray(0)  // how much of each square is in a placed thing's shadow (0 to 1)
+    private var shadowWork = FloatArray(0)   // (working space for shadeUnder)
+    private var shadowWork2 = FloatArray(0)
     // the light is added on top of the garden, so black adds nothing
     private val lampPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD) }
     private val lampRect = RectF()
@@ -659,7 +770,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         if (lampX.isEmpty()) return
         if (smooth != null && !plainColours) return
         val m = mainLight
-        m.take(gw, gh, heights, solid, objAlbedo)
+        m.take(gw, gh, heights, solid, castSolid, objAlbedo)
         // warm flame light, coloured by what it falls on (the sand, or a placed thing)
         val sandColor = SANDS[sand][1]
         for (l in lampX.indices) {
@@ -684,6 +795,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         private var gh = 0
         private var heights = FloatArray(0)
         private var solid = FloatArray(0)
+        private var cast = FloatArray(0)
         private var objAlbedo = IntArray(0)
         // the parts of the light at the last square looked at (see at): straight from the flame, a soft fill, and
         // how high the flame stands above the square
@@ -691,11 +803,12 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         var fill = 0f
         var rise = 0f
 
-        fun take(w: Int, h: Int, heightsNow: FloatArray, solidNow: FloatArray, albedoNow: IntArray) {
-            gw = w; gh = h; heights = heightsNow; solid = solidNow; objAlbedo = albedoNow
+        fun take(w: Int, h: Int, heightsNow: FloatArray, solidNow: FloatArray, castNow: FloatArray, albedoNow: IntArray) {
+            gw = w; gh = h; heights = heightsNow; solid = solidNow; cast = castNow; objAlbedo = albedoNow
         }
 
         private fun surface(i: Int) = if (objAlbedo[i] != 0) solid[i] else heights[i]
+        private fun blocker(i: Int) = if (objAlbedo[i] != 0) cast[i] else heights[i]   // (see castSolid)
 
         // How much of the light of the lantern at (lx, ly) (roof size lr, turned `turn`) falls on square (x, y)
         fun at(lx: Float, ly: Float, lr: Float, turn: Float, x: Int, y: Int): Float {
@@ -711,7 +824,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
             val rho = sqrt(rho2)
             if (rho < lr * 0.9f) return 0f                 // under the roof
             if (rho < lr * 1.15f && objAlbedo[i] != 0) return 0f   // the lantern's own roof (its flame is under it)
-            val h0 = surface(i)
+            val h0 = blocker(i)   // (placed things smoothed, so their bumps don't shade each other in a speckle)
             val up = LAMP_GLOW * 1.3f - h0                 // from this square up to the flame
             if (up <= 0f) return 0f
             val d = sqrt(rho2 + up * up)
@@ -719,8 +832,8 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
             val gx: Float
             val gy: Float
             if (objAlbedo[i] != 0) {
-                gx = ((if (x < gw - 1) surface(i + 1) else h0) - (if (x > 0) surface(i - 1) else h0)) / 2
-                gy = ((if (y < gh - 1) surface(i + gw) else h0) - (if (y > 0) surface(i - gw) else h0)) / 2
+                gx = ((if (x < gw - 1) blocker(i + 1) else h0) - (if (x > 0) blocker(i - 1) else h0)) / 2
+                gy = ((if (y < gh - 1) blocker(i + gw) else h0) - (if (y > 0) blocker(i - gw) else h0)) / 2
             } else {
                 gx = ((if (x < gw - 1) h[i + 1] else h[i]) - (if (x > 0) h[i - 1] else h[i])) / 2
                 gy = ((if (y < gh - 1) h[i + gw] else h[i]) - (if (y > 0) h[i - gw] else h[i])) / 2
@@ -742,12 +855,12 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                 val tx = fx - sx
                 val ty = fy - sy
                 val j = sy * gw + sx
-                val there = (surface(j) * (1 - tx) + surface(j + 1) * tx) * (1 - ty) +
-                    (surface(j + gw) * (1 - tx) + surface(j + gw + 1) * tx) * ty
-                block = max(block, (there - (h0 + up * step / rho)) / RES * 0.45f)   // (/ RES: heights are in squares)
+                val there = (blocker(j) * (1 - tx) + blocker(j + 1) * tx) * (1 - ty) +
+                    (blocker(j + gw) * (1 - tx) + blocker(j + gw + 1) * tx) * ty
+                block = max(block, lampBlock(there - (h0 + up * step / rho), step))
                 if (block >= 1f) break
             }
-            block = min(block, 1f)
+            block = smoothStep(block)   // (eased in and out of the shadow, so its edge is soft)
             var fade = 1 - rho2 / (reach * reach)
             fade *= fade
             fade *= smoothStep((rho - lr * 0.9f) / (lr * 0.25f))   // fades in right at the roof's edge, no dark ring
@@ -1065,13 +1178,13 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         val layers = Array(n) { lampLights[it] }
         val ox = IntArray(n) { layers[it].ox }; val oy = IntArray(n) { layers[it].oy }
         val lx = lampX.copyOf(); val ly = lampY.copyOf(); val lr = lampR.copyOf(); val lt = lampTurn.copyOf()
-        val w = gw; val hh = gh; val hs = heights; val so = solid; val al = objAlbedo
+        val w = gw; val hh = gh; val hs = heights; val so = solid; val ca = castSolid; val al = objAlbedo
         val sandColor = SANDS[sand][1]
         lightBusy = true
         val t0 = System.nanoTime()
         LIGHT_THREAD.execute {
             val m = WORKER_LIGHT
-            m.take(w, hh, hs, so, al)
+            m.take(w, hh, hs, so, ca, al)
             val done = arrayOfNulls<IntArray>(n)       // each lantern's light in its part of the box
             val boxes = IntArray(4 * n)
             for (k in 0 until n) {
@@ -1238,8 +1351,24 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
 
     private class Item(val kind: Int, var x: Float, var y: Float, val r: Float, val aspect: Float, val angle: Float,
                        val color: Int, val seed: Int, var rings: Int = 0) {
-        var blobs = FloatArray(0)          // a bonsai's clumps (x, y, size) or a flower clump's blossoms (x, y, size, turn), in squares
-        fun copy() = Item(kind, x, y, r, aspect, angle, color, seed, rings)
+        var blobs = FloatArray(0)          // a flower clump's blossoms (x, y, size, turn), in squares
+        var look: ThingLook? = null        // its look, worked out the first time it's needed (see bakeLook)
+        var blossoms: Bitmap? = null       // a flower clump's blossoms, drawn at `blossomCell` (see drawFlowers)
+        var blossomCell = 0f
+        var shadowReach = 0                // how far its shadow reaches past it to the bottom right, in squares (see shadeUnder)
+        fun copy() = Item(kind, x, y, r, aspect, angle, color, seed, rings).also { it.look = look }
+    }
+
+    // A bonsai or stone, worked out once: for each square in a box around its middle, how tall it stands (-1 =
+    // nothing there), its colour, and how far inside its outline the square is (see put)
+    private class ThingLook(val half: Int) {
+        val size = 2 * half + 1
+        val height = FloatArray(size * size) { -1f }
+        val colour = IntArray(size * size)
+        val edge = FloatArray(size * size)
+        val cast = FloatArray(size * size)      // the height smoothed, for blocking the lanterns' light (see castSolid)
+        val soft = FloatArray(size * size)      // how soft its edge is (see objSoft)
+        var reach = 0f                          // how far out from its middle it covers the sand, in squares (see lookOf)
     }
 
     private val items = ArrayList<Item>()
@@ -1256,154 +1385,682 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         val rnd = Random
         return when (kind) {
             // (sizes in dp, times RES for squares)
-            FLOWERS -> Item(kind, x, y, (11f + rnd.nextFloat() * 3f) * RES, 1f, 0f, PETALS[rnd.nextInt(PETALS.size)], rnd.nextInt())
+            FLOWERS -> {
+                val seed = rnd.nextInt()
+                val colours = PETAL_COLOURS[flowerKind(seed)]
+                Item(kind, x, y, (11f + rnd.nextFloat() * 3f) * RES, 1f, 0f, colours[rnd.nextInt(colours.size)], seed)
+            }
             LANTERN -> Item(kind, x, y, LANTERN_SIZE, 1f, rnd.nextFloat() * 60f, LANTERN_GREY, rnd.nextInt())
-            BONSAI -> Item(kind, x, y, (15f + rnd.nextFloat() * 4f) * RES, 1f, rnd.nextFloat() * 90f,
+            BONSAI -> Item(kind, x, y, (15f + rnd.nextFloat() * 4f) * RES, 1f, rnd.nextFloat() * 360f,
                 POT_COLORS[rnd.nextInt(POT_COLORS.size)], rnd.nextInt())
-            else -> Item(STONE, x, y, (9f + rnd.nextFloat() * 7f) * RES, 0.72f + rnd.nextFloat() * 0.25f, rnd.nextFloat() * 180f,
-                STONE_COLORS[rnd.nextInt(STONE_COLORS.size)], rnd.nextInt())
+            // (a stone's colour and shape come from its seed, see makeStone; old saved stones' aspect and colour
+            // aren't used any more)
+            else -> Item(STONE, x, y, (7.5f + rnd.nextFloat() * 10.5f) * RES, 1f, rnd.nextFloat() * 360f, 0, rnd.nextInt())
         }.also { makeLooks(it) }
     }
 
-    // How far out from its middle an item covers the sand
-    private fun footprint(kind: Int) = when (kind) { LANTERN -> 1.1f; BONSAI -> 0.95f; else -> 1.05f }
+    // How far out from its middle an item covers the sand, in squares: as far as its look really reaches (a stone
+    // group's companions and moss, a bonsai's overhanging leaves), and never less than a little past its size
+    private fun footprint(it: Item) = max(it.r * when (it.kind) { LANTERN -> 1.1f; BONSAI -> 0.95f; else -> 1.05f }, lookOf(it).reach)
 
     // A flower clump's blossom colour (old saved moss had none: pick one from its seed)
-    private fun petalColour(it: Item) = if (it.color != 0) it.color else PETALS[(it.seed and 0x7FFFFFFF) % PETALS.size]
+    private fun petalColour(it: Item) = if (it.color != 0) it.color else
+        PETAL_COLOURS[flowerKind(it.seed)].let { c -> c[(it.seed and 0x7FFFFFFF) % c.size] }
 
-    // A bonsai's clumps of foliage, or a flower clump's blossoms, worked out once from its seed
+    // A flower clump's blossoms, worked out once from its seed: a few open ones, one or two half open and a few
+    // buds, kept apart so none hides another. 5 numbers each: x, y (from the clump's middle), size, turn (degrees),
+    // and 2 = open, 1 = half open, 0 = a bud. Kept buds first, so the open ones are drawn over them.
     private fun makeLooks(it: Item) {
-        if (it.blobs.isNotEmpty()) return
-        if (it.kind == FLOWERS) {
-            // 5-7 blossoms (x, y, size, turn) scattered over the leaves
-            val rnd = Random(it.seed xor 0x5F3759DF)
-            val n = 5 + rnd.nextInt(3)
-            it.blobs = FloatArray(n * 4)
-            for (k in 0 until n) {
-                val ang = rnd.nextFloat() * 6.283f
-                val d = it.r * 0.6f * sqrt(rnd.nextFloat())
-                it.blobs[4 * k] = d * cos(ang); it.blobs[4 * k + 1] = d * sin(ang)
-                it.blobs[4 * k + 2] = it.r * (0.26f + 0.08f * rnd.nextFloat())
-                it.blobs[4 * k + 3] = rnd.nextFloat() * 360f
-            }
-            return
-        }
-        if (it.kind != BONSAI) return
-        val rnd = Random(it.seed)
-        val n = 7
-        it.blobs = FloatArray(n * 3)
+        if (it.blobs.isNotEmpty() || it.kind != FLOWERS) return
+        val rnd = Random(it.seed xor 0x5F3759DF)
+        val kind = flowerKind(it.seed)
+        val r = it.r
+        val open = if (kind == CHERRY) 3 + rnd.nextInt(3) else 2 + rnd.nextInt(2)
+        val halfOpen = if (kind == CHERRY) 2 else 1 + rnd.nextInt(2)
+        val buds = 2 + rnd.nextInt(3)
+        val n = open + halfOpen + buds
+        val placed = FloatArray(5 * n)
+        // the open ones are placed first (they get the best spots), the buds last
         for (k in 0 until n) {
-            val ang = k * 1.047f + rnd.nextFloat() * 0.6f
-            val d = if (k == 0) it.r * 0.1f else it.r * (0.42f + 0.15f * rnd.nextFloat())
-            it.blobs[3 * k] = d * cos(ang); it.blobs[3 * k + 1] = d * sin(ang)
-            it.blobs[3 * k + 2] = it.r * (0.32f + 0.13f * rnd.nextFloat())
+            val stage = if (k < open) 2 else if (k < open + halfOpen) 1 else 0
+            val size = r * (0.85f + 0.3f * rnd.nextFloat()) * when (stage) {
+                2 -> if (kind == CHERRY) 0.17f else 0.25f
+                1 -> 0.16f
+                else -> 0.07f
+            }
+            var x = 0f
+            var y = 0f
+            for (tries in 0 until 30) {
+                val ang = rnd.nextFloat() * 6.283f
+                val d = r * (if (stage > 0) 0.5f else 0.6f) * sqrt(rnd.nextFloat())
+                x = d * cos(ang); y = d * sin(ang)
+                var clear = true
+                for (j in 0 until k) {
+                    if (hypot(x - placed[5 * j], y - placed[5 * j + 1]) <= (size + placed[5 * j + 2]) * 0.8f) { clear = false; break }
+                }
+                if (clear) break
+            }
+            placed[5 * k] = x; placed[5 * k + 1] = y; placed[5 * k + 2] = size
+            placed[5 * k + 3] = rnd.nextFloat() * 360f; placed[5 * k + 4] = stage.toFloat()
+        }
+        // kept buds first, then the half open ones, then the open ones
+        val blobs = FloatArray(5 * n)
+        var at = 0
+        for (stage in 0..2) for (k in 0 until n) {
+            if (placed[5 * k + 4].toInt() != stage) continue
+            for (j in 0 until 5) blobs[5 * at + j] = placed[5 * k + j]
+            at++
+        }
+        it.blobs = blobs
+    }
+
+    // A flower clump's leaves (drawn from photos of camellias, a satsuki azalea, chrysanthemums and a kusamono
+    // planting): two dozen or more pointed oval leaves fanning out from the middle, each arching up and drooping at
+    // its tip, folded a little along its paler vein, darker at its edges and lighter towards its tip. The outer
+    // leaves are long and low, the inner ones shorter and higher. Camellia leaves are broad, chrysanthemum leaves
+    // lobed. Under each blossom, the blossom's own colour, so lantern and firefly light on it is the right colour
+    // (the blossoms themselves are drawn sharply on top, see drawFlowers).
+    private fun makeFlowers(s: Item): ThingLook {
+        makeLooks(s)
+        val rnd = Random(s.seed)
+        val kind = flowerKind(s.seed)
+        val colours = FLOWER_LEAVES[kind]
+        val petal = petalColour(s)
+        val r = s.r
+        val n = 24 + rnd.nextInt(7)
+        // 6 numbers each: which way it points, its length, its width, how high its stem end is, and where its stem
+        // end is (x, y)
+        val leaves = FloatArray(6 * n)
+        for (k in 0 until n) {
+            val inner = k.toFloat() / n
+            val length = r * (1 - 0.5f * inner) * (0.85f + 0.25f * rnd.nextFloat())
+            leaves[6 * k] = k * 2.4f + rnd.nextFloat() * 0.5f
+            leaves[6 * k + 1] = length
+            leaves[6 * k + 2] = length * ((if (kind == CAMELLIA) 0.5f else 0.42f) + 0.08f * rnd.nextFloat())
+            leaves[6 * k + 3] = r * (0.05f + 0.3f * inner)
+            leaves[6 * k + 4] = (rnd.nextFloat() - 0.5f) * 0.2f * r
+            leaves[6 * k + 5] = (rnd.nextFloat() - 0.5f) * 0.2f * r
+        }
+        // (worked out once per leaf, not again for every square: which way it points, and how far either side of its
+        // vein it can reach at its widest)
+        val ux = FloatArray(n) { cos(leaves[6 * it]) }
+        val uy = FloatArray(n) { sin(leaves[6 * it]) }
+        val widest = FloatArray(n) { leaves[6 * it + 2] * 0.5f * if (kind == CHRYSANTHEMUM) 1.22f else 1f }
+        val look = ThingLook(ceil(1.2f * r).toInt())
+        val half = look.half
+        val b = s.blobs
+        for (gy in -half..half) for (gx in -half..half) {
+            val dx = gx + 0.5f
+            val dy = gy + 0.5f
+            val speck = ((hash(gx, gy) ushr 3) and 255) / 255f
+            var bestH = -1f
+            var bestC = 0
+            var edge = 0f
+            for (k in 0 until n) {
+                val o = 6 * k
+                val length = leaves[o + 1]; val width = leaves[o + 2]
+                val px = dx - leaves[o + 4]; val py = dy - leaves[o + 5]
+                val along = (px * ux[k] + py * uy[k]) / length      // 0 at its stem, 1 at its tip
+                if (along <= 0f || along >= 1f) continue
+                val across = -px * uy[k] + py * ux[k]
+                if (abs(across) >= widest[k]) continue              // (beside the leaf, even at its widest)
+                var hw = width * 0.5f * sin(PI.toFloat() * along.pow(0.8f)).pow(0.9f)
+                if (kind == CHRYSANTHEMUM) hw *= 1 + 0.22f * sin(along * PI.toFloat() * 7)
+                if (hw <= 0.2f || abs(across) >= hw) continue
+                val q = abs(across) / hw
+                edge = max(edge, hw - abs(across))
+                val h = leaves[o + 3] + 0.168f * r * sin(PI.toFloat() * min(1f, along * 1.1f)) + width * 0.18f * (1 - q)
+                if (h <= bestH) continue
+                var c = tone(ColorUtils.blendARGB(colours[0], colours[1], 0.25f + 0.5f * along + 0.15f * speck), 0.85f + 0.2f * (1 - q))
+                if (abs(across) < 0.35f * RES && along < 0.85f) c = ColorUtils.blendARGB(c, colours[2], 0.55f)   // the vein
+                bestH = h; bestC = c
+            }
+            if (bestH < 0) continue
+            for (k in 0 until b.size / 5) {
+                if (hypot(dx - b[5 * k], dy - b[5 * k + 1]) < b[5 * k + 2]) { bestH = 0.5f * r; bestC = petal; break }
+            }
+            val i = (gy + half) * look.size + gx + half
+            look.height[i] = bestH; look.colour[i] = bestC; look.edge[i] = edge
+        }
+        smoothCast(look)
+        return look
+    }
+
+    // A bonsai as real ones look from above (drawn from photos of the pines, junipers and maples at the US National
+    // Bonsai Museum): a shallow pot with a rim, soil with moss and grit, a thick trunk starting near one end and
+    // leaning towards the other with roots spreading over the soil, and branches ending in flat "cloud" pads of
+    // leaves, the low ones long and the high ones short, with one pad on top. Each pad is a few overlapping
+    // domes covered in small tufts, so its outline is scalloped and a little ragged. Higher parts shade the ones
+    // below them (the sun is top left, as for the sand). Everything comes from its seed; the kind of tree too.
+    // (Sizes are parts of r, its size; tufts and grain are in dp, × RES.)
+    private fun makeBonsai(s: Item): ThingLook {
+        val rnd = Random(s.seed)
+        val r = s.r
+        val turn = Math.toRadians(s.angle.toDouble()).toFloat()
+        val ca = cos(turn); val sa = sin(turn)
+        val leaves = FOLIAGE[((s.seed ushr 8) and 0x7FFF) % FOLIAGE.size]
+        val potH = 0.22f * r                     // how tall the pot stands, and the tree's top
+        val topH = 1.35f * r
+        val oval = rnd.nextBoolean()             // an oval pot, or a rounded rectangle
+        val potA = 0.76f * r; val potB = 0.52f * r; val rimW = 0.11f * r
+        // Sticks (the trunk, roots and branches), 8 numbers each: from x, y, height to x, y, height, and the width
+        // at each end. Domes (the leaves), 5 each: x, y, size, height of the bottom, how much it bulges.
+        val st = FloatArray(8 * 16); var ns = 0
+        val dm = FloatArray(5 * 80); var nd = 0
+        // the trunk: from near one end of the pot, leaning over, with a few bends
+        val baseX = -0.3f * r * ca; val baseY = -0.3f * r * sa
+        val lean = turn + (rnd.nextFloat() - 0.5f) * 0.8f
+        val apexX = baseX + 0.38f * r * cos(lean); val apexY = baseY + 0.38f * r * sin(lean)
+        var px = baseX; var py = baseY
+        for (k in 1..3) {
+            val f = k / 3f
+            val w = (rnd.nextFloat() - 0.5f) * 0.14f * r
+            val nx = baseX + (apexX - baseX) * f - w * sin(lean)
+            val ny = baseY + (apexY - baseY) * f + w * cos(lean)
+            val f0 = (k - 1) / 3f
+            st[8 * ns] = px; st[8 * ns + 1] = py; st[8 * ns + 2] = potH + (topH - potH) * f0 * 0.8f
+            st[8 * ns + 3] = nx; st[8 * ns + 4] = ny; st[8 * ns + 5] = potH + (topH - potH) * f * 0.8f
+            st[8 * ns + 6] = 0.1f * r * (1 - 0.5f * f0); st[8 * ns + 7] = 0.1f * r * (1 - 0.5f * f); ns++
+            px = nx; py = ny
+        }
+        // roots over the soil
+        for (k in 0 until 5) {
+            val a = rnd.nextFloat() * 6.283f
+            val len = r * (0.15f + 0.12f * rnd.nextFloat())
+            st[8 * ns] = baseX; st[8 * ns + 1] = baseY; st[8 * ns + 2] = potH + 0.04f * r
+            st[8 * ns + 3] = baseX + len * cos(a); st[8 * ns + 4] = baseY + len * sin(a); st[8 * ns + 5] = potH - 0.02f * r
+            st[8 * ns + 6] = 0.06f * r; st[8 * ns + 7] = 0.015f * r; ns++
+        }
+        // branches going round the trunk (each a golden angle on from the last), longer on the side it leans to,
+        // each ending in a pad: an oval across the branch, a big dome in the middle and a ring of smaller ones
+        val branches = 5 + rnd.nextInt(3)
+        val a0 = rnd.nextFloat() * 6.283f
+        for (k in 0..branches) {
+            val top = k == branches              // (the last pad sits on top of the trunk)
+            val f = k.toFloat() / branches       // 0 = the lowest
+            val ang = if (top) rnd.nextFloat() * 6.283f else a0 + k * 2.4f + (rnd.nextFloat() - 0.5f) * 0.5f
+            var padX = apexX; var padY = apexY; var low = topH
+            var size = r * 0.36f * 0.85f
+            if (!top) {
+                val length = r * (0.7f - 0.3f * f) * (0.85f + 0.25f * rnd.nextFloat()) * (1 + 0.3f * cos(ang - lean))
+                val sx = baseX + (apexX - baseX) * (0.3f + 0.6f * f)
+                val sy = baseY + (apexY - baseY) * (0.3f + 0.6f * f)
+                val sh = potH + (topH - potH) * (0.25f + 0.6f * f)
+                padX = sx + length * cos(ang); padY = sy + length * sin(ang)
+                val d = hypot(padX, padY)        // (kept within reach of the middle)
+                if (d > 0.88f * r) { padX *= 0.88f * r / d; padY *= 0.88f * r / d }
+                st[8 * ns] = sx; st[8 * ns + 1] = sy; st[8 * ns + 2] = sh
+                st[8 * ns + 3] = padX; st[8 * ns + 4] = padY; st[8 * ns + 5] = sh + 0.03f * r
+                st[8 * ns + 6] = 0.05f * r * (1 - 0.4f * f); st[8 * ns + 7] = 0.02f * r; ns++
+                low = sh + 0.04f * r
+                size = r * (0.36f - 0.07f * f) * (0.85f + 0.25f * rnd.nextFloat())
+            }
+            val ux = -sin(ang); val uy = cos(ang)     // across the branch
+            val vx = cos(ang); val vy = sin(ang)      // along it
+            dm[5 * nd] = padX; dm[5 * nd + 1] = padY; dm[5 * nd + 2] = size * 0.55f; dm[5 * nd + 3] = low
+            dm[5 * nd + 4] = size * 0.32f; nd++
+            val ring = 6 + rnd.nextInt(3)
+            for (j in 0 until ring) {
+                val a = j * 6.283f / ring + rnd.nextFloat() * 0.6f
+                val out = 0.45f + 0.25f * rnd.nextFloat()
+                val ox = cos(a) * size * out
+                val oy = sin(a) * size * out * 0.62f
+                dm[5 * nd] = padX + ux * ox + vx * oy; dm[5 * nd + 1] = padY + uy * ox + vy * oy
+                dm[5 * nd + 2] = size * (0.3f + 0.22f * rnd.nextFloat()); dm[5 * nd + 3] = low - 0.02f * r
+                dm[5 * nd + 4] = size * 0.22f; nd++
+            }
+        }
+
+        val look = ThingLook(ceil(1.3f * r).toInt())
+        val half = look.half
+        val tuftSize = 3f * RES
+        val mossA = (s.seed and 7).toFloat()
+        val mossB = ((s.seed ushr 3) and 7).toFloat()
+        for (gy in -half..half) for (gx in -half..half) {
+            val dx = gx + 0.5f
+            val dy = gy + 0.5f
+            val n = hash(gx, gy)
+            val speck = ((n ushr 3) and 255) / 255f
+            var bestH = -1f
+            var bestC = 0
+            var edge = 0f
+            // the pot: its rim (a rounded lip, lit on the side facing the sun), then soil with grit and moss
+            val u = dx * ca + dy * sa
+            val v = -dx * sa + dy * ca
+            val inside = if (oval) (1 - hypot(u / potA, v / potB)) * potB else {
+                val round = 0.14f * r
+                val qx = max(abs(u) - (potA - round), 0f)
+                val qy = max(abs(v) - (potB - round), 0f)
+                if (qx > 0 && qy > 0) round - hypot(qx, qy) else min(potA - abs(u), potB - abs(v))
+            }
+            if (inside > 0) {
+                if (inside < rimW) {
+                    bestH = potH + 0.06f * r * sin(PI.toFloat() * min(1f, inside / rimW * 1.3f))
+                    bestC = tone(s.color, 1.15f + 0.12f * speck)
+                    edge = inside
+                } else {
+                    val m = sin(dx / RES * 0.33f + mossA) * sin(dy / RES * 0.37f + 0.7f) + 0.35f * sin((dx - dy) / RES * 0.8f + mossB)
+                    if (m > 0.3f) {
+                        bestH = potH + 0.3f * RES * min(1f, (m - 0.3f) * 4)
+                        bestC = tone(MOSS, 0.8f + 0.4f * speck)
+                    } else {
+                        bestH = potH - 0.2f * RES
+                        bestC = if ((n ushr 11) and 15 == 0) tone(GRIT, 0.85f + 0.25f * speck) else tone(SOIL, 0.75f + 0.45f * speck)
+                    }
+                    edge = 9f
+                }
+            }
+            // the trunk, roots and branches: rounded, with streaks of lighter bark
+            for (k in 0 until ns) {
+                val o = 8 * k
+                val ax = st[o]; val ay = st[o + 1]
+                val bx = st[o + 3] - ax; val by = st[o + 4] - ay
+                val t = (((dx - ax) * bx + (dy - ay) * by) / (bx * bx + by * by + 1e-6f)).coerceIn(0f, 1f)
+                val d = hypot(dx - ax - bx * t, dy - ay - by * t)
+                val w = st[o + 6] + (st[o + 7] - st[o + 6]) * t + 0.5f
+                if (d >= w) continue
+                val h = st[o + 2] + (st[o + 5] - st[o + 2]) * t + w * 0.8f * sqrt(1 - (d / w) * (d / w))
+                if (h > bestH) {
+                    bestH = h
+                    bestC = ColorUtils.blendARGB(BARK, BARK_LIGHT, 0.35f * (0.5f + 0.5f * sin(d / w * 7 + t * 5 + mossA)) + 0.35f * speck)
+                }
+                edge = max(edge, (w - d) * 2)
+            }
+            // the leaves: the nearest of a scattered set of tuft middles (they turn and move with the tree) makes
+            // each tuft a little mound, lighter on top; the tufts also make the pads' outlines ragged
+            val tx = (dx + 300) / tuftSize
+            val ty = (dy + 300) / tuftSize
+            val tix = tx.toInt(); val tiy = ty.toInt()
+            var nearest = 9f
+            var tuftId = 0
+            for (oy in -1..1) for (ox in -1..1) {
+                val hh = hash(tix + ox + s.seed, tiy + oy - s.seed)
+                val jx = tix + ox + 0.1f + 0.8f * ((hh ushr 4) and 255) / 255f
+                val jy = tiy + oy + 0.1f + 0.8f * ((hh ushr 12) and 255) / 255f
+                val d = hypot(tx - jx, ty - jy)
+                if (d < nearest) { nearest = d; tuftId = hh }
+            }
+            val tuft = max(0f, 1 - nearest / 0.8f)
+            val tuftTone = ((tuftId ushr 20) and 255) / 255f
+            for (k in 0 until nd) {
+                val o = 5 * k
+                val reach = dm[o + 2] * (0.85f + 0.2f * tuft)
+                val d = hypot(dx - dm[o], dy - dm[o + 1])
+                if (d >= reach) continue
+                val e = d / reach
+                edge = max(edge, (1 - e) * dm[o + 2])
+                val h = dm[o + 3] + dm[o + 4] * sqrt(1 - e * e) + 0.8f * RES * tuft.pow(0.7f) + 0.25f * RES * speck
+                if (h <= bestH) continue
+                val lit = (0.6f * (1 - e * e) + 0.35f * tuft + 0.15f * tuftTone + 0.1f * speck - 0.05f).coerceIn(0f, 1f)
+                bestH = h
+                bestC = if (lit < 0.6f) ColorUtils.blendARGB(leaves[0], leaves[1], lit / 0.6f)
+                    else ColorUtils.blendARGB(leaves[1], leaves[2], (lit - 0.6f) / 0.4f * 0.85f)
+            }
+            if (bestH < 0) continue
+            val i = (gy + half) * look.size + gx + half
+            look.height[i] = bestH; look.colour[i] = bestC; look.edge[i] = edge
+        }
+        // the shade of the higher parts: walking towards the sun (up and left), anything standing above the
+        // sunlight's slope down to this square shades it (the slope is steeper than the sand's, so the shade
+        // stays short and the tree isn't half in darkness)
+        val size = look.size
+        val drop = SHADOW_DROP * 1.6f
+        val shaded = FloatArray(size * size)
+        for (y in 0 until size) for (x in 0 until size) {
+            val i = y * size + x
+            val h = look.height[i]
+            if (h < 0) continue
+            var shade = 0f
+            var k = 1
+            while (k <= min(x, y)) {
+                val over = look.height[i - k * (size + 1)] - (h + k * drop)
+                if (over > 0) shade = max(shade, min(1f, over / (1.5f * RES)))
+                k++
+            }
+            shaded[i] = shade
+        }
+        for (i in 0 until size * size) if (shaded[i] > 0) look.colour[i] = tone(look.colour[i], 1 - 0.55f * shaded[i])
+        smoothCast(look)
+        return look
+    }
+
+    // A look's smoothed height (see castSolid): each square averaged with the squares up to 2 away, across then
+    // down, twice
+    private fun smoothCast(look: ThingLook) {
+        val size = look.size
+        val c = look.cast
+        val step = FloatArray(size * size)
+        for (i in 0 until size * size) c[i] = max(0f, look.height[i])
+        repeat(2) {
+            for (y in 0 until size) for (x in 0 until size) {
+                var sum = 0f
+                for (o in -2..2) sum += c[y * size + (x + o).coerceIn(0, size - 1)]
+                step[y * size + x] = sum / 5
+            }
+            for (y in 0 until size) for (x in 0 until size) {
+                var sum = 0f
+                for (o in -2..2) sum += step[(y + o).coerceIn(0, size - 1) * size + x]
+                c[y * size + x] = sum / 5
+            }
+        }
+    }
+
+    // ---------------- Stones ----------------
+
+    // One stone of a group: where it sits in the group (ox, oy), its size, kind and top height, how rounded its
+    // edges are, a crag's peak (px, py), its faces (4 numbers each: which way the face looks (ux, uy), how steep it
+    // is, and how far out it is, as a height at the middle), and about the steepest its sides get
+    private class Rock(val ox: Float, val oy: Float, val r: Float, val kind: Int, val top: Float, val soft: Float,
+                       val px: Float, val py: Float, val faces: FloatArray, val steepest: Float)
+
+    // A stone made the way real ones are shaped: flat faces leaning in from every side, cut where they meet into
+    // ridges (so the outline is a rough polygon, not an oval), the top capped. Crags are tall with sharp ridges up
+    // to an off-centre peak; boulders low and well rounded; slabs low and flat-topped with steep sides; pebbles
+    // small and rounded. (No side is much steeper than 2.6 squares up for one across: on steeper ones, the light
+    // flipped from square to square along the outline and left a beaded rim.)
+    private fun makeRock(rnd: Random, ox: Float, oy: Float, r: Float, kind: Int): Rock {
+        val n = (if (kind == CRAG || kind == BOULDER) 9 else 7) + rnd.nextInt(4)
+        val aspect = 0.6f + 0.35f * rnd.nextFloat()      // (narrower one way)
+        val a0 = rnd.nextFloat() * 6.283f
+        val faces = FloatArray(4 * n)
+        for (k in 0 until n) {
+            val a = a0 + k * 6.283f / n + (rnd.nextFloat() - 0.5f) * 0.9f
+            val ux = cos(a); val uy = sin(a)
+            val dist = r * (0.7f + 0.35f * rnd.nextFloat()) / sqrt(ux * ux + (uy / aspect) * (uy / aspect))
+            val steep = when (kind) {
+                CRAG -> 1.3f + 1f * rnd.nextFloat()
+                BOULDER -> 0.7f + 0.5f * rnd.nextFloat()
+                SLAB -> 1.6f + 1f * rnd.nextFloat()
+                else -> 0.9f + 0.5f * rnd.nextFloat()
+            }
+            faces[4 * k] = ux; faces[4 * k + 1] = uy; faces[4 * k + 2] = steep; faces[4 * k + 3] = steep * dist
+        }
+        val top = r * when (kind) { CRAG -> 1f; BOULDER -> 0.42f; SLAB -> 0.22f; else -> 0.4f }
+        val soft = r * when (kind) { CRAG -> 0.14f; BOULDER -> 0.5f; SLAB -> 0.12f; else -> 0.5f }
+        val px = if (kind == CRAG) (rnd.nextFloat() - 0.5f) * 0.5f * r else 0f
+        val py = if (kind == CRAG) (rnd.nextFloat() - 0.5f) * 0.5f * r else 0f
+        var steepest = 0f
+        for (k in 0 until n) steepest = max(steepest, faces[4 * k + 2])
+        if (kind == CRAG) steepest *= 1.6f   // (the faces meet in sharper ridges up to its peak)
+        return Rock(ox, oy, r, kind, top, soft, px, py, faces, steepest)
+    }
+
+    private var rockH = 0f                   // (rockAt's answers: how tall the stone stands there, and how far
+    private var rockIn = 0f                  // inside its outline the point is)
+
+    // A stone's height at (x, y) (from its middle, in squares): under every face, the edges where they meet rounded
+    private fun rockAt(rk: Rock, x: Float, y: Float) {
+        val f = rk.faces
+        var h = 0f
+        var inside = Float.MAX_VALUE
+        for (k in 0 until f.size / 4) {
+            val v = f[4 * k + 3] - f[4 * k + 2] * (f[4 * k] * x + f[4 * k + 1] * y)
+            h = if (k == 0) v else softMin(h, v, rk.soft)
+            inside = min(inside, v / f[4 * k + 2])
+        }
+        if (rk.kind == CRAG) h = softMin(h, rk.top * 1.6f - 0.9f * hypot(x - rk.px, y - rk.py), rk.soft)
+        rockH = softMin(h, rk.top, rk.soft * 0.6f + 0.5f)
+        rockIn = inside
+    }
+
+    // The lower of two heights, rounded off where they meet (over a width of k)
+    private fun softMin(a: Float, b: Float, k: Float): Float {
+        val h = max(k - abs(a - b), 0f) / k
+        return min(a, b) - h * h * k * 0.25f
+    }
+
+    // Smooth noise between 0 and 1, changing over about one unit (the same every time for the same seed)
+    private fun noise(x: Float, y: Float, seed: Int): Float {
+        val ix = floor(x).toInt(); val iy = floor(y).toInt()
+        val fx = x - ix; val fy = y - iy
+        val sx = fx * fx * (3 - 2 * fx); val sy = fy * fy * (3 - 2 * fy)
+        val a = ((hash(ix + seed * 31, iy - seed * 17) ushr 8) and 1023) / 1023f
+        val b = ((hash(ix + 1 + seed * 31, iy - seed * 17) ushr 8) and 1023) / 1023f
+        val c = ((hash(ix + seed * 31, iy + 1 - seed * 17) ushr 8) and 1023) / 1023f
+        val d = ((hash(ix + 1 + seed * 31, iy + 1 - seed * 17) ushr 8) and 1023) / 1023f
+        return (a * (1 - sx) + b * sx) * (1 - sy) + (c * (1 - sx) + d * sx) * sy
+    }
+
+    // A stone, or a little group, as stones in real gardens look from above (drawn from photos of Ryoan-ji's dry
+    // garden and a Kyoto courtyard garden): a main stone (a tall crag, a low boulder or a flat slab) and sometimes
+    // one or two small companions, some groups in a patchy bed of moss. Their outlines and faces are bent a
+    // little (so no edge is ruler-straight), with weathered bumps and fine cracks; their colour is mottled,
+    // darker low down and in the cracks, with faint lichen on top, and some have a white quartz vein.
+    // Everything comes from its seed; r is the size of the whole group.
+    private fun makeStone(s: Item): ThingLook {
+        val rnd = Random(s.seed)
+        val r = s.r
+        val turn = Math.toRadians(s.angle.toDouble()).toFloat()
+        val ca = cos(turn); val sa = sin(turn)
+        val pal = ROCKS[rnd.nextInt(ROCKS.size)]
+        val roll = rnd.nextFloat()
+        val mainKind = if (roll < 0.4f) CRAG else if (roll < 0.75f) BOULDER else SLAB
+        val companions = intArrayOf(0, 0, 1, 1, 2)[rnd.nextInt(5)]
+        val rocks = ArrayList<Rock>()
+        rocks.add(makeRock(rnd, 0f, 0f, r * (if (mainKind == CRAG) 0.62f else 0.8f), mainKind))
+        for (k in 0 until companions) {
+            val a = rnd.nextFloat() * 6.283f
+            val cr = r * (0.22f + 0.15f * rnd.nextFloat())
+            val d = r * 0.75f + cr * 0.5f
+            rocks.add(makeRock(rnd, d * cos(a), d * sin(a), cr, if (rnd.nextFloat() < 0.6f) PEBBLE else CRAG))
+        }
+        val moss = companions > 0 && rnd.nextFloat() < 0.35f
+        val vein = rnd.nextFloat() < 0.35f
+        val veinA = rnd.nextFloat() * 3.14f
+        val veinAt = (rnd.nextFloat() - 0.5f) * r * 0.6f
+        val seed = s.seed
+        val look = ThingLook(ceil(1.45f * r).toInt())
+        val half = look.half
+        for (gy in -half..half) for (gx in -half..half) {
+            val dx = gx + 0.5f
+            val dy = gy + 0.5f
+            val u = dx * ca + dy * sa
+            val v = -dx * sa + dy * ca
+            val n = hash(gx, gy)
+            val speck = ((n ushr 3) and 255) / 255f
+            // bent a little, so faces and outlines aren't perfectly flat and straight
+            val wu = u + 0.22f * r * (noise(u / r * 2.2f, v / r * 2.2f, seed + 11) - 0.5f)
+            val wv = v + 0.22f * r * (noise(u / r * 2.2f + 7, v / r * 2.2f, seed + 13) - 0.5f)
+            var bestH = -1f
+            var bestC = 0
+            var edge = 0f
+            var near = -Float.MAX_VALUE              // how far inside the nearest stone (for the moss)
+            for (k in rocks.indices) {
+                val rk = rocks[k]
+                rockAt(rk, wu - rk.ox, wv - rk.oy)
+                val h = rockH
+                val inside = rockIn
+                near = max(near, inside / rk.r * r)
+                if (inside <= 0 || h <= 0) continue
+                // weathering: bumps (in dp, × RES), and fine cracks: thin grooves
+                val bump = noise(u / RES * 0.25f, v / RES * 0.25f, seed) - 0.5f + 0.5f * (noise(u / RES * 0.7f, v / RES * 0.7f, seed + 5) - 0.5f)
+                val crackLine = abs(noise(u / RES * 0.18f + 3, v / RES * 0.18f, seed + 9) - 0.5f)
+                val crack = 0.6f * max(0f, 1 - crackLine / 0.025f) * min(1f, h / (2 * RES))
+                val height = h + 0.9f * RES * bump * min(1f, inside / RES) - crack * 0.8f * RES
+                // how far in from the outline: the rounded edges drop the stone to the sand a little inside its
+                // faces' outline, so this is measured from its height there (or the outline came out stepped)
+                edge = max(edge, min(inside, max(0f, height) / rk.steepest))
+                if (height <= bestH) continue
+                // colour: mottled, darker low down and in the cracks, faint lichen on top, maybe a quartz vein
+                val m = noise(u / RES * 0.12f, v / RES * 0.12f, seed + 3)
+                var c = ColorUtils.blendARGB(pal[1], pal[0], min(1f, m * 1.6f))
+                c = ColorUtils.blendARGB(c, pal[2], max(0f, (m - 0.62f) * 2.2f))
+                c = tone(c, (0.9f + 0.15f * speck) * (1 - 0.35f * crack) * (0.82f + 0.18f * min(1f, h / max(1f, rk.top))))
+                if (vein && k == 0) {
+                    val dv = abs(u * cos(veinA) + v * sin(veinA) - veinAt - 0.12f * r * sin(u / r * 3))
+                    if (dv < 0.5f * RES) c = ColorUtils.blendARGB(c, QUARTZ, 0.75f * (1 - dv / (0.5f * RES)))
+                }
+                val lichen = noise(u / RES * 0.5f, v / RES * 0.5f, seed + 7)
+                if (lichen > 0.74f && h > 0.5f * rk.top) c = ColorUtils.blendARGB(c, LICHEN, min(0.35f, (lichen - 0.74f) * 3))
+                bestH = height
+                bestC = c
+            }
+            var soft = 0f
+            if (moss) {
+                // a patchy bed of moss around the group, wider in places, thinning out into the sand over its
+                // last 3 dp (its edge is soft, see objSoft)
+                val bed = 0.45f * r * (0.25f + 1.1f * noise(u / RES * 0.12f, v / RES * 0.12f, seed + 1))
+                val mm = -near / bed
+                if (mm < 1f) {
+                    val fade = smoothStep((1 - mm) * bed / (3f * RES))
+                    // (where it has faded to almost nothing it's left as sand: placed, it would look like sand but
+                    // the rake couldn't touch it, leaving a smooth ring around the moss)
+                    if (bestH < 0 && fade >= 0.1f) {
+                        val t = noise(u / RES * 0.6f, v / RES * 0.6f, seed + 2)
+                        bestH = 0.6f * RES * (0.5f + t) * fade
+                        bestC = ColorUtils.blendARGB(ROCK_MOSS_DARK, ROCK_MOSS_LIGHT, t * 0.8f + 0.2f * speck)
+                        edge = 1.5f * fade
+                        soft = 1f
+                    } else edge = max(edge, (1 - mm) * bed)   // (under a stone: so no sand shows between them)
+                }
+            }
+            if (bestH < 0) continue
+            val i = (gy + half) * look.size + gx + half
+            look.height[i] = bestH; look.colour[i] = bestC; look.edge[i] = edge; look.soft[i] = soft
+        }
+        smoothCast(look)
+        return look
+    }
+
+    // A stone lantern's roof, seen from above (drawn from photos of Kasuga-style lanterns at Rikugien Garden and
+    // Kasuga Taisha): six-sided, its sides bowing in a little between corners that reach out and sweep up, rising
+    // in a hollow curve to the top, with a soft ridge from the top down to each corner and a thin lip along the
+    // eaves; on top, a collar of lotus petals and an onion-shaped jewel. The stone is weathered: mottled, with dark
+    // rain streaks running down the slopes, pale lichen, and moss low in the hollows between the ridges.
+    // Every lantern is the same (only turned differently), so its weathering has a seed of its own.
+    private fun makeLantern(s: Item): ThingLook {
+        val r = s.r
+        val turn = Math.toRadians(s.angle.toDouble()).toFloat()
+        val ca = cos(turn); val sa = sin(turn)
+        val seed = 4242
+        val sixth = (PI / 3).toFloat()
+        val eave = 1.55f * r                     // how high the eaves stand, and how much higher the top is
+        val rise = 0.42f * r
+        val look = ThingLook(ceil(1.3f * r).toInt())
+        val half = look.half
+        for (gy in -half..half) for (gx in -half..half) {
+            val dx = gx + 0.5f
+            val dy = gy + 0.5f
+            val n = hash(gx, gy)
+            val speck = ((n ushr 3) and 255) / 255f
+            val d = hypot(dx, dy)
+            val u = dx * ca + dy * sa              // (turned with the lantern, so its weathering turns too)
+            val v = -dx * sa + dy * ca
+            val a = atan2(v, u)
+            // the angle to the nearest corner (0 at a corner, a twelfth of a turn mid-side), and how far out
+            // towards the eaves (1 = the eave), with the corners reaching further out
+            var w = (a / sixth) % 1f
+            if (w < 0) w += 1f
+            val off = min(w, 1 - w) * sixth
+            val toCorner = 1 - off / (sixth / 2)   // 1 towards a corner, 0 mid-side
+            val hd = d * cos(off - sixth / 2) / (r * 0.866f) / (1 + 0.14f * toCorner * toCorner * toCorner)
+            var bestH = -1f
+            var bestC = 0
+            var edge = 0f
+            if (hd < 1f) {
+                // the roof: a hollow sweep up from the eaves, a lip along them, the corners swept up into a curl
+                var h = eave + rise * (1 - hd).pow(1.8f)
+                if (hd > 0.93f) h += 0.025f * r
+                val c4 = toCorner * toCorner * toCorner * toCorner
+                h += 0.14f * r * c4 * smoothStep((hd - 0.7f) / 0.3f)
+                h += 0.05f * r * c4 * toCorner * toCorner * smoothStep((hd - 0.88f) / 0.09f) * (0.5f + 0.5f * sin(hd * 60))
+                // a ridge from the top down to each corner
+                val ridgeIn = max(0f, 1 - off / 0.2f)
+                val ridge = ridgeIn * ridgeIn * min(1f, hd * 3) * (1 - 0.5f * hd)
+                h += 0.035f * r * ridge
+                // weathering: mottling, rain streaks down the slopes, lichen, moss low in the hollows
+                val m = noise(u / RES * 0.15f, v / RES * 0.15f, seed + 3)
+                var c = ColorUtils.blendARGB(LANTERN_DARK, LANTERN_GREY, min(1f, 0.4f + m))
+                c = ColorUtils.blendARGB(c, LANTERN_LIGHT, max(0f, m - 0.6f) * 1.5f)
+                val streak = noise(cos(a) * 4 + 10, sin(a) * 4 + hd * 1.2f, seed)
+                c = tone(c, (1 - 0.5f * max(0f, streak - 0.45f) * hd) * (0.92f + 0.12f * speck) * (1 + 0.08f * ridge))
+                val lichen = noise(u / RES * 0.45f, v / RES * 0.45f, seed + 7)
+                if (lichen > 0.72f) c = ColorUtils.blendARGB(c, LICHEN, min(0.4f, (lichen - 0.72f) * 3))
+                val moss = noise(u / RES * 0.3f, v / RES * 0.3f, seed + 9)
+                if (hd > 0.7f && off > 0.3f && moss > 0.6f) c = ColorUtils.blendARGB(c, LANTERN_MOSS, min(0.7f, (moss - 0.6f) * 12 * (hd - 0.7f)))
+                bestH = h; bestC = c
+                edge = (1 - hd) * r * 0.866f
+            }
+            // the collar of lotus petals, and the jewel on it
+            val collar = d / (0.3f * r)
+            if (collar < 1f) {
+                val petal = 0.5f + 0.5f * cos(8 * a)
+                val h = eave + rise + 0.05f * r * (1 - collar) + 0.08f * r * petal * (1 - collar)
+                if (h > bestH) { bestH = h; bestC = tone(LANTERN_GREY, 0.88f + 0.12f * speck + 0.08f * petal) }
+            }
+            val jewel = d / (0.15f * r)
+            if (jewel < 1f) {
+                val h = eave + rise + 0.08f * r + 0.35f * r * (1 - jewel.pow(1.6f)).pow(0.8f)
+                if (h > bestH) { bestH = h; bestC = tone(ColorUtils.blendARGB(LANTERN_GREY, LANTERN_LIGHT, 0.2f), 0.92f + 0.1f * speck) }
+            }
+            if (bestH < 0) continue
+            val i = (gy + half) * look.size + gx + half
+            look.height[i] = bestH; look.colour[i] = bestC; look.edge[i] = edge
+        }
+        smoothCast(look)
+        return look
+    }
+
+    // A placed thing's look, worked out the first time it's needed (see makeBonsai, makeStone, makeLantern and
+    // makeFlowers)
+    private fun lookOf(s: Item): ThingLook = s.look ?: when (s.kind) {
+        BONSAI -> makeBonsai(s)
+        LANTERN -> makeLantern(s)
+        FLOWERS -> makeFlowers(s)
+        else -> makeStone(s)
+    }.also { look ->
+        // how far out from its middle it really covers the sand (a stone's companions and moss, a bonsai's leaves)
+        var far = 0f
+        for (gy in -look.half..look.half) for (gx in -look.half..look.half) {
+            if (look.height[(gy + look.half) * look.size + gx + look.half] < 0) continue
+            // (the square's corner furthest from the middle, which is at a square's corner, see onSquare)
+            far = max(far, hypot(max(abs(gx), abs(gx + 1)).toFloat(), max(abs(gy), abs(gy + 1)).toFloat()))
+        }
+        look.reach = far
+        s.look = look
+    }
+
+    // Puts a placed thing into the surface
+    private fun bakeLook(s: Item) {
+        val look = lookOf(s)
+        val half = look.half
+        // (its look is centred on a square's corner, where everything stands, see onSquare)
+        val cx = round(s.x).toInt()
+        val cy = round(s.y).toInt()
+        for (gy in -half..half) {
+            val y = cy + gy
+            if (y < 0 || y >= gh) continue
+            for (gx in -half..half) {
+                val x = cx + gx
+                if (x < 0 || x >= gw) continue
+                val k = (gy + half) * look.size + gx + half
+                if (look.height[k] < 0) continue
+                put(y * gw + x, look.height[k], look.colour[k], look.edge[k], look.cast[k], look.soft[k])
+            }
         }
     }
 
     // Puts a placed thing into the surface: its shape (how tall it stands on each square) and its colour there.
     // Everything comes from its seed, so it looks the same every time.
-    // - stone: a rounded, slightly lumpy outline with gentle bumps and speckled granite
-    // - flowers: a low clump of pointed leaves (the blossoms on top are drawn sharply over it, see drawFlowers)
-    // - bonsai: a glazed pot with soil, under round clumps of foliage, lighter where they're higher
-    // - lantern: a six-sided stone roof rising to a round jewel, its corners turned up a little
-    private fun bake(s: Item) {
-        makeLooks(s)
-        val rnd = Random(s.seed)
-        val a = rnd.nextFloat() * 6.283f
-        val b = rnd.nextFloat() * 6.283f
-        val c = rnd.nextFloat() * 6.283f
-        val reach = s.r * 1.3f
-        val turn = Math.toRadians(s.angle.toDouble())
-        val ca = cos(-turn).toFloat()
-        val sa = sin(-turn).toFloat()
-        val r = s.r
-        for (y in max(0, (s.y - reach).toInt())..min(gh - 1, (s.y + reach).toInt())) {
-            for (x in max(0, (s.x - reach).toInt())..min(gw - 1, (s.x + reach).toInt())) {
-                val i = y * gw + x
-                val dx = x + 0.5f - s.x
-                val dy = y + 0.5f - s.y
-                val n = hash(x, y)
-                val speck = ((n ushr 3) and 255) / 255f
-                when (s.kind) {
-                    STONE -> {
-                        val u = dx * ca - dy * sa
-                        val v = (dx * sa + dy * ca) / s.aspect
-                        val th = atan2(v, u)
-                        val q = hypot(u, v) / (r * (1 + 0.10f * sin(2 * th + a) + 0.07f * sin(3 * th + b) + 0.04f * sin(5 * th + c)))
-                        if (q >= 1f) continue
-                        // (the bumps and colour bands are sized in dp: u / RES)
-                        val height = r * 0.6f * (1 - q * q).pow(0.55f) + 0.35f * RES * sin(u / RES * 0.7f + a) * sin(v / RES * 0.8f + b) * (1 - q)
-                        var f = (0.9f + 0.2f * speck) * (0.95f + 0.08f * sin(u / RES * 0.25f + c))
-                        if ((n ushr 11) and 31 == 0) f -= 0.25f   // dark flecks
-                        put(i, height, tone(s.color, f), (1 - q) * r)
-                    }
-                    FLOWERS -> {
-                        val th = atan2(dy, dx)
-                        val d = hypot(dx, dy)
-                        val q = d / (r * (1 + 0.18f * sin(7 * th + a) + 0.1f * sin(3 * th + b)))
-                        if (q >= 1f) continue
-                        // leaves fanning out from the middle
-                        val leaf = abs(sin(th * 7 + d / RES * 0.25f + a))
-                        val height = r * 0.22f * sqrt(1 - q * q) + leaf * 0.8f * RES * (1 - q)
-                        val t = (leaf * 0.6f + (1 - q) * 0.3f + speck * 0.15f).coerceIn(0f, 1f)
-                        put(i, height, ColorUtils.blendARGB(LEAF_DARK, LEAF_LIGHT, t), (1 - q) * r)
-                        // the blossoms' own colour under them, so lantern and firefly light on them is the right colour
-                        for (k in 0 until s.blobs.size / 4) {
-                            if (hypot(dx - s.blobs[4 * k], dy - s.blobs[4 * k + 1]) < s.blobs[4 * k + 2]) {
-                                put(i, r * 0.4f, petalColour(s))
-                                break
-                            }
-                        }
-                    }
-                    BONSAI -> {
-                        val u = dx * ca - dy * sa
-                        val v = dx * sa + dy * ca
-                        val box = max(abs(u), abs(v))
-                        if (box < 0.8f * r) {
-                            val rim = box > 0.68f * r
-                            put(i, if (rim) 0.38f * r else 0.3f * r,
-                                if (rim) tone(s.color, 0.92f + 0.12f * speck) else tone(SOIL, 0.85f + 0.3f * speck), 0.8f * r - box)
-                        }
-                        for (k in 0 until s.blobs.size / 3) {
-                            val br = s.blobs[3 * k + 2]
-                            val e = hypot(dx - s.blobs[3 * k], dy - s.blobs[3 * k + 1]) / br
-                            if (e >= 1f) continue
-                            val needles = ((n ushr 2) and 255) / 255f * RES
-                            val height = 0.8f * r + br * 1.1f * sqrt(1 - e * e) + needles
-                            val t = ((height - 0.8f * r) / (br * 1.1f + RES)).coerceIn(0f, 1f).pow(1.3f)
-                            put(i, height, ColorUtils.blendARGB(PINE_DEEP, PINE_TIP, t), (1 - e) * br)
-                        }
-                    }
-                    LANTERN -> {
-                        var hd = 0f
-                        for (k in 0 until 3) {
-                            val ak = turn + Math.toRadians(30.0 + k * 60)
-                            hd = max(hd, abs(dx * cos(ak).toFloat() + dy * sin(ak).toFloat()))
-                        }
-                        hd /= r * 0.866f
-                        if (hd > 1f) continue
-                        val d = hypot(dx, dy)
-                        val corner = ((d / r - 0.85f) / 0.15f).coerceIn(0f, 1f)
-                        var height = 2f * r - 0.45f * r * hd + 0.12f * r * corner * corner
-                        if (d < 0.32f * r) height += 0.06f * r   // the ring the jewel sits on
-                        val j = d / (0.2f * r)
-                        if (j < 1f) put(i, 2.06f * r + 0.3f * r * sqrt(1 - j * j), tone(JEWEL_GREY, 0.95f + 0.1f * speck))
-                        else put(i, height, tone(LANTERN_GREY, 0.9f + 0.18f * speck), (1 - hd) * r * 0.866f)
-                    }
-                }
-            }
-        }
-    }
+    // - stone: see makeStone
+    // - flowers: see makeFlowers
+    // - bonsai: see makeBonsai
+    // - lantern: see makeLantern
+    private fun bake(s: Item) = bakeLook(s)
 
     // One square of a placed thing: the tallest part wins. `edge` is how far inside the outline the square is, in
     // squares: the last square and a half blends into the sand, so outlines are smooth rather than stepped.
-    private fun put(i: Int, height: Float, colour: Int, edge: Float = 9f) {
+    // `cast` is how tall it stands for blocking the lanterns' light (see castSolid).
+    // `soft`: how soft its edge is (see objSoft).
+    private fun put(i: Int, height: Float, colour: Int, edge: Float = 9f, cast: Float = height, soft: Float = 0f) {
         covered[i] = true
         if (objAlbedo[i] == 0 || height > solid[i]) {
             solid[i] = height
+            castSolid[i] = cast
+            objSoft[i] = soft
             objAlbedo[i] = colour or Color.BLACK   // (never 0, which means bare sand)
         }
-        objCover[i] = max(objCover[i], (edge / 1.5f).coerceIn(0.15f, 1f))
+        objCover[i] = max(objCover[i], (edge / 1.5f).coerceIn(if (soft > 0f) 0f else 0.15f, 1f))
     }
 
     // The placed thing under (x, y): the nearest one, if several are close together
@@ -1421,8 +2078,10 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     private fun markCovered() {
         if (covered.size != gw * gh) {
             covered = BooleanArray(gw * gh); solid = FloatArray(gw * gh); objAlbedo = IntArray(gw * gh); objCover = FloatArray(gw * gh)
-        } else { covered.fill(false); solid.fill(0f); objAlbedo.fill(0); objCover.fill(0f) }
+            thingShadow = FloatArray(gw * gh); castSolid = FloatArray(gw * gh); objSoft = FloatArray(gw * gh)
+        } else { covered.fill(false); solid.fill(0f); objAlbedo.fill(0); objCover.fill(0f); thingShadow.fill(0f) }
         for (s in items) bake(s)
+        for (s in items) shadeUnder(s)
         val lamps = items.filter { it.kind == LANTERN }
         lampX = FloatArray(lamps.size) { lamps[it].x }
         lampY = FloatArray(lamps.size) { lamps[it].y }
@@ -1456,10 +2115,60 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     }
 
     // Draws again the squares around a placed thing (where it was or is)
-    private fun reshadeAround(x: Float, y: Float, r: Float) {
+    // (and its shadow, which reaches `shadow` squares further to the bottom right)
+    private fun reshadeAround(x: Float, y: Float, r: Float, shadow: Int) {
         val reach = (r * 1.4f).toInt() + 2
         val pad = shadowSteps + 2
-        shade(x.toInt() - reach - pad, y.toInt() - reach - pad, x.toInt() + reach + pad, y.toInt() + reach + pad)
+        shade(x.toInt() - reach - pad, y.toInt() - reach - pad, x.toInt() + reach + pad + shadow, y.toInt() + reach + pad + shadow)
+    }
+
+    // A placed thing's shadow on the sand. The sun is top left, so walking down and right from each square the
+    // "sunlight line" from the tallest thing passed drops a little each step; the sand is in shadow as far as the
+    // line is still above it (fully dark THING_SHADOW_FULL below it). Only a box around the thing is worked out:
+    // from its top-left corner to as far as its shadow can reach. The shadow's edge is then smoothed a little (each
+    // square averaged with its neighbours, so it isn't stepped), and where shadows overlap the darker one counts. Measured from
+    // flat sand, not the sand's own ridges, so raking under a shadow doesn't need it worked out again.
+    private fun shadeUnder(s: Item) {
+        val reach = s.r * 1.3f
+        val fx0 = max(0, (s.x - reach).toInt()); val fy0 = max(0, (s.y - reach).toInt())
+        val fx1 = min(gw - 1, (s.x + reach).toInt()); val fy1 = min(gh - 1, (s.y + reach).toInt())
+        if (fx0 > fx1 || fy0 > fy1) { s.shadowReach = 0; return }
+        // how far its shadow can reach, from its tallest point
+        var top = 0f
+        for (y in fy0..fy1) for (x in fx0..fx1) {
+            val i = y * gw + x
+            if (objAlbedo[i] != 0 && solid[i] > top) top = solid[i]
+        }
+        val long = ceil((top + THING_SHADOW_LIFT) / THING_SHADOW_DROP).toInt() + 3
+        s.shadowReach = long
+        val x1 = min(gw - 1, fx1 + long); val y1 = min(gh - 1, fy1 + long)
+        val w = x1 - fx0 + 1; val h = y1 - fy0 + 1
+        if (shadowWork.size < w * h) { shadowWork = FloatArray(w * h); shadowWork2 = FloatArray(w * h) }
+        val line = shadowWork2
+        val dark = shadowWork
+        for (y in 0 until h) for (x in 0 until w) {
+            val k = y * w + x
+            if (x == 0 || y == 0) { line[k] = NO_LINE; dark[k] = 0f; continue }
+            val j = (fy0 + y - 1) * gw + fx0 + x - 1
+            val from = if (objAlbedo[j] != 0 && objSoft[j] < 0.5f) solid[j] + THING_SHADOW_LIFT else NO_LINE   // (not moss)
+            line[k] = max(from, line[k - w - 1]) - THING_SHADOW_DROP
+            dark[k] = (line[k] / THING_SHADOW_FULL).coerceIn(0f, 1f)
+        }
+        // smoothed: across, then down (line is free now, so it holds the step in between)
+        run {
+            for (y in 0 until h) for (x in 0 until w) {
+                val k = y * w + x
+                line[k] = (dark[k - (if (x > 0) 1 else 0)] + dark[k] + dark[k + (if (x < w - 1) 1 else 0)]) / 3f
+            }
+            for (y in 0 until h) for (x in 0 until w) {
+                val k = y * w + x
+                dark[k] = (line[k - (if (y > 0) w else 0)] + line[k] + line[k + (if (y < h - 1) w else 0)]) / 3f
+            }
+        }
+        for (y in 0 until h) for (x in 0 until w) {
+            val i = (fy0 + y) * gw + fx0 + x
+            if (dark[y * w + x] > thingShadow[i]) thingShadow[i] = dark[y * w + x]
+        }
     }
 
     // An item set down pushes the sand around it flat
@@ -1467,7 +2176,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         eachNear(s, 1.35f) { i, d -> heights[i] *= (d / 1.35f).coerceIn(0.25f, 1f) }
         val r = (s.r * 1.4f).toInt() + 2
         val pad = shadowSteps + 1
-        shade(s.x.toInt() - r - pad, s.y.toInt() - r - pad, s.x.toInt() + r + pad, s.y.toInt() + r + pad)
+        shade(s.x.toInt() - r - pad, s.y.toInt() - r - pad, s.x.toInt() + r + pad + s.shadowReach, s.y.toInt() + r + pad + s.shadowReach)
     }
 
     // Runs `act` for each square within `scale` × the item's size, with its distance in item sizes
@@ -1515,10 +2224,20 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     private var heard = 0f                   // the finger's speed, smoothed (a stroke's first reading is always a jump)
     private val hush = Runnable { heard = 0f; sound.level(0f) }
 
+    // A short burst of the current tool's sound (while the volume or tone slider is moved, to hear it)
+    fun soundSample() {
+        if (!soundOn) return
+        sound.voice = if (tool == STICK) SandSound.STICK else SandSound.RAKE
+        sound.level(0.5f * if (tool == STICK) 0.6f else 1f)
+        removeCallbacks(hush)
+        postDelayed(hush, 350)
+    }
+
     // The finger is moving at `speed` (0 to 1): the sound follows, and fades if the finger stops
     private fun makeSound(speed: Float) {
         if (!soundOn) return
         heard += (speed - heard) * 0.15f
+        sound.voice = if (tool == STICK) SandSound.STICK else SandSound.RAKE
         sound.level(heard * when (tool) { RAKE -> 1f; STICK -> 0.6f; else -> 0.45f })
         removeCallbacks(hush)
         postDelayed(hush, 120)
@@ -1594,14 +2313,15 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                     if (!heldRemembered) { remember(); heldRemembered = true }
                     val oldX = s.x
                     val oldY = s.y
+                    val oldShadow = s.shadowReach
                     snapTo((heldFromX + x - downX).coerceIn(0f, gw.toFloat()), (heldFromY + y - downY).coerceIn(0f, gh.toFloat()))
-                    clearOfCorners(snapX, snapY, s.r * footprint(s.kind))   // (never slid under a corner block)
+                    keepClear(s)
                     s.x = snapX
                     s.y = snapY
                     if (s.x == oldX && s.y == oldY) return true   // (on the grid it only moves point to point)
                     markCovered()
-                    reshadeAround(oldX, oldY, s.r)
-                    reshadeAround(s.x, s.y, s.r)
+                    reshadeAround(oldX, oldY, s.r, oldShadow)
+                    reshadeAround(s.x, s.y, s.r, s.shadowReach)
                     // with a lantern out, its light and the shadows in it follow what you're dragging: just the light
                     // near where it was and is now (everything is worked out again when you let go)
                     if (lampX.isNotEmpty()) {
@@ -1646,7 +2366,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                             remember()
                             snapTo(x, y)
                             val thing = newItem(tool, snapX, snapY)
-                            clearOfCorners(thing.x, thing.y, thing.r * footprint(thing.kind))   // (never under a corner block)
+                            keepClear(thing)
                             thing.x = snapX; thing.y = snapY
                             items.add(thing)
                             settle(thing)
@@ -1697,7 +2417,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         val ring = if (it === lastRinged && now - lastRingTime < 8000) it.rings % MAX_RINGS else 0
         lastRinged = it
         lastRingTime = now
-        val r = it.r * footprint(it.kind) + 2f * RES + half + ring * 2 * half
+        val r = footprint(it) + 2f * RES + half + ring * 2 * half
         it.rings = ring + 1
         val cx = it.x; val cy = it.y
         val start = atan2(lightY, lightX)
@@ -1795,11 +2515,53 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     // it's done a band of rows at a time instead: as many as fit in about 8 ms each frame, until it's finished
     // (usually 1-3 frames). Small changes, like raking, are still drawn straight away.
     private var redrawRow = -1               // the next row to redraw (-1 = nothing waiting)
+    private var thingShadowDay = 1f          // how dark placed things' shadows are for the brightness (see brightness)
+    private var thingShadowDrawn = 1f        // and how dark they're drawn now
+    // Only the picture's pixels are coloured again, in the box placed things' shadows fall in (the garden's own
+    // drawing, after the brightness slider moved, see showShadowStrength)
+    private var shadowsOnly = false
+    private var shadowX0 = 0
+    private var shadowX1 = 0
+    private var shadowY1 = 0
     private val redrawMore = Runnable { redrawSomeRows() }
 
     private fun redrawAll() {
         if (bitmap == null) return
         redrawRow = 0                        // (a redraw already going on starts again from the top)
+        shadowsOnly = false
+        thingShadowDrawn = thingShadowDay
+        removeCallbacks(redrawMore)
+        redrawSomeRows()
+    }
+
+    // The brightness slider moved: placed things' shadows are drawn stronger or fainter. The smooth drawing does that
+    // on the graphics chip (see SandRenderer.drawSand); the garden's own drawing colours its picture again where the
+    // shadows fall (nothing is worked out again), a band at a time, and again when that's done if the slider has
+    // moved on meanwhile.
+    private fun showShadowStrength() {
+        if (abs(thingShadowDay - thingShadowDrawn) <= 0.01f) return
+        if (bitmap == null || smooth != null || squareBright.size != gw * gh) {
+            thingShadowDrawn = thingShadowDay
+            invalidate()
+            return
+        }
+        if (redrawRow >= 0) return   // (a redraw is going on: this is done when it's finished)
+        thingShadowDrawn = thingShadowDay
+        // the box the shadows fall in
+        var x0 = gw; var y0 = gh; var x1 = -1; var y1 = -1
+        for (y in 0 until gh) {
+            val row = y * gw
+            for (x in 0 until gw) if (thingShadow[row + x] > 0f) {
+                if (x < x0) x0 = x
+                if (x > x1) x1 = x
+                if (y < y0) y0 = y
+                y1 = y
+            }
+        }
+        if (x1 < 0) return   // (no shadows anywhere)
+        shadowsOnly = true
+        shadowX0 = x0; shadowX1 = x1; shadowY1 = y1
+        redrawRow = y0
         removeCallbacks(redrawMore)
         redrawSomeRows()
     }
@@ -1807,16 +2569,25 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     private fun redrawSomeRows() {
         if (redrawRow < 0 || bitmap == null) return
         val start = SystemClock.uptimeMillis()
-        while (redrawRow < gh) {
-            val last = min(gh - 1, redrawRow + 7)   // 8 rows at a time
-            shade(0, redrawRow, gw - 1, last)
-            relight(0, redrawRow, gw - 1, last)
+        val lastRow = if (shadowsOnly) shadowY1 else gh - 1
+        while (redrawRow <= lastRow) {
+            val last = min(lastRow, redrawRow + 7)   // 8 rows at a time
+            if (shadowsOnly) paintFine(shadowX0, redrawRow, shadowX1, last)
+            else {
+                shade(0, redrawRow, gw - 1, last)
+                relight(0, redrawRow, gw - 1, last)
+            }
             redrawRow = last + 1
             if (SystemClock.uptimeMillis() - start >= 8) break
         }
-        changed = true
+        if (!shadowsOnly) changed = true
         invalidate()
-        if (redrawRow >= gh) redrawRow = -1 else postOnAnimation(redrawMore)
+        if (redrawRow <= lastRow) postOnAnimation(redrawMore)
+        else {
+            redrawRow = -1
+            shadowsOnly = false
+            showShadowStrength()   // (the brightness changed meanwhile)
+        }
     }
 
     // ---------------- Triangle grid ----------------
@@ -1827,25 +2598,30 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     private var snapX = 0f
     private var snapY = 0f
 
-    // Sets snapX and snapY to (x, y), moved to the nearest grid point when the grid is on
+    // Sets snapX and snapY to (x, y), moved to the nearest grid point when the grid is on: a triangles' corner or
+    // the middle of one of their sides. (Together those are the corners of triangles half the size, so it snaps
+    // to that finer grid.)
     private fun snapTo(x: Float, y: Float) {
         snapX = x
         snapY = y
         if (!gridOn) return
         val cx = gw / 2f
         val cy = gh / 2f
-        val row = ((y - cy) / rowGap).roundToInt()
+        val step = GRID / 2
+        val gap = rowGap / 2
+        val row = ((y - cy) / gap).roundToInt()
         var best = Float.MAX_VALUE
         for (j in row - 1..row + 1) {
-            val i = ((x - cx) / GRID - 0.5f * j).roundToInt()
-            val px = cx + GRID * (i + 0.5f * j)
-            val py = cy + rowGap * j
+            val i = ((x - cx) / step - 0.5f * j).roundToInt()
+            val px = cx + step * (i + 0.5f * j)
+            val py = cy + gap * j
             val d = hypot(px - x, py - y)
             if (d < best && px in 0f..gw.toFloat() && py in 0f..gh.toFloat()) { best = d; snapX = px; snapY = py }
         }
     }
 
-    // Faint lines in the three directions of the triangles, and a soft dot where they meet
+    // Faint lines in the three directions of the triangles, a soft dot where they meet, and a smaller one in the
+    // middle of each side (things snap to both)
     private fun drawGrid(canvas: Canvas) {
         if (!gridOn) return
         val cx = gw / 2f
@@ -1877,12 +2653,19 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         paint.color = if (onDark) GRID_POINT_ON_DARK else GRID_POINT
         for (j in top.toInt()..bottom.toInt()) {
             val y = cy + rowGap * j
-            if (y < 0 || y > gh) continue
+            if (y < -rowGap || y > gh) continue
             val first = ((0 - cx) / GRID - 0.5f * j).toInt() - 1
             val last = ((gw - cx) / GRID - 0.5f * j).toInt() + 1
             for (i in first..last) {
                 val x = cx + GRID * (i + 0.5f * j)
-                if (x < 0 || x > gw) continue
+                // the middles of the sides to its right, down-right and down-left
+                for (m in 0..2) {
+                    val mx = x + when (m) { 0 -> GRID / 2; 1 -> GRID / 4; else -> -GRID / 4 }
+                    val my = y + if (m == 0) 0f else rowGap / 2
+                    if (mx < 0 || mx > gw || my < 0 || my > gh) continue
+                    canvas.drawCircle(sx + mx * c, sx + my * c, dp(1.6f), paint)
+                }
+                if (x < 0 || x > gw || y < 0) continue
                 canvas.drawCircle(sx + x * c, sx + y * c, dp(2.5f), paint)
             }
         }
@@ -2127,15 +2910,21 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     var onAutoPattern: ((String?) -> Unit)? = null    // tells the Game Room which pattern is being raked (null = off)
     var autoOn = false
         private set
-    private val autoRake = Raker()
+    // The auto rake's rake (or stick), working through its strokes
+    private class AutoHand {
+        val raker = Raker()
+        val strokes = ArrayList<Stroke>()
+        var stroke = 0                        // which stroke it's on (all done when it's past the last)
+        var index = 0                         // which point of that stroke
+        var budget = 0f                       // squares it may still move this frame
+        var lift = 0f                         // seconds left lifting it between strokes (it fades out, then in)
+        var liftMoved = false                 // halfway through a lift: it has moved to the next stroke
+        val done get() = stroke >= strokes.size
+        val gone get() = done && liftMoved    // done, and faded out
+    }
+    private val autoHand = AutoHand()
     private var autoPattern = 0               // which pattern is raked next (chosen at random)
     private var autoStage = 0                 // 0 smoothing the tray, 1 raking the pattern, 2 rings around things, 3 resting
-    private val autoStrokes = ArrayList<Stroke>()
-    private var autoStroke = 0                // which stroke it's on
-    private var autoIndex = 0                 // which point of that stroke
-    private var autoBudget = 0f               // squares it may still move this frame
-    private var autoLift = 0f                 // seconds left lifting the rake between strokes (it fades out, then in)
-    private var autoLiftMoved = false         // halfway through a lift: the rake has moved to the next stroke
     private var autoClock = 0f                // seconds into smoothing or resting
     private var autoSmoothedTo = 0
     private var autoLast = 0L
@@ -2175,6 +2964,23 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         }
     }
 
+    // Rakes pattern `p` (one of AUTO_PATTERNS) now, picked from the list (hold Automatic): starting the auto rake
+    // if it's off, or cutting short the pattern it's on. It smooths the tray first, as always, and afterwards
+    // carries on in its random order.
+    fun rakePattern(p: Int) {
+        if (p !in AUTO_PATTERNS.indices) return
+        val wasOn = autoOn
+        autoOn = true
+        autoPattern = p
+        autoStage = -1
+        nextAutoStage()
+        if (!wasOn) {
+            autoLast = SystemClock.uptimeMillis()
+            removeCallbacks(autoFrame)
+            post(autoFrame)
+        }
+    }
+
     // The next pattern: drawn like a card from a shuffled deck of all of them, so each is raked once before any comes
     // round again. The deck is kept in the Game Room's settings, so it carries on where it left off next time; when
     // it's shuffled again, the pattern just raked is never drawn first.
@@ -2205,39 +3011,41 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                 onAutoPattern?.invoke(AUTO_PATTERNS[autoPattern])
             }
             1 -> {
-                autoStrokes.clear()
-                autoStrokes.addAll(patternStrokes(autoPattern))
+                autoHand.strokes.clear()
+                autoHand.strokes.addAll(patternStrokes(autoPattern))
                 autoCurrent = autoPattern
-                autoKind = autoStrokes.firstOrNull()?.kind ?: RAKE
+                autoKind = autoHand.strokes.firstOrNull()?.kind ?: RAKE
                 autoPattern = -1                     // (the next round draws its own)
                 beginStrokes()
             }
             2 -> {
-                autoStrokes.clear()
-                autoStrokes.addAll(ringStrokes())
+                autoHand.strokes.clear()
+                autoHand.strokes.addAll(ringStrokes())
                 beginStrokes()
             }
         }
     }
 
     private fun beginStrokes() {
-        if (autoStrokes.isEmpty()) { nextAutoStage(); return }
-        autoStroke = 0
-        startAutoStroke()
-        autoLift = LIFT_SECONDS / 2       // fade in at the start
-        autoLiftMoved = true
+        val h = autoHand
+        if (h.strokes.isEmpty()) { nextAutoStage(); return }
+        h.stroke = 0
+        h.liftMoved = true
+        startAutoStroke(h)
+        h.lift = LIFT_SECONDS / 2                // fade in at the start
     }
 
-    private fun startAutoStroke() {
-        val p = autoStrokes[autoStroke].points
-        autoRake.start(p[0], p[1], autoStrokes[autoStroke].kind)
-        autoRake.end = (p.size / 2 - 1).toFloat()   // (its points are a square apart: it lifts out smoothly at the end)
+    private fun startAutoStroke(h: AutoHand) {
+        val p = h.strokes[h.stroke].points
+        val r = h.raker
+        r.start(p[0], p[1], h.strokes[h.stroke].kind)
+        r.end = (p.size / 2 - 1).toFloat()   // (its points are a square apart: it lifts out smoothly at the end)
         if (p.size >= 4) {
             val d = hypot(p[2] - p[0], p[3] - p[1]).coerceAtLeast(0.001f)
-            autoRake.dirX = (p[2] - p[0]) / d; autoRake.dirY = (p[3] - p[1]) / d; autoRake.hasDir = true
+            r.dirX = (p[2] - p[0]) / d; r.dirY = (p[3] - p[1]) / d; r.hasDir = true
         }
-        autoIndex = 0
-        autoBudget = 0f
+        h.index = 0
+        h.budget = 0f
     }
 
     // One frame of the auto rake (about 30 a second, only while the garden is on screen)
@@ -2255,7 +3063,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                 val to = if (autoClock >= SMOOTH_SECONDS) gw else (gw * autoClock / SMOOTH_SECONDS).toInt()
                 smoothRange(autoSmoothedTo, to)
                 autoSmoothedTo = max(autoSmoothedTo, to)
-                if (soundOn) sound.level(0.2f)
+                if (soundOn) { sound.voice = SandSound.RAKE; sound.level(0.2f) }
                 if (autoClock >= SMOOTH_SECONDS) nextAutoStage()
             }
             1, 2 -> walkAutoStroke(dt)
@@ -2271,34 +3079,48 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         postDelayed(autoFrame, 33)
     }
 
+    // Moves the rake (or stick) along its stroke; the stage is over when it's finished and faded out
     private fun walkAutoStroke(dt: Float) {
-        if (autoLift > 0f) {
-            // the rake is lifted: it fades out where it was, moves, and fades in at the next stroke
-            sound.level(0f)
-            autoLift -= dt
-            if (!autoLiftMoved && autoLift <= LIFT_SECONDS / 2) { autoLiftMoved = true; startAutoStroke() }
-            return
+        val level = walkHand(autoHand, dt)
+        // (the sound of the stroke's own tool, not the one you picked: a stick's strokes sound like a stick)
+        if (soundOn) {
+            if (level > 0f) sound.voice = handVoice
+            sound.level(level)
         }
-        val stroke = autoStrokes[autoStroke]
+        if (autoHand.gone) nextAutoStage()
+    }
+
+    private var handVoice = SandSound.RAKE   // the sound of the stroke walkHand last moved along
+
+    // One hand's frame: returns how loud its sound is (0 while it's lifted or over the frame), and sets handVoice
+    private fun walkHand(h: AutoHand, dt: Float): Float {
+        if (h.lift > 0f) {
+            // lifted: it fades out where it was, moves, and fades in at the next stroke (or, after its last, stays away)
+            h.lift -= dt
+            if (!h.liftMoved && h.lift <= LIFT_SECONDS / 2) { h.liftMoved = true; if (!h.done) startAutoStroke(h) }
+            return 0f
+        }
+        if (h.done) return 0f
+        val stroke = h.strokes[h.stroke]
         val p = stroke.points
         val n = p.size / 2
-        var budget = autoBudget + dt * if (stroke.kind == RAKE) RAKE_SPEED else STICK_SPEED
+        var budget = h.budget + dt * if (stroke.kind == RAKE) RAKE_SPEED else STICK_SPEED
         var onSand = false
-        while (budget >= 1f && autoIndex < n - 1) {
-            autoIndex++
-            val px = p[2 * autoIndex]
-            val py = p[2 * autoIndex + 1]
-            rakeTo(autoRake, px, py, 1f)
+        while (budget >= 1f && h.index < n - 1) {
+            h.index++
+            val px = p[2 * h.index]
+            val py = p[2 * h.index + 1]
+            rakeTo(h.raker, px, py, 1f)
             // over the frame of the tray the rake is in the air: no time spent there
             if (px >= 0f && py >= 0f && px < gw && py < gh) { budget -= 1f; onSand = true }
         }
-        autoBudget = min(budget, 2f)
-        if (soundOn) sound.level(if (onSand) (if (stroke.kind == RAKE) 0.3f else 0.2f) else 0f)
-        if (autoIndex >= n - 1) {
-            autoStroke++
-            if (autoStroke >= autoStrokes.size) nextAutoStage()
-            else { autoLift = LIFT_SECONDS; autoLiftMoved = false }
+        h.budget = min(budget, 2f)
+        if (h.index >= n - 1) {
+            h.stroke++
+            h.lift = LIFT_SECONDS; h.liftMoved = false   // (after its last stroke it just fades out)
         }
+        handVoice = if (stroke.kind == STICK) SandSound.STICK else SandSound.RAKE
+        return if (onSand) (if (stroke.kind == RAKE) 0.3f else 0.2f) else 0f
     }
 
     // ---- the patterns (sacred geometry and classic raking), in squares ----
@@ -2385,20 +3207,29 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
             }
             // rows raked along the tray, then stick lines through them the other way
             "Basket Weave" -> rows(rakeWidth, 0f) + crossLines(rakeWidth, STICK)
-            // a squared-off spiral, raked from the edge inwards, its corners gently rounded
+            // a squared-off spiral, raked from the edge inwards, its corners gently rounded. Its turns are spaced to
+            // divide the tray's short side evenly (a little under a rake's width apart), so it closes neatly with one
+            // straight line along the middle (across a wide tray, down a tall one), instead of stopping wherever
+            // the space ran out and leaving the middle unraked.
             "Square Spiral" -> {
                 val corners = ArrayList<Float>()
                 var l = rakeWidth * 0.6f; var t = rakeWidth * 0.6f
                 var r = gw - rakeWidth * 0.6f; var b = gh - rakeWidth * 0.6f
+                val short = min(r - l, b - t)
+                val turns = max(1, ceil(short / (2 * rakeWidth * 0.95f)).toInt())
+                val gap = short / (2 * turns)
                 corners.add(l); corners.add(t)
-                while (r - l > rakeWidth * 2 && b - t > rakeWidth * 2) {
+                repeat(turns) {
                     corners.add(r); corners.add(t)
                     corners.add(r); corners.add(b)
                     corners.add(l); corners.add(b)
-                    t += rakeWidth
+                    t += gap
                     corners.add(l); corners.add(t)
-                    l += rakeWidth; r -= rakeWidth; b -= rakeWidth
+                    l += gap; r -= gap; b -= gap
                 }
+                // the line along the middle, reaching half a gap further so it meets the last turn
+                if (r - l >= b - t) { corners.add(r + gap / 2); corners.add(t) }
+                else { corners.add(l); corners.add(t); corners.add(l); corners.add(b + gap / 2) }
                 val path = resample(corners.toFloatArray(), corners.size / 2)
                 listOf(Stroke(smoothed(path, path.size / 2), RAKE))
             }
@@ -2558,12 +3389,14 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         }
     }
 
-    // Three rings close around each placed thing, always with the stick
+    // Three rings close around each stone and lantern, from the inside out, in the order they were placed, always
+    // with the stick (flowers and bonsai aren't circled)
     private fun ringStrokes(): List<Stroke> {
         val half = teeth(STICK) * toothGap(STICK) / 2
         val list = ArrayList<Stroke>()
-        for (it in items) for (k in 0 until 3) {
-            list.add(Stroke(circle(it.x, it.y, it.r * footprint(it.kind) + 2f * RES + half + k * 2 * half), STICK))
+        for (it in items) {
+            if (it.kind != STONE && it.kind != LANTERN) continue
+            for (k in 0 until 3) list.add(Stroke(circle(it.x, it.y, footprint(it) + 2f * RES + half + k * 2 * half), STICK))
         }
         return list
     }
@@ -2582,10 +3415,17 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
             return
         }
         if (autoStage == 3) return
+        if (!autoHand.gone) drawHand(canvas, autoHand)
+    }
+
+    // The auto rake's rake or stick, fading as it's lifted
+    private fun drawHand(canvas: Canvas, h: AutoHand) {
+        val c = cell * RES                   // one dp on screen (the rake's drawing is measured in dp)
+        val autoRake = h.raker
         val px = autoRake.x
         val py = autoRake.y
         if (px < -4 * RES || py < -4 * RES || px > gw + 4 * RES || py > gh + 4 * RES) return
-        val fade = if (autoLift > 0f) (if (autoLiftMoved) 1 - autoLift / (LIFT_SECONDS / 2) else (autoLift - LIFT_SECONDS / 2) / (LIFT_SECONDS / 2)) else 1f
+        val fade = if (h.lift > 0f) (if (h.liftMoved) 1 - h.lift / (LIFT_SECONDS / 2) else (h.lift - LIFT_SECONDS / 2) / (LIFT_SECONDS / 2)) else 1f
         val alpha = (255 * fade.coerceIn(0f, 1f)).toInt()
         if (alpha <= 0) return
         val half = teeth(autoRake.kind) * toothGap(autoRake.kind) / 2 / RES   // (in dp)
@@ -2796,8 +3636,49 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         }
     }
 
-    // Moves a placed thing at (x, y) (in squares, `r` across) clear of the corner blocks, into snapX and snapY: the
-    // sand under them can't be seen, so nothing may be placed or slid under them
+    // Moves (snapX, snapY), where `s` is about to stand, clear of the lanterns and then of the corner blocks (last,
+    // so nothing ever ends up under a corner block; twice, in case the corner pushed it back onto a lantern), then
+    // onto the nearest corner of a square (see onSquare)
+    private fun keepClear(s: Item) {
+        repeat(2) {
+            clearOfLanterns(s)
+            clearOfCorners(snapX, snapY, footprint(s))
+        }
+        snapX = onSquare(snapX); snapY = onSquare(snapY)
+    }
+
+    // Everything placed stands exactly on a corner of a square: its look (worked out once, see bakeLook) is laid
+    // into the sand square by square, so anywhere in between, its look and what's drawn at its exact spot (the
+    // flowers' blossoms, its shadow, the lantern flame) would be up to a square apart. (A square is about 2 screen
+    // pixels, too little to see in where it's put.)
+    private fun onSquare(v: Float) = round(v)
+
+    // Moves (snapX, snapY) out from any lantern (or, for a lantern, from anything) that `s` would overlap there, along
+    // the line from its middle: nothing may stand over a lantern's flame, where the light and its shadows went wild.
+    // (Twice, in case one push lands it on another lantern.)
+    private fun clearOfLanterns(s: Item) {
+        repeat(2) {
+            for (o in items) {
+                if (o === s || (o.kind != LANTERN && s.kind != LANTERN)) continue
+                val need = spread(o) + spread(s)
+                var dx = snapX - o.x
+                var dy = snapY - o.y
+                var d = hypot(dx, dy)
+                if (d >= need) continue
+                if (d < 0.01f) { dx = 1f; dy = 0f; d = 1f }   // (right on top of it: out to the right)
+                snapX = o.x + dx / d * need
+                snapY = o.y + dy / d * need
+            }
+        }
+        snapX = snapX.coerceIn(0f, gw.toFloat()); snapY = snapY.coerceIn(0f, gh.toFloat())
+    }
+
+    // How far out from its middle a placed thing reaches (a bonsai's leaves overhang its pot)
+    // (a lantern's counts its dark ring just outside the roof, where nothing else may be)
+    private fun spread(it: Item) = max(it.r * when (it.kind) { LANTERN -> 1.15f; BONSAI -> 1.25f; STONE -> 1.2f; else -> 1f }, lookOf(it).reach)
+
+    // Moves a placed thing at (x, y) (in squares, reaching `r` out) clear of the corner blocks, into snapX and snapY:
+    // the sand under them can't be seen, so nothing may be placed or slid under them
     private fun clearOfCorners(x: Float, y: Float, r: Float) {
         snapX = x; snapY = y
         val line = (cornerSize - inset) / cell              // each block's slanted edge: x + y = line (top left)
@@ -2934,7 +3815,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     private fun drawSmoothSand(canvas: Canvas): Boolean {
         val gpu = smooth ?: return false
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
-        if (gpu.drawSand(canvas, inset, cell, SANDS[sand])) return true
+        if (gpu.drawSand(canvas, inset, cell, SANDS[sand], thingShadowDrawn)) return true
         if (gpu.broken) leaveSmooth()
         return false
     }
@@ -2955,38 +3836,163 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         post { redrawAll() }
     }
 
-    // A flower clump's blossoms, drawn sharply: five oval petals each, darker at the base and lit on the side
-    // towards the light, with a golden centre
+    // A flower clump's blossoms, drawn sharply over its leaves. They're drawn once into a small picture of their own
+    // (again only if the garden is shown at a different size), as the sand's picture is drawn again on every frame
+    // while raking and hundreds of petals each time would slow it down. While the window is being resized, the old
+    // picture is stretched instead, and drawn again at the new size once the resizing stops (see onSizeChanged).
     private fun drawFlowers(canvas: Canvas, it: Item) {
-        val petal = petalColour(it)
+        val old = it.blossoms
+        val pic = if (old != null && (it.blossomCell == cell || blossomsWait)) old else drawBlossoms(it).also { p ->
+            it.blossoms = p; it.blossomCell = cell
+        }
+        val half = pic.width / 2f * cell / it.blossomCell
+        val x = inset + it.x * cell
+        val y = inset + it.y * cell
+        blossomRect.set(x - half, y - half, x + half, y + half)
+        canvas.drawBitmap(pic, null, blossomRect, blossomPaint)
+    }
+
+    private val blossomPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val blossomRect = RectF()
+    private var blossomsWait = false         // the garden's size is changing: the blossoms' pictures are stretched
+    private val blossomsResized = Runnable { blossomsWait = false; invalidate() }
+    private val petalPath = Path()
+
+    // A flower clump's blossoms as a picture, its middle in the picture's middle. Each blossom has a soft shadow
+    // on the leaves below it (towards the bottom right); a bud is a closed round bud, lit on its top left. Open and
+    // half open blossoms are rings of petals, the inner rings lighter (they catch more light), each petal lighter
+    // towards its tip and on the side facing the light, with a fine darker line where petals overlap:
+    // - camellia: broad round petals, a ring of yellow stamens
+    // - chrysanthemum: three rings of narrow petals around a dark middle
+    // - cherry blossom: five petals, each with a notch at its tip, and fine stamens with yellow tips
+    private fun drawBlossoms(it: Item): Bitmap {
+        val half = ceil(it.r * 0.95f * cell).toInt() + 2
+        val pic = createBitmap(2 * half, 2 * half)
+        val c = Canvas(pic)
+        val p = blossomPaint
+        val colour = petalColour(it)
+        val kind = flowerKind(it.seed)
         val b = it.blobs
-        paint.shader = null
-        for (k in 0 until b.size / 4) {
-            val bx = inset + (it.x + b[4 * k]) * cell
-            val by = inset + (it.y + b[4 * k + 1]) * cell
-            val size = b[4 * k + 2] * cell
-            val spin = b[4 * k + 3]
-            for (p in 0 until 5) {
-                val a = Math.toRadians((spin + p * 72f).toDouble())
-                val ax = cos(a).toFloat()
-                val ay = sin(a).toFloat()
-                // three layers: the petal, then smaller and lighter towards the light
-                for (layer in 0 until 3) {
-                    val scale = PETAL_SCALE[layer]
-                    val shift = PETAL_SHIFT[layer] * size * 0.64f
-                    paint.color = tone(petal, PETAL_TONE[layer])
-                    canvas.withSave {
-                        translate(bx + ax * size * 0.5f + lightX * shift, by + ay * size * 0.5f + lightY * shift)
-                        rotate((spin + p * 72f))
-                        drawOval(-size * 0.52f * scale, -size * 0.3f * scale, size * 0.52f * scale, size * 0.3f * scale, paint)
+        for (k in 0 until b.size / 5) {
+            val x = half + b[5 * k] * cell
+            val y = half + b[5 * k + 1] * cell
+            val size = b[5 * k + 2] * cell
+            val turn = Math.toRadians(b[5 * k + 3].toDouble()).toFloat()
+            val stage = b[5 * k + 4].toInt()
+            // its soft shadow
+            p.style = Paint.Style.FILL
+            p.color = BLOSSOM_SHADOW
+            for (j in 0 until 4) c.drawCircle(x - lightX * size * 0.22f, y - lightY * size * 0.22f, size * (1.05f - j * 0.08f), p)
+            if (stage == 0) {
+                p.color = tone(colour, 0.72f)
+                c.drawCircle(x, y, size, p)
+                p.color = tone(colour, 0.95f)
+                c.drawCircle(x + (lightX * 0.25f - 0.2f) * size, y + (lightY * 0.25f - 0.2f) * size, size * 0.55f, p)
+                continue
+            }
+            // the rings of petals, outer first: how many, how long, how wide, turned on by how much, how round the tip
+            val rings = when (kind) {
+                CAMELLIA -> if (stage == 2) CAMELLIA_OPEN else CAMELLIA_HALF
+                CHRYSANTHEMUM -> if (stage == 2) CHRYSANTHEMUM_OPEN else CHRYSANTHEMUM_HALF
+                else -> if (stage == 2) CHERRY_OPEN else CHERRY_HALF
+            }
+            for (ring in 0 until rings.size / 5) {
+                val n = rings[5 * ring].toInt()
+                val reach = size * rings[5 * ring + 1]
+                val wide = if (kind == CHRYSANTHEMUM) size * rings[5 * ring + 2] * (6.283f / n) * 0.9f else size * rings[5 * ring + 2] * 0.5f
+                val shift = rings[5 * ring + 3]
+                val round = rings[5 * ring + 4]
+                val lit = 0.78f + 0.1f * ring
+                for (j in 0 until n) {
+                    val a = turn + (j + shift) * 6.283f / n
+                    val ax = cos(a); val ay = sin(a)
+                    val face = 0.5f + 0.5f * (ax * lightX + ay * lightY)   // how much it faces the light
+                    val notch = if (kind == CHERRY) 0.12f else 0f
+                    petal(x, y, ax, ay, reach, wide, notch, round)
+                    p.style = Paint.Style.FILL
+                    p.color = tone(colour, lit * (0.92f + 0.16f * face))
+                    c.drawPath(petalPath, p)
+                    p.style = Paint.Style.STROKE
+                    p.strokeWidth = 0.6f
+                    p.color = (tone(colour, 0.6f) and 0xFFFFFF) or (140 shl 24)
+                    c.drawPath(petalPath, p)
+                    // lighter towards its tip
+                    petal(x + ax * reach * 0.3f, y + ay * reach * 0.3f, ax, ay, reach * 0.62f, wide * 0.7f, notch, round)
+                    p.style = Paint.Style.FILL
+                    p.color = (tone(colour, lit * (1.02f + 0.14f * face)) and 0xFFFFFF) or (120 shl 24)
+                    c.drawPath(petalPath, p)
+                }
+            }
+            // the middle
+            p.style = Paint.Style.FILL
+            when (kind) {
+                CAMELLIA -> {
+                    p.color = tone(colour, 0.75f)
+                    c.drawCircle(x, y, size * 0.22f, p)
+                    p.color = STAMEN
+                    for (j in 0 until 9) {
+                        val a = turn + j * 0.698f
+                        c.drawCircle(x + cos(a) * size * 0.13f, y + sin(a) * size * 0.13f, size * 0.045f, p)
+                    }
+                }
+                CHRYSANTHEMUM -> {
+                    p.color = tone(colour, 0.6f)
+                    c.drawCircle(x, y, size * 0.2f, p)
+                    p.color = tone(colour, 0.5f)
+                    c.drawCircle(x, y, size * 0.12f, p)
+                }
+                else -> {
+                    p.color = CHERRY_EYE
+                    c.drawCircle(x, y, size * 0.16f, p)
+                    for (j in 0 until 9) {
+                        val a = j * 0.698f
+                        val tx = x + cos(a) * size * 0.24f
+                        val ty = y + sin(a) * size * 0.24f
+                        p.style = Paint.Style.STROKE
+                        p.strokeWidth = max(0.6f, 0.15f * cell)
+                        p.color = CHERRY_STAMEN
+                        c.drawLine(x, y, tx, ty, p)
+                        p.style = Paint.Style.FILL
+                        p.color = STAMEN
+                        c.drawCircle(tx, ty, size * 0.04f, p)
                     }
                 }
             }
-            paint.color = FLOWER_EYE_RING
-            canvas.drawCircle(bx, by, size * 0.26f, paint)
-            paint.color = FLOWER_EYE
-            canvas.drawCircle(bx + lightX * size * 0.05f, by + lightY * size * 0.05f, size * 0.19f, paint)
         }
+        p.style = Paint.Style.FILL
+        return pic
+    }
+
+    // One petal into petalPath: from the blossom's middle (x, y) out along (ax, ay) for `reach`, narrow at its base,
+    // `wide` at its widest, its tip rounded (`round` above 1: longer and narrower towards the tip), and a notch
+    // `notch` deep at the tip (cherry blossom)
+    private fun petal(x: Float, y: Float, ax: Float, ay: Float, reach: Float, wide: Float, notch: Float, round: Float) {
+        val path = petalPath
+        path.rewind()
+        val steps = 18
+        // one side out to the tip...
+        for (i in 0..steps) {
+            val s = i.toFloat() / steps
+            val w = petalWidth(s, wide, round)
+            val px = x + ax * reach * s - ay * w
+            val py = y + ay * reach * s + ax * w
+            if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+        }
+        if (notch > 0f) path.lineTo(x + ax * reach * (1 - notch), y + ay * reach * (1 - notch))
+        // ...and back down the other side
+        for (i in steps downTo 0) {
+            val s = i.toFloat() / steps
+            val w = petalWidth(s, wide, round)
+            path.lineTo(x + ax * reach * s + ay * w, y + ay * reach * s - ax * w)
+        }
+        path.close()
+    }
+
+    // How wide a petal is `s` of the way to its tip
+    private fun petalWidth(s: Float, wide: Float, round: Float): Float {
+        val base = sin(PI.toFloat() * min(1f, s * 0.62f)).pow(0.7f)
+        val tip = if (s < 0.6f) 1f else sqrt(max(0f, 1 - ((s - 0.6f) / 0.4f).pow(2 / round)))
+        return wide * base * tip
     }
 
     // The garden as a picture, the size it is on screen (for "Save picture"): just the tray, without the clear
@@ -3149,8 +4155,9 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                 val aspect = inp.readFloat(); val angle = inp.readFloat(); val color = inp.readInt()
                 val seed = if (version == 1) Random.nextInt() else inp.readInt()
                 val rings = if (version == 1) 0 else inp.readInt()
-                // (lanterns were bigger before: they all come back at today's size)
-                items.add(Item(kind, x, y, if (kind == LANTERN) LANTERN_SIZE else r, aspect, angle, color, seed, rings))
+                // (lanterns were bigger before: they all come back at today's size; and everything stands on a
+                // square's corner, see onSquare, which older gardens didn't)
+                items.add(Item(kind, round(x), round(y), if (kind == LANTERN) LANTERN_SIZE else r, aspect, angle, color, seed, rings))
             }
             savedFlies = if (version >= 3) inp.readInt().coerceIn(0, MAX_FLIES) else 0
             // heights were saved in dp (version 4) or in the old squares, which were dp too: today's are in squares

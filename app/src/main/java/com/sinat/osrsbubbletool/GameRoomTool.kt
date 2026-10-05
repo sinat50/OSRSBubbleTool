@@ -66,14 +66,16 @@ class GameRoomTool(
         "\u2022 Automatic: rakes calm patterns by itself, slowly, with the rake and the stick: Rows, Waves, " +
         "Chevrons, Basket Weave, Spiral, Square Spiral, Golden Spiral, Ripples, Rain, Seed of Life, Flower of Life, " +
         "Lotus, Rose Window, Spirograph, Lissajous, Mandala and Seven Star. They come in a random order, each once " +
-        "before any comes round again. It smooths the sand between them and rakes rings around what you've placed " +
-        "with the stick. The pattern's name shows above the icons. You can place and move things while it works.\n" +
+        "before any comes round again. It smooths the sand between them and rakes rings around your stones and " +
+        "lanterns with the stick. The pattern's name shows above the icons. Hold Automatic to pick a pattern from a list: it's " +
+        "raked straight away, then it carries on in a random order. You can place and move things while it works.\n" +
         "\u2022 Undo (the back arrow): takes back your last few changes.\n" +
         "\u2022 Smooth (the eraser): wipes the whole tray smooth; what you placed stays.\n" +
         "\u2022 Brightness (the sun): darker makes the lanterns and fireflies glow.\n" +
-        "\u2022 Volume (the speaker): the raking sound; all the way left is off.\n" +
+        "\u2022 Volume (the speaker): the raking sound; all the way left is off. The Tone slider under it makes the " +
+        "sound softer or sharper (the middle is the usual sound); you hear a little of it as you slide either one.\n" +
         "\u2022 Settings (the gear): clear everything placed, scale the garden to the window (on: resizing makes it " +
-        "bigger or smaller; off: resizing adds sand or cuts it off), the triangle grid to snap things to, Steady hand " +
+        "bigger or smaller; off: resizing adds sand or cuts it off), the triangle grid to snap things to (its corners and the middle of each side), Steady hand " +
         "(nearly straight lines become straight and nearly round ones perfect curves), Battery saver (a simpler " +
         "drawing that's much lighter on your phone, with slightly softer curves and light; newer phones only), the " +
         "sand's colour, and saving a picture.\n" +
@@ -323,6 +325,7 @@ class GameRoomTool(
             val vol = prefs.getInt("sand_volume", 50)
             soundOn = vol > 0
             volume = vol / 50f
+            tone = prefs.getInt("sand_tone", 50) / 100f
             steadyHand = prefs.getBoolean("sand_steady", false)
             gridOn = prefs.getBoolean("sand_grid", false)
             batterySaver = prefs.getBoolean("sand_battery_saver", false)
@@ -372,12 +375,21 @@ class GameRoomTool(
                 { garden.brightness = it / 100f }, { v -> prefs.edit { putInt("sand_brightness", v) } })
         }
         lateinit var volumeIcon: ZenIcon
+        // the volume, and under it the tone: from softer to sharper (the middle is the usual sound)
         val makeVolume: () -> View = {
-            slider("Off", "Loud", prefs.getInt("sand_volume", 50), { v ->
-                garden.soundOn = v > 0
-                garden.volume = v / 50f
-                volumeIcon.muted = v == 0
-            }, { v -> prefs.edit { putInt("sand_volume", v) } })
+            LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(slider("Off", "Loud", prefs.getInt("sand_volume", 50), { v ->
+                    garden.soundOn = v > 0
+                    garden.volume = v / 50f
+                    volumeIcon.muted = v == 0
+                    garden.soundSample()
+                }, { v -> prefs.edit { putInt("sand_volume", v) } }))
+                // (a short burst of the sound while it's moved, to hear the difference)
+                addView(slider("Soft", "Sharp", prefs.getInt("sand_tone", 50), { v -> garden.tone = v / 100f; garden.soundSample() },
+                    { v -> prefs.edit { putInt("sand_tone", v) } }),
+                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(4) })
+            }
         }
 
         // the icons: tool, Auto, Undo, Smooth, brightness, volume, settings, help (Exit is carved into the frame)
@@ -395,6 +407,8 @@ class GameRoomTool(
             tag = 0f   // keeps its size in the row
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, size)
             setOnClickListener { garden.setAuto(!garden.autoOn) }
+            // held: the list of patterns, to pick one
+            setOnLongClickListener { choosePattern(garden); true }
         }
         val undoIcon = icon(ZenIcon.UNDO) { garden.undo() }
         garden.onUndoChanged = { undoIcon.alpha = if (garden.canUndo) 1f else 0.45f }
@@ -417,6 +431,7 @@ class GameRoomTool(
             visibility = View.GONE
         }
         garden.onAutoPattern = { name ->
+            raking = name
             pattern.text = name ?: ""
             pattern.visibility = if (name == null) View.GONE else View.VISIBLE
             autoBack.setColor(if (name == null) iconBack else GO_GREEN)
@@ -433,6 +448,39 @@ class GameRoomTool(
             zen.onExit = { goBack() }
             zen.onHide = { closeSlider() }
             zen.onTrayPlaced = pinCorners                 // the window's move and resize corners go on the tray's corners
+        }
+    }
+
+    // The pattern Automatic is raking (null: it's off), to show it in the list of patterns
+    private var raking: String? = null
+
+    // Automatic's list of patterns (hold the button): tap one to rake it now; afterwards it carries on in its random
+    // order. Grouped as in the help: rows and weaves, spirals, ripples and rain, then the circles and curves.
+    private fun choosePattern(garden: SandGardenView) = showCard("Patterns") { close ->
+        addView(label("Tap one to rake it now; afterwards Automatic carries on in a random order.", 11f).apply { setTextColor(FADED) }, full(6))
+        // (green marks only the pattern being raked now, so nothing is green while Automatic is off)
+        addView(button("Random order", BUTTON_BROWN) {
+            if (!garden.autoOn) garden.setAuto(true)
+            close()
+        }.apply { textSize = 12f }, full(6))
+        val order = listOf("Rows", "Waves", "Chevrons", "Basket Weave", "Spiral", "Square Spiral", "Golden Spiral",
+            "Ripples", "Rain", "Seed of Life", "Flower of Life", "Lotus", "Rose Window", "Spirograph", "Lissajous",
+            "Mandala", "Seven Star")
+        // (any pattern added later but not in this list still shows, at the end)
+        val names = order.filter { it in SandGardenView.AUTO_PATTERNS } + SandGardenView.AUTO_PATTERNS.filter { it !in order }
+        for (start in names.indices step 3) {
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                for (k in 0 until 3) {
+                    val name = names.getOrNull(start + k)
+                    val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(4) }
+                    if (name == null) { addView(View(context), lp); continue }
+                    addView(button(name, if (name == raking) GO_GREEN else BUTTON_BROWN) {
+                        garden.rakePattern(SandGardenView.AUTO_PATTERNS.indexOf(name))
+                        close()
+                    }.apply { textSize = 12f }, lp)
+                }
+            }, full(3))
         }
     }
 
@@ -582,7 +630,17 @@ class GameRoomTool(
                 setPadding(dp(12), dp(10), dp(12), dp(10))
                 background = GradientDrawable().apply { setColor(PAPER); setStroke(dp(1), BUTTON_BROWN); cornerRadius = dp(8).toFloat() }
                 isClickable = true   // taps on the card don't close it
-                addView(label(title, 13f, bold = true), full())
+                // the title, with a ✕ in the top right corner to close the card (tapping outside it closes it too)
+                addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    addView(label(title, 13f, bold = true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                    addView(label("✕", 16f, bold = true).apply {
+                        gravity = Gravity.CENTER
+                        contentDescription = "Close"
+                        setOnClickListener { close() }
+                    }, LinearLayout.LayoutParams(dp(36), dp(36)).apply { setMargins(0, -dp(6), -dp(6), 0) })
+                }, full())
                 build(close)
             })
         }, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER).apply {
