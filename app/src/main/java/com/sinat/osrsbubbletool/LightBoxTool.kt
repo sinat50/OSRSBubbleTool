@@ -13,7 +13,6 @@ import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.edit
-import androidx.core.graphics.toColorInt
 
 // Light Box Solver, like RuneLite's: press each button once so the app can see what it
 // does, then it shows which buttons turn every bulb on. Instructions are drawn right on
@@ -74,7 +73,7 @@ class LightBoxTool(
             gravity = Gravity.CENTER
             setPadding(dp(8), dp(10), dp(8), dp(10))
             background = GradientDrawable().apply {
-                setColor("#8B6B3E".toColorInt())
+                setColor(Palette.BUTTON_BROWN)
                 cornerRadius = dp(6).toFloat()
             }
             setOnClickListener { onClick() }
@@ -86,12 +85,12 @@ class LightBoxTool(
         status = TextView(context).apply {
             text = "Open a light box, then tap Solve. Instructions appear on the light box."
             textSize = 11f
-            setTextColor("#3E2C12".toColorInt())
+            setTextColor(Palette.DARK_BROWN)
             setPadding(0, dp(6), 0, 0)
         }
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor("#F2E3C0".toColorInt())
+            setBackgroundColor(Palette.PARCHMENT)
             setPadding(dp(8), dp(8), dp(8), dp(8))
             addView(startButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(status, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))

@@ -19,7 +19,14 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.edit
-import androidx.core.graphics.toColorInt
+import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
+import com.sinat.osrsbubbletool.Palette.DARK_BROWN
+import com.sinat.osrsbubbletool.Palette.FADED
+import com.sinat.osrsbubbletool.Palette.GO_GREEN
+import com.sinat.osrsbubbletool.Palette.PAPER
+import com.sinat.osrsbubbletool.Palette.PARCHMENT
+import com.sinat.osrsbubbletool.Palette.RED
+import com.sinat.osrsbubbletool.Palette.ROW_BROWN
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -31,14 +38,6 @@ import org.json.JSONObject
 class NotesTool(private val context: Context) {
 
     companion object {
-        private val PARCHMENT = "#F2E3C0".toColorInt()
-        private val DARK_BROWN = "#3E2C12".toColorInt()
-        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
-        private val ROW_BROWN = "#E3CFA2".toColorInt()
-        private val PAPER = "#FFF8E6".toColorInt()
-        private val GO_GREEN = "#3E7A2E".toColorInt()
-        private val DELETE_RED = "#B03A2E".toColorInt()
-        private val FADED = "#8C7B5E".toColorInt()
         private const val SAVE_DELAY_MS = 600L
 
         // How far down the Notepad window sits: below the status bar (or 5% of the screen, whichever is more)
@@ -199,6 +198,7 @@ class NotesTool(private val context: Context) {
 
         // Title and Done on one row, so the note itself gets as much room as possible
         val title = EditText(context).apply {
+            setHintTextColor(Palette.FADED)
             setText(note.title)
             hint = "Title"
             textSize = 14f
@@ -208,7 +208,7 @@ class NotesTool(private val context: Context) {
             setPadding(dp(8), dp(4), dp(8), dp(4))
             background = GradientDrawable().apply { setColor(PAPER); setStroke(dp(1), BUTTON_BROWN); cornerRadius = dp(5).toFloat() }
         }
-        val deleteButton = button(if (confirmDelete) "Delete?" else "🗑", DELETE_RED) {
+        val deleteButton = button(if (confirmDelete) "Delete?" else "🗑", RED) {
             if (confirmDelete) {
                 handler.removeCallbacksAndMessages(null)
                 notes.remove(note); persist()
@@ -228,6 +228,7 @@ class NotesTool(private val context: Context) {
 
         // The note. It fills the rest of the window (resize the window to make it bigger) and scrolls inside.
         val body = EditText(context).apply {
+            setHintTextColor(Palette.FADED)
             setText(note.body)
             hint = "Write your note…"
             textSize = 13f

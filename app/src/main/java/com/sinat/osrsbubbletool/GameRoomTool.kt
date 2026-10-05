@@ -22,6 +22,14 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.edit
 import androidx.core.graphics.toColorInt
+import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
+import com.sinat.osrsbubbletool.Palette.DARK_BROWN
+import com.sinat.osrsbubbletool.Palette.FADED
+import com.sinat.osrsbubbletool.Palette.GO_GREEN
+import com.sinat.osrsbubbletool.Palette.PAPER
+import com.sinat.osrsbubbletool.Palette.PARCHMENT
+import com.sinat.osrsbubbletool.Palette.RED
+import com.sinat.osrsbubbletool.Palette.ROW_BROWN
 import java.io.File
 
 // The Game Room: small games to play while you wait in the game: 2048, Wing It and the Zen Garden.
@@ -34,17 +42,6 @@ class GameRoomTool(
     private val frameless: (Boolean) -> Unit = {},
     private val pinCorners: (Int, Int, Int, Int) -> Unit = { _, _, _, _ -> },
 ) {
-
-    companion object {
-        private val PARCHMENT = "#F2E3C0".toColorInt()
-        private val DARK_BROWN = "#3E2C12".toColorInt()
-        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
-        private val ROW_BROWN = "#E3CFA2".toColorInt()
-        private val PAPER = "#FFF8E6".toColorInt()
-        private val GO_GREEN = "#3E7A2E".toColorInt()
-        private val STOP_RED = "#B03A2E".toColorInt()
-        private val FADED = "#8C7B5E".toColorInt()
-    }
 
     private val HELP_2048 = "Swipe up, down, left or right to slide all the tiles. When two tiles with the same number touch, " +
         "they join into one: 2 and 2 make 4, 4 and 4 make 8, and so on. A new tile appears after every swipe.\n\n" +
@@ -258,7 +255,7 @@ class GameRoomTool(
             addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
             addView(scoreBox, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(4) })
             addView(bestBox, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(4) })
-            addView(button("New", STOP_RED) {
+            addView(button("New", RED) {
                 game.newGame(); prefs.edit { putBoolean("g2048_won_seen", false) }
                 save2048(); board.refresh(); update()
             }.apply { textSize = 11f; setPadding(dp(8), dp(6), dp(8), dp(6)) })
@@ -491,7 +488,7 @@ class GameRoomTool(
             }
             mark()
         }, full(8))
-        addView(button("Clear placed things", STOP_RED) { garden.clearItems(); close() }, full(10))
+        addView(button("Clear placed things", RED) { garden.clearItems(); close() }, full(10))
         addView(button("Save picture to phone") { saveGardenPicture(garden) }, full(6))
         addView(button("Done", GO_GREEN) { close() }, full(6))
     }

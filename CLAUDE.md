@@ -56,8 +56,9 @@ Code: `app/src/main/java/com/sinat/osrsbubbletool/` (one file per tool, roughly)
 | `HunterRumourTool.kt`, `HunterRumours.kt` | Hunter Rumours |
 | `ZulrahTool.kt` | Zulrah Helper |
 | `FarmingTool.kt`, `FarmingTimers.kt`, `FarmingTimerReceiver.kt` | Timers (one exact alarm per timer, no background work) |
-| `GameRoomTool.kt`, `Game2048View.kt`, `FlyerView.kt`, `GameData.kt`, `SandGardenView.kt`, `SandRenderer.kt`, `SandSound.kt`, `SandGardenLayout.kt` | Game Room: 2048, Wing It and the Zen Garden (`SandRenderer` = the smooth drawing on Android 13+: `shade` hands it each square's values (brightness, slopes, height, placed things), which two graphics-chip programs blend smoothly and colour per screen pixel, the lanterns' light included (worked out entirely on the graphics chip, ridge shadows and all); the sand and each lantern's light are kept in 64-square tiles, redrawn only where the sand changed; older phones use the garden's own square-by-square colours and `relight`; `SandSound` = its raking sound, made in code: filtered noise whose tone was fitted to the owner's recording `tools/sandsound.mp3`; placed things are baked into the sand's own surface (`bake`: height, colour and soft outline per square) so the sun, lantern and firefly light and shadows treat them like the sand; `SandGardenLayout` = zen mode: `ZenScreen` (the tray in its wooden frame, `SandGardenView.drawFrame`, with a button carved into each corner block: Exit top left, the arrow bottom left that opens and closes the row of round `ZenIcon`s along the bottom, and move/resize top and bottom right) and `FlowRow`; the window has no top bar or background (`BubbleService.setGamesFrameless`): its own move and resize corners become invisible touch areas on the carved corners (`pinGamesCorners`), and the window shrinks to the tray (`fitGamesWindowToTray`); the garden scales to fit the window unless "Scale garden to window" is off. The frame's wood is `res/drawable-nodpi/zen_wood.jpg` (Poly Haven, CC0, credited); `tools/gardenbox.png` is the owner's frame sketch, not committed) |
+| `GameRoomTool.kt`, `Game2048View.kt`, `FlyerView.kt`, `GameData.kt`, `SandGardenView.kt`, `SandRenderer.kt`, `SandSound.kt`, `SandGardenLayout.kt` | Game Room: 2048, Wing It and the Zen Garden (`SandRenderer` = the smooth drawing on Android 13+: `shade` hands it each square's values (brightness, slopes, height, placed things), which two graphics-chip programs blend smoothly and colour per screen pixel, the lanterns' light included (worked out entirely on the graphics chip, ridge shadows and all); the sand and each lantern's light are kept in 64-square tiles, redrawn only where the sand changed; older phones use the garden's own square-by-square colours and `relight`; `SandSound` = its raking sound, made in code: filtered noise whose tone was fitted to the owner's recording `tools/sandsound.mp3`; placed things are baked into the sand's own surface (`bake`: height, colour and soft outline per square) so the sun, lantern and firefly light and shadows treat them like the sand; `SandGardenLayout` = zen mode: `ZenScreen` (the tray in its wooden frame, `SandGardenView.drawFrame`, with a button carved into each corner block: Exit top left, the arrow bottom left that opens and closes the row of round `ZenIcon`s along the bottom, and move/resize top and bottom right) and `FlowRow`; the window has no top bar or background (`BubbleService.setGamesFrameless`): its own move and resize corners become invisible touch areas on the carved corners (`pinGamesCorners`), and the window shrinks to the tray (`fitGamesWindowToTray`); the garden scales to fit the window unless "Scale garden to window" is off (the tray sits in the window's top-left corner, not centred, so resizing keeps that corner still). The frame's wood is `res/drawable-nodpi/zen_wood.jpg` (Poly Haven, CC0, credited); `tools/gardenbox.png` is the owner's frame sketch, not committed) |
 | `CalculatorTool.kt`, `NotesTool.kt`, `UpdateChecker.kt`, `WikiLinkActivity.kt` | Calculator, Notepad, GitHub update check, wiki links opening in the bubble |
+| `SettingsTool.kt`, `Palette.kt` | Settings (`AppSettings`: dark mode, tool and web page text size, bubble size/fade/hold time/vibration, window width in landscape, reset windows, tools hidden from the menu, update check; the page is shared by the bubble's Settings window and the main screen's Settings screen; the bubble hears changes through `BubbleService.settingsChanged`) and the app's colours, light and dark (see "Dark mode" below) |
 
 Resources: `app/src/main/res/`: `drawable/ic_bubble.xml` (the bubble), `ic_launcher_bubble*.xml` and
 `ic_launcher_monochrome.xml` (app icon, plus its one-colour version for Android 13+ themed icons),
@@ -104,12 +105,17 @@ Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're gener
   double-tap it to reset), except the Light Box and Puzzle Box Solvers, which are small and sit top right.
   Windows share one position; each tool remembers its own size per orientation. The Notepad starts at
   the top, sized to fit above the keyboard.
-- **Status bar**: Android draws it over everything, so a window's bar under it can't be grabbed. Overlay
-  windows aren't told when it shows or hides (window insets don't work for them), so
-  `BubbleService.addStatusProbe()` adds an invisible 1-pixel strip that Android pushes below the status bar;
-  its top is how far down the status bar reaches. While it shows, windows and the bubble move below it (too
-  tall windows get shorter for a while); they go back to where you left them when it hides, as it does
-  in the game. Tested and working on the owner's phone.
+- **Status bar and navigation bar**: Android draws them over everything, so a window's bar under them can't be
+  grabbed. Overlay windows aren't told when they show or hide (window insets don't work for them), so
+  `BubbleService.addBarProbes()` adds two invisible strips (read together by `checkBars`, just after they're laid
+  out and again after the phone turns, since a strip can be laid out before the screen size catches up) Android keeps clear of the bars: a 1-pixel-wide one
+  top to bottom (its top = status bar, its bottom = a navigation bar along the bottom) and a 1-pixel-tall one
+  across the top (its ends = a navigation bar down one side, as on the emulator in landscape). While the bars
+  show, windows and the bubble stay clear of them (`placeClearOfBars`, `clearRight()`/`clearBottom()` for
+  dragging and resizing; too big windows get smaller for a while); they go back to where you left them
+  (`shownWantX/Y/W/H`) when the bars hide, as they do in the game. Status bar tested on the owner's phone;
+  navigation bar (October 2026) tested on the owner's phone (3-button bar at the bottom, 144 px) and the
+  emulator (3-button bar on the right in landscape, at the bottom upright).
 - **Game pictures come with the app** (owner's decision, October 2026), in `assets/dps/icons/`,
   `assets/puzzles/` and `assets/quest_images/`, made by `tools/dps/fetch_pictures.py`. They're Jagex's
   artwork, included under Jagex's Fan Content Policy; if Jagex objects, the fallback is downloading them
@@ -119,6 +125,23 @@ Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're gener
   2021, only 67% of the items. `MainActivity.removeOldDownloads()` deletes those downloaded copies once.
   The DPS tool loads all item pictures into memory when its window first opens (the owner chose to keep
   this, so Import my gear is quick).
+- **Dark mode** (October 2026): every screen's colours come from `Palette` (tools import its `PARCHMENT`, `DARK_BROWN`...
+  directly, `import com.sinat.osrsbubbletool.Palette.PARCHMENT`), read when a view is built. Switching it makes `BubbleService.rebuildToolWindows()`
+  destroy and rebuild all tools (the open window reopens; the Wiki keeps its page); the main screen redraws. When
+  the phone's own dark mode changes under "Match phone", the rebuild waits until no tool window is open (it would
+  stop a ToA Watch or a puzzle guide mid-use).
+  Pictures drawn like the game (ToA maps, puzzle diagrams, Zen Garden, game icons) keep fixed colours (`INK` in
+  `ToaPuzzleTool`). Web pages get a dark theme context, so sites with a `prefers-color-scheme` dark look use it
+  (DPS calculator; GE Prices is dark anyway); the OSRS Wiki ignores that and uses a `theme=dark`/`light` cookie
+  (Weird Gloop themes), set by `setWikiTheme` (which remembers if it last set it dark, so it's set back to light
+  even if dark mode was turned off while the bubble was closed). Text boxes set their own text and hint colours (the service's
+  theme otherwise follows the phone's dark mode). Tested on the emulator; the Settings menu entry sits below a
+  line after the tools, above Close bubble. The web text size multiplies each page's own `textZoom`.
+- **Tool text size**: tools are built with `BubbleService.toolContext`, a wrapper whose resources have Android's
+  font scale multiplied by the setting (so every `textSize` in sp grows; dp sizes and drawn pictures don't).
+  Changing it rebuilds the tools like dark mode, 0.7 s after the last − or + tap (`TEXT_SIZE_WAIT_MS`). Tested at 130% on the owner's phone (Settings, Light Box, ToA
+  list fit). Vibration on long-press couldn't be checked remotely (the phone was on silent, which stops touch
+  vibration); window width was tested on the emulator in landscape; everything else on the owner's phone.
 - **Backups**: only shared preferences and `files/setups/` (Inventory Setups pictures) are backed up or
   moved to a new phone (Android stops backing up an app entirely past 25 MB).
 - **Screen capture** pauses itself 3 seconds after the last use and is asked for once per bubble session.
@@ -198,7 +221,7 @@ Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're gener
 
 - On the owner's PC, build with `gradlew.bat assembleDebug`, and run Android's checks with
   `gradlew.bat lintDebug` (report in `app/build/reports/lint-results-debug.sarif`). The only warnings left
-  are 92 "SetTextI18n" (text written in the code), left on purpose; see Open items.
+  are 95 "SetTextI18n" (text written in the code), left on purpose; see Open items.
 - ToA screen reading is tested on the PC with `app/src/test/.../ToaReaderTest.kt` (skipped unless pointed at
   pictures): `TOA_SHOTS=<folder>` reads every screenshot fresh; `TOA_REPLAY=<folder>` replays a recording
   (files `f_<time>.png`) through the matching reader and the same memory rules as the app, printing each

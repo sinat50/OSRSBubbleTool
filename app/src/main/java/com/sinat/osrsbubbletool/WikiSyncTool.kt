@@ -14,22 +14,19 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import androidx.core.graphics.toColorInt
+import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
+import com.sinat.osrsbubbletool.Palette.DARK_BROWN
+import com.sinat.osrsbubbletool.Palette.FADED
+import com.sinat.osrsbubbletool.Palette.GO_GREEN
+import com.sinat.osrsbubbletool.Palette.PAPER
+import com.sinat.osrsbubbletool.Palette.PARCHMENT
+import com.sinat.osrsbubbletool.Palette.RED
+import com.sinat.osrsbubbletool.Palette.ROW_BROWN
+import com.sinat.osrsbubbletool.Palette.WARN
 
 // WikiSync: set your RuneScape name once, and the tools that use your quests, levels and diaries
 // (Quest Helper, Hunter Rumours, Teleport Finder) all read it from here.
 class WikiSyncTool(private val context: Context) {
-
-    companion object {
-        private val PARCHMENT = "#F2E3C0".toColorInt()
-        private val DARK_BROWN = "#3E2C12".toColorInt()
-        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
-        private val ROW_BROWN = "#E3CFA2".toColorInt()
-        private val PAPER = "#FFF8E6".toColorInt()
-        private val GO_GREEN = "#3E7A2E".toColorInt()
-        private val FADED = "#8C7B5E".toColorInt()
-        private val WARN = "#9C4A10".toColorInt()
-    }
 
     private val sync = WikiSync(context)
     private lateinit var holder: FrameLayout
@@ -89,6 +86,7 @@ class WikiSyncTool(private val context: Context) {
         if (sync.username.isEmpty() || editing) {
             addView(label("Your RuneScape name", 12f, bold = true), full(12))
             val field = EditText(context).apply {
+                setHintTextColor(Palette.FADED)
                 setText(sync.username)
                 hint = "e.g. Zezima"
                 textSize = 14f
@@ -206,8 +204,6 @@ class WikiSyncTool(private val context: Context) {
 // The little "✓ WikiSync" (green, synced) or "✗ WikiSync" (red, not set up) tag shown by the tools that use it.
 // Tapping it opens the WikiSync tool.
 object WikiSyncBadge {
-    private val GREEN = "#3E7A2E".toColorInt()
-    private val RED = "#B03A2E".toColorInt()
 
     fun isSynced(sync: WikiSync) = sync.username.isNotEmpty() && sync.cached != null
 
@@ -220,7 +216,7 @@ object WikiSyncBadge {
         setTypeface(typeface, Typeface.BOLD)
         gravity = Gravity.CENTER
         setPadding((8 * d).toInt(), (3 * d).toInt(), (8 * d).toInt(), (3 * d).toInt())
-        background = GradientDrawable().apply { setColor(if (ok) GREEN else RED); cornerRadius = 20 * d }
+        background = GradientDrawable().apply { setColor(if (ok) GO_GREEN else RED); cornerRadius = 20 * d }
         if (onClick != null) setOnClickListener { onClick() }
     }
 

@@ -17,7 +17,16 @@ OSRS Bubble Tool puts a small bubble on top of the game. Tap it to open a tool i
 - **Drag** the bubble to move it anywhere on screen
 - **Long-press** the bubble to pick a different tool
 
-Tool windows are two inches wide in landscape. Drag the bar at the top to move a window anywhere, and drag the corner at the bottom right to resize it. Each tool remembers its size, and double-tapping the corner puts it back to normal. (The Puzzle Box and Light Box Solvers stay small in the top-right corner.) When the status bar is showing, windows and the bubble move just below it so they can always be dragged, and go back where you left them when it hides, as it does in the game.
+Tool windows are two inches wide in landscape. Drag the bar at the top to move a window anywhere, and drag the corner at the bottom right to resize it. Each tool remembers its size, and double-tapping the corner puts it back to normal. (The Puzzle Box and Light Box Solvers stay small in the top-right corner.) When the status bar or the navigation bar (the home and back buttons) is showing, windows and the bubble stay clear of it so they can always be dragged, and go back where you left them when it hides, as it does in the game.
+
+**Settings** is at the bottom of the long-press menu, and on the app's main screen:
+
+- **Dark mode**: Off, On, or Match phone. Turns the app and every tool window dark, and the websites in the tools too (the OSRS Wiki switches to its own dark look).
+- **Tool text size** and **Web page text size**: make the writing bigger or smaller in the app's own tools, and in the Wiki, DPS Calculator, XP Calculator, GE Prices and Shooting Star Tracker.
+- **Bubble**: its size (Small, Normal, Large), fading to see-through when you're not using it, how long to hold it for the menu, and whether it vibrates when the menu opens.
+- **Windows**: how wide tool windows open in landscape (Narrow, Normal, Wide), and a button that puts every window back to its normal size and place.
+- **Tools in the menu**: untick the tools you don't use to keep the menu short.
+- **Updates**: turn off the check for a new version when the app opens.
 
 ## Tools
 

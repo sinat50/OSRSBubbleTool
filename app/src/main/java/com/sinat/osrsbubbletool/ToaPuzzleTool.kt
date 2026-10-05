@@ -29,6 +29,13 @@ import androidx.core.content.edit
 import androidx.core.graphics.toColorInt
 import androidx.core.graphics.withRotation
 import androidx.core.graphics.withTranslation
+import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
+import com.sinat.osrsbubbletool.Palette.DARK_BROWN
+import com.sinat.osrsbubbletool.Palette.FADED
+import com.sinat.osrsbubbletool.Palette.GO_GREEN
+import com.sinat.osrsbubbletool.Palette.PAPER
+import com.sinat.osrsbubbletool.Palette.PARCHMENT
+import com.sinat.osrsbubbletool.Palette.WARN
 import com.sinat.osrsbubbletool.ToaPuzzles.Symbol
 import java.io.File
 import kotlin.math.abs
@@ -60,13 +67,6 @@ class ToaPuzzleTool(
         private const val WATCH_INTERVAL_MS = 80L         // how often the sequence tiles are checked
         private const val WATCH_FIRST_FLASH_MS = 20_000L  // how long to wait for you to press the button
         private const val WATCH_NEXT_FLASH_MS = 5_000L    // how long to wait for the next flash
-        private val PARCHMENT = "#F2E3C0".toColorInt()
-        private val DARK_BROWN = "#3E2C12".toColorInt()
-        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
-        private val SELECTED = "#3E7A2E".toColorInt()
-        private val PAPER = "#FFF8E6".toColorInt()
-        private val FADED = "#8C7B5E".toColorInt()
-        private val WARN = "#9C4A10".toColorInt()
 
         // The maps, in the game's colours: plates and symbol tiles are purple with yellow on them, and
         // anything lit (a plate, a flashing tile, a matched pair) glows pale
@@ -81,6 +81,7 @@ class ToaPuzzleTool(
         private val GLOW = "#FFE7A0".toColorInt()          // the glow around a lit plate
         private val GLOW_CORE = "#FFFCEE".toColorInt()     // a lit plate's bright middle
         private val MISS_GREY = "#B0A8B0".toColorInt()
+        private val INK = "#3E2C12".toColorInt()          // writing on a lit tile (the same in dark mode)
     }
 
     private enum class Page(val title: String, val about: String) {
@@ -310,7 +311,7 @@ class ToaPuzzleTool(
     private fun LinearLayout.light() {
         val answer = ToaPuzzles.solveLights(lightLit)
         tip("close your chat and inventory first, so all eight plates can be seen.")
-        addView(bar(button("Read the screen", SELECTED) { readLights() } to 2f,
+        addView(bar(button("Read the screen", GO_GREEN) { readLights() } to 2f,
             button("Clear") { lightLit = 0; lightEntered = false; lightTurn = 0f; lightNote = null; show() } to 1f), full(4))
         help("Stand still with all eight plates on screen and tap Read the screen (the bubble hides for a moment " +
             "while it looks). The answer appears at the bottom of the screen and this window shrinks to a corner; " +
@@ -344,7 +345,7 @@ class ToaPuzzleTool(
 
     // The window while the answer is at the bottom of the screen
     private fun LinearLayout.lightSmall() {
-        addView(smallRow(smallButton("Read again", SELECTED) { readLights() }, smallButton("Done", WARN) { leaveOnScreen() }))
+        addView(smallRow(smallButton("Read again", GO_GREEN) { readLights() }, smallButton("Done", WARN) { leaveOnScreen() }))
         lightNote?.takeIf { it.startsWith("Couldn't") }?.let { addView(label(it, 9f).apply { setTextColor(WARN) }, full(2)) }
     }
 
@@ -420,7 +421,7 @@ class ToaPuzzleTool(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             fun lp(weight: Float) = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, weight).apply { setMargins(dp(2), 0, dp(2), 0) }
-            addView(button("Read the number", SELECTED) { readAdditionNumber() }, lp(2.2f))
+            addView(button("Read the number", GO_GREEN) { readAdditionNumber() }, lp(2.2f))
             addView(label(if (additionTarget == 0) "–" else "$additionTarget", 20f, bold = true).apply { gravity = Gravity.CENTER }, lp(1f))
             addView(helpButton(), LinearLayout.LayoutParams(dp(HELP_SIZE_DP), dp(HELP_SIZE_DP)).apply { leftMargin = dp(2) })
         }, full(4))
@@ -491,7 +492,7 @@ class ToaPuzzleTool(
             val lit = i in additionLit
             tile(canvas, r, if (lit) TILE_LIT else TILE)
             glyph(canvas, sym, r, if (lit) GLYPH_LIT else YELLOW)
-            text(canvas, values[sym.ordinal], r.left + r.width() * 0.17f, r.top + r.height() * 0.2f, r.height() * 0.22f, if (lit) DARK_BROWN else Color.WHITE)
+            text(canvas, values[sym.ordinal], r.left + r.width() * 0.17f, r.top + r.height() * 0.2f, r.height() * 0.22f, if (lit) INK else Color.WHITE)
             if (answer != null && i in answer) stepHere(canvas, r)
         }
     }
@@ -501,7 +502,7 @@ class ToaPuzzleTool(
         addView(smallRow(smallButton("−") { changeTarget(-1) },
             label("$additionTarget", 16f, bold = true).apply { gravity = Gravity.CENTER; setPadding(dp(6), 0, dp(6), 0) },
             smallButton("+") { changeTarget(1) },
-            smallButton("Read", SELECTED) { readAdditionNumber() },
+            smallButton("Read", GO_GREEN) { readAdditionNumber() },
             smallButton("Done", WARN) { leaveOnScreen() }))
         additionNote?.takeIf { it.startsWith("Couldn't") }?.let { addView(label(it, 9f).apply { setTextColor(WARN) }, full(2)) }
     }
@@ -519,7 +520,7 @@ class ToaPuzzleTool(
 
     private fun LinearLayout.sequence() {
         tip("close your chat and inventory first, so all nine tiles can be seen.")
-        addView(bar(button("Watch", SELECTED) { watchSequence() } to 1.4f,
+        addView(bar(button("Watch", GO_GREEN) { watchSequence() } to 1.4f,
             button("Clear") { sequence.clear(); sequenceTurn = 0f; sequenceNote = null; show() } to 1f), full(4))
         // Watch finds the tiles once, when tapped, then keeps looking at those spots on the screen
         addView(label("Tap Watch where you'll press the button, then keep the camera still until the tiles flash " +
@@ -557,7 +558,7 @@ class ToaPuzzleTool(
         }) { canvas, i, r ->
             val n = numbers[i]
             if (n.isEmpty()) plate(canvas, r) else tile(canvas, r, TILE_LIT)
-            if (n.isNotEmpty()) text(canvas, n, r.centerX(), r.centerY(), r.height() * if (n.length > 2) 0.3f else 0.5f, DARK_BROWN)
+            if (n.isNotEmpty()) text(canvas, n, r.centerX(), r.centerY(), r.height() * if (n.length > 2) 0.3f else 0.5f, INK)
         }
     }
 
@@ -570,7 +571,7 @@ class ToaPuzzleTool(
             addView(smallRow(smallButton("Stop", WARN) { endWatch("Stopped.") }, countdown))
         } else {
             sequenceCountdown = null
-            addView(smallRow(smallButton("Watch again", SELECTED) { watchSequence() }, smallButton("Done", WARN) { leaveOnScreen() }))
+            addView(smallRow(smallButton("Watch again", GO_GREEN) { watchSequence() }, smallButton("Done", WARN) { leaveOnScreen() }))
             sequenceNote?.takeIf { !it.startsWith("Saw all") }?.let { addView(label(it, 9f).apply { setTextColor(WARN) }, full(2)) }
         }
     }
@@ -703,7 +704,7 @@ class ToaPuzzleTool(
             val n = numbers[o]
             tile(canvas, tall, if (n.isNotEmpty()) OBELISK_LIT else OBELISK)
             when {
-                n.isNotEmpty() -> text(canvas, n, tall.centerX(), tall.centerY(), r.height() * 0.45f, DARK_BROWN)
+                n.isNotEmpty() -> text(canvas, n, tall.centerX(), tall.centerY(), r.height() * 0.45f, INK)
                 o in obeliskMisses -> text(canvas, "✗", tall.centerX(), tall.centerY(), r.height() * 0.45f, MISS_GREY)
                 else -> text(canvas, "?", tall.centerX(), tall.centerY(), r.height() * 0.4f, Color.WHITE)
             }
@@ -726,7 +727,7 @@ class ToaPuzzleTool(
         if (matchWatching) { matchingSmall(); return }
         tip("close your chat and inventory first, so both boards can be seen.")
         // (while watching, the page is just matchingSmall's Stop button)
-        addView(bar(button("Watch", SELECTED) { watchMatching() } to 1.2f,
+        addView(bar(button("Watch", GO_GREEN) { watchMatching() } to 1.2f,
             button("Clear") { memory.clear(); show() } to 1f), full(4))
         help("For Watch: camera facing east, looking straight down, with the zoom at 25%, so both boards and the " +
             "statue are on screen. While it watches, this window shrinks to a Stop button in the corner and the " +
@@ -744,10 +745,10 @@ class ToaPuzzleTool(
             // The brushes: nine symbols, then "matched" and "erase"
             val brushes = (0 until 11).map { 0 to it }
             addView(Board(1, 11, brushes, maxHeightDp = 44, onTap = { b -> matchBrush = b; show() }) { canvas, b, r ->
-                tile(canvas, r, if (b == matchBrush) SELECTED else PAPER)
+                tile(canvas, r, if (b == matchBrush) GO_GREEN else PAPER)
                 when (b) {
                     in 0..8 -> glyph(canvas, ToaPuzzles.MATCHING_SYMBOLS[b], r, if (b == matchBrush) YELLOW else GLYPH_LIT)
-                    9 -> text(canvas, "✓", r.centerX(), r.centerY(), r.height() * 0.55f, SELECTED)
+                    9 -> text(canvas, "✓", r.centerX(), r.centerY(), r.height() * 0.55f, GO_GREEN)
                     else -> text(canvas, "✗", r.centerX(), r.centerY(), r.height() * 0.55f, WARN)
                 }
             }, full(6))

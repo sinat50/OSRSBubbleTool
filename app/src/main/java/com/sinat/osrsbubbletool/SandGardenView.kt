@@ -349,8 +349,10 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
             cell = min((w - 2 * inset) / gw, (h - 2 * inset) / gh).coerceAtLeast(0.01f)
             trayW = gw * cell + 2 * inset
             trayH = gh * cell + 2 * inset
-            offX = (w - trayW) / 2
-            offY = (h - trayH) / 2
+            // kept in the top-left corner (not centred), so dragging the bottom-right resize corner grows or
+            // shrinks the garden from its top-left corner, which stays put, instead of moving the garden about
+            offX = 0f
+            offY = 0f
         } else {
             cell = dp(1f / RES)
             offX = 0f; offY = 0f

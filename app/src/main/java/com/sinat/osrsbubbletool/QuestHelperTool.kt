@@ -31,23 +31,33 @@ package com.sinat.osrsbubbletool
 
 import android.content.Context
 import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
-import android.view.inputmethod.EditorInfo
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.edit
-import androidx.core.graphics.toColorInt
 import androidx.core.net.toUri
 import androidx.core.view.isEmpty
+import com.sinat.osrsbubbletool.Palette.BLUE
+import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
+import com.sinat.osrsbubbletool.Palette.CURRENT
+import com.sinat.osrsbubbletool.Palette.DARK_BROWN
+import com.sinat.osrsbubbletool.Palette.FADED
+import com.sinat.osrsbubbletool.Palette.GO_GREEN
+import com.sinat.osrsbubbletool.Palette.ORANGE
+import com.sinat.osrsbubbletool.Palette.PARCHMENT
+import com.sinat.osrsbubbletool.Palette.RED
+import com.sinat.osrsbubbletool.Palette.ROW_BROWN
+import com.sinat.osrsbubbletool.Palette.SELECTED_BROWN
 import com.sinat.osrsbubbletool.QuestBook.Met
 import com.sinat.osrsbubbletool.QuestBook.Req
 import com.sinat.osrsbubbletool.QuestBook.Status
@@ -61,17 +71,6 @@ class QuestHelperTool(
     private val openWikiSync: () -> Unit = {} // the WikiSync tool, where you set your name
 ) {
     companion object {
-        private val PARCHMENT = "#F2E3C0".toColorInt()
-        private val DARK_BROWN = "#3E2C12".toColorInt()
-        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
-        private val SELECTED_BROWN = "#5A4220".toColorInt()
-        private val ROW_BROWN = "#E3CFA2".toColorInt()
-        private val CURRENT = "#FFF4D6".toColorInt()
-        private val GO_GREEN = "#3E7A2E".toColorInt()
-        private val SAY_BLUE = "#1F4E8C".toColorInt()
-        private val FADED = "#8C7B5E".toColorInt()
-        private val MISSING_RED = "#B03A2E".toColorInt()
-        private val PARTLY_ORANGE = "#C0600A".toColorInt()
         private const val MAX_DEPTH = 8
     }
 
@@ -363,6 +362,8 @@ class QuestHelperTool(
         }
 
         val field = EditText(context).apply {
+            setTextColor(Palette.DARK_BROWN)
+            setHintTextColor(Palette.FADED)
             setText(search)
             hint = "Search quests"
             textSize = 13f
@@ -424,9 +425,9 @@ class QuestHelperTool(
         val status = QuestBook.status(q, data)
         val (mark, color) = when (status) {
             Status.DONE -> "✓" to GO_GREEN
-            Status.STARTED -> "◐" to PARTLY_ORANGE
+            Status.STARTED -> "◐" to ORANGE
             Status.READY -> "●" to GO_GREEN
-            Status.MISSING -> "✗" to MISSING_RED
+            Status.MISSING -> "✗" to RED
             Status.UNKNOWN -> "•" to DARK_BROWN
         }
         val note = when {
@@ -442,7 +443,7 @@ class QuestHelperTool(
             addView(label(mark, 13f, bold = true).apply { setTextColor(color); minWidth = dp(20) })
             addView(label(q.name, 13f).apply { if (status == Status.DONE) setTextColor(FADED) },
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            if (note.isNotEmpty()) addView(label(note, 10f).apply { setTextColor(if (status == Status.MISSING) MISSING_RED else FADED) })
+            if (note.isNotEmpty()) addView(label(note, 10f).apply { setTextColor(if (status == Status.MISSING) RED else FADED) })
             setOnClickListener { openQuestPage(q.name) }
         }
     }
@@ -469,7 +470,7 @@ class QuestHelperTool(
                 addView(label("Tap a quest with ▸ to see what it needs.", 10f).apply { setTextColor(FADED) }, full(6))
             }
             if (info.enemies.isNotEmpty()) {
-                addView(label("⚔ Enemies", 12f, bold = true).apply { setTextColor(MISSING_RED) }, full(10))
+                addView(label("⚔ Enemies", 12f, bold = true).apply { setTextColor(RED) }, full(10))
                 info.enemies.forEach { addView(label("• $it", 12f), full(1)) }
             } else {
                 addView(label("No required fights listed", 11f).apply { setTextColor(GO_GREEN) }, full(10))
@@ -487,7 +488,7 @@ class QuestHelperTool(
 
     private fun helpButton(quest: String): View? {
         if (QuestPuzzles.HELP_WANTED[quest].isNullOrEmpty()) return null
-        return button("📷 Help improve this quest guide", SAY_BLUE) { showHelp = true; show(keepScroll = false) }
+        return button("📷 Help improve this quest guide", BLUE) { showHelp = true; show(keepScroll = false) }
             .apply { textSize = 12f }
     }
 
@@ -564,7 +565,7 @@ class QuestHelperTool(
         addView(label(p.quest, 11f).apply { setTextColor(FADED) }, full(1))
         if (p.intro.isNotEmpty()) addView(label(p.intro, 13f), full(8))
         p.solver?.let { solverViews.build(it, this) }
-        p.link?.let { (text, url) -> addView(button("🔗 $text", SAY_BLUE) { openWiki(url) }, full(8)) }
+        p.link?.let { (text, url) -> addView(button("🔗 $text", BLUE) { openWiki(url) }, full(8)) }
         p.image?.let { addView(wikiImage(it), full(8)) }
 
         if (p.table.isNotEmpty()) {
@@ -656,7 +657,7 @@ class QuestHelperTool(
     private fun tableRow(a: String, b: String, bold: Boolean): View = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         addView(label(a, 12f, bold = true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2f))
-        addView(label(b, 12f, bold = bold).apply { if (!bold) setTextColor(SAY_BLUE) },
+        addView(label(b, 12f, bold = bold).apply { if (!bold) setTextColor(BLUE) },
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 3f))
     }
 
@@ -716,7 +717,7 @@ class QuestHelperTool(
                 addView(label("Step ${at + 1} of ${steps.size}" + (if (step.optional) " (optional)" else ""), 11f), full(6))
                 addView(stepBody(step, big = true), full(2))
                 QuestPuzzles.forStep(q.name, section.title, step.text).forEach { p ->
-                    addView(button("🧩 Solution: ${p.title}", SAY_BLUE) { openPuzzleScreen(p) }, full(6))
+                    addView(button("🧩 Solution: ${p.title}", BLUE) { openPuzzleScreen(p) }, full(6))
                 }
                 addView(LinearLayout(context).apply {
                     orientation = LinearLayout.HORIZONTAL
@@ -774,11 +775,11 @@ class QuestHelperTool(
         if (section.recommended.isNotEmpty()) {
             addView(label("Recommended: " + section.recommended.joinToString(", "), 11f).apply { setTextColor(FADED) }, full(1))
         }
-        section.travel?.let { addView(label("Travel: $it", 11f).apply { setTextColor(SAY_BLUE) }, full(1)) }
+        section.travel?.let { addView(label("Travel: $it", 11f).apply { setTextColor(BLUE) }, full(1)) }
         if (section.combat == true) {
-            addView(label("⚔ Combat: bring combat gear", 11f, bold = true).apply { setTextColor(MISSING_RED) }, full(1))
+            addView(label("⚔ Combat: bring combat gear", 11f, bold = true).apply { setTextColor(RED) }, full(1))
             if (section.enemies.isNotEmpty()) {
-                addView(label("Enemies: " + section.enemies.joinToString(", "), 11f).apply { setTextColor(MISSING_RED) }, full(1))
+                addView(label("Enemies: " + section.enemies.joinToString(", "), 11f).apply { setTextColor(RED) }, full(1))
             }
         } else if (section.combat == false) {
             addView(label("No combat", 11f).apply { setTextColor(GO_GREEN) }, full(1))
@@ -792,7 +793,7 @@ class QuestHelperTool(
         if (step.say.isNotEmpty()) {
             addView(label("Choose:", 11f, bold = true), full(6))
             step.say.forEachIndexed { n, option ->
-                addView(label("${n + 1}. “$option”", 13f).apply { setTextColor(SAY_BLUE) }, full(1))
+                addView(label("${n + 1}. “$option”", 13f).apply { setTextColor(BLUE) }, full(1))
             }
         }
         // leave out anything the step already mentions ("Take the hammer" doesn't need "Bring: Hammer")
@@ -850,7 +851,7 @@ class QuestHelperTool(
                             setTextColor(when {
                                 done == null -> FADED
                                 count >= total -> GO_GREEN
-                                count > 0 -> PARTLY_ORANGE
+                                count > 0 -> ORANGE
                                 else -> DARK_BROWN
                             })
                         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -962,8 +963,8 @@ class QuestHelperTool(
             val c = QuestBook.check(req, data)
             val (mark, color) = when (c.met) {
                 Met.YES -> "✓" to GO_GREEN
-                Met.NO -> "✗" to MISSING_RED
-                Met.PARTLY -> "✗" to PARTLY_ORANGE
+                Met.NO -> "✗" to RED
+                Met.PARTLY -> "✗" to ORANGE
                 Met.UNKNOWN -> "•" to DARK_BROWN
             }
             val key = "$path>${(req as? Req.QuestDone)?.quest}"
@@ -998,7 +999,7 @@ class QuestHelperTool(
                 val missing = QuestBook.missing(requirements, data).map { QuestBook.check(it, data).text.substringBefore(" (") }
                 if (missing.isEmpty()) "You meet every requirement ✓" +
                     (if (state == WikiSync.IN_PROGRESS) " (quest started)" else "") to GO_GREEN
-                else "Missing ${missing.size}: ${missing.joinToString(", ")}" to MISSING_RED
+                else "Missing ${missing.size}: ${missing.joinToString(", ")}" to RED
             }
         }
         return label(text, 13f, bold = true).apply { setTextColor(color) }

@@ -9,7 +9,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.core.graphics.toColorInt
+import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
+import com.sinat.osrsbubbletool.Palette.DARK_BROWN
+import com.sinat.osrsbubbletool.Palette.FADED
+import com.sinat.osrsbubbletool.Palette.GO_GREEN
+import com.sinat.osrsbubbletool.Palette.PARCHMENT
+import com.sinat.osrsbubbletool.Palette.RED
+import com.sinat.osrsbubbletool.Palette.SELECTED_BROWN
 import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
@@ -18,16 +24,6 @@ import java.text.DecimalFormat
 // A basic calculator. It also understands OSRS shorthand: 1.5k = 1,500, 2m = 2,000,000, 1b = 1,000,000,000.
 // What you typed is kept while the bubble is running.
 class CalculatorTool(private val context: Context) {
-
-    companion object {
-        private val PARCHMENT = "#F2E3C0".toColorInt()
-        private val DARK_BROWN = "#3E2C12".toColorInt()
-        private val KEY = "#8B6B3E".toColorInt()
-        private val OPERATOR = "#5A4220".toColorInt()
-        private val EQUALS = "#3E7A2E".toColorInt()
-        private val CLEAR = "#B03A2E".toColorInt()
-        private val FADED = "#8C7B5E".toColorInt()
-    }
 
     private var expression = ""      // what's been typed, e.g. "1.5m*3"
     private var lastSum = ""         // the previous calculation, shown small above
@@ -55,7 +51,7 @@ class CalculatorTool(private val context: Context) {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(6), dp(1), dp(6), dp(2))
             background = GradientDrawable().apply {
-                setColor("#FFF8E6".toColorInt()); setStroke(dp(1), KEY); cornerRadius = dp(6).toFloat()
+                setColor(Palette.PAPER); setStroke(dp(1), BUTTON_BROWN); cornerRadius = dp(6).toFloat()
             }
             sumView = text(9f, FADED)
             expressionView = text(13f, DARK_BROWN)
@@ -96,7 +92,7 @@ class CalculatorTool(private val context: Context) {
         gravity = Gravity.CENTER
         setTypeface(typeface, Typeface.BOLD)
         background = GradientDrawable().apply {
-            setColor(when (k) { "=" -> EQUALS; "C" -> CLEAR; "÷", "×", "−", "+", "(", ")", "⌫" -> OPERATOR; else -> KEY })
+            setColor(when (k) { "=" -> GO_GREEN; "C" -> RED; "÷", "×", "−", "+", "(", ")", "⌫" -> SELECTED_BROWN; else -> BUTTON_BROWN })
             cornerRadius = dp(6).toFloat()
         }
         setOnClickListener { press(k) }

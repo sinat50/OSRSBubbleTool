@@ -14,8 +14,15 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import androidx.core.graphics.toColorInt
 import androidx.core.net.toUri
+import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
+import com.sinat.osrsbubbletool.Palette.DARK_BROWN
+import com.sinat.osrsbubbletool.Palette.DEEP_RED
+import com.sinat.osrsbubbletool.Palette.GO_GREEN
+import com.sinat.osrsbubbletool.Palette.ORANGE
+import com.sinat.osrsbubbletool.Palette.PARCHMENT
+import com.sinat.osrsbubbletool.Palette.READY_GREEN
+import com.sinat.osrsbubbletool.Palette.ROW_BROWN
 import java.util.Calendar
 import java.util.Date
 
@@ -23,14 +30,6 @@ import java.util.Date
 class FarmingTool(private val context: Context) {
 
     companion object {
-        private val PARCHMENT = "#F2E3C0".toColorInt()
-        private val DARK_BROWN = "#3E2C12".toColorInt()
-        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
-        private val ROW_BROWN = "#E3CFA2".toColorInt()
-        private val GO_GREEN = "#3E7A2E".toColorInt()
-        private val READY_GREEN = "#2E8B2E".toColorInt()
-        private val WARN_ORANGE = "#C0600A".toColorInt()
-        private val STOP_RED = "#A04030".toColorInt()
         private const val REFRESH_MS = 20_000L
     }
 
@@ -166,7 +165,7 @@ class FarmingTool(private val context: Context) {
                     rebuild()
                 }, 1.2f)
             }
-            addButton(button(if (running) "Stop" else "Remove", STOP_RED) {
+            addButton(button(if (running) "Stop" else "Remove", DEEP_RED) {
                 if (running) FarmingTimers.stop(context, t.id) else FarmingTimers.remove(context, t.id)
                 rebuild()
             }, 0.9f)
@@ -261,7 +260,7 @@ class FarmingTool(private val context: Context) {
         textSize = 12f
         setTextColor(Color.WHITE)
         setPadding(dp(8), dp(6), dp(8), dp(6))
-        background = GradientDrawable().apply { setColor(WARN_ORANGE); cornerRadius = dp(6).toFloat() }
+        background = GradientDrawable().apply { setColor(ORANGE); cornerRadius = dp(6).toFloat() }
         setOnClickListener { onClick() }
     }
 

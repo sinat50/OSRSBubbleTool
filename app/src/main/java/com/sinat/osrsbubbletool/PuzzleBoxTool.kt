@@ -94,7 +94,7 @@ class PuzzleBoxTool(
             gravity = Gravity.CENTER
             setPadding(dp(6), dp(7), dp(6), dp(7))
             background = GradientDrawable().apply {
-                setColor("#8B6B3E".toColorInt())
+                setColor(Palette.BUTTON_BROWN)
                 cornerRadius = dp(6).toFloat()
             }
             setOnClickListener { onClick() }
@@ -122,7 +122,7 @@ class PuzzleBoxTool(
             addView(TextView(context).apply {
                 text = "Show moves as:"
                 textSize = 11f
-                setTextColor("#3E2C12".toColorInt())
+                setTextColor(Palette.DARK_BROWN)
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(4) })
             addView(boxesButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(3) })
             addView(dotsButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -131,7 +131,7 @@ class PuzzleBoxTool(
         status = TextView(context).apply {
             text = "Open a puzzle box, then tap Scan puzzle. The moves appear on the puzzle."
             textSize = 11f
-            setTextColor("#3E2C12".toColorInt())
+            setTextColor(Palette.DARK_BROWN)
             setPadding(0, dp(6), 0, dp(6))
         }
 
@@ -143,7 +143,7 @@ class PuzzleBoxTool(
 
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor("#F2E3C0".toColorInt())
+            setBackgroundColor(Palette.PARCHMENT)
             setPadding(dp(8), dp(8), dp(8), dp(8))
             addView(scanButton, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -164,7 +164,7 @@ class PuzzleBoxTool(
     private fun refreshStyleButtons() {
         styleButtons.forEachIndexed { i, b ->
             val chosen = (i == 1) == guide.dots
-            (b.background as? GradientDrawable)?.setColor((if (chosen) "#5A4220" else "#B89A63").toColorInt())
+            (b.background as? GradientDrawable)?.setColor(if (chosen) Palette.SELECTED_BROWN else Palette.LIGHT_BUTTON)
             b.setTypeface(null, if (chosen) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
         }
     }

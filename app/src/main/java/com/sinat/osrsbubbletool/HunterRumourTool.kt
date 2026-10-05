@@ -12,23 +12,19 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.edit
-import androidx.core.graphics.toColorInt
+import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
+import com.sinat.osrsbubbletool.Palette.DARK_BROWN
+import com.sinat.osrsbubbletool.Palette.FADED
+import com.sinat.osrsbubbletool.Palette.GO_GREEN
+import com.sinat.osrsbubbletool.Palette.LIGHT_BUTTON
+import com.sinat.osrsbubbletool.Palette.PAPER
+import com.sinat.osrsbubbletool.Palette.PARCHMENT
+import com.sinat.osrsbubbletool.Palette.ROW_BROWN
+import com.sinat.osrsbubbletool.Palette.WARN
 
 // Hunters' Rumours: pick your tier (and guild hunter), pick the rumour you're on, and see where the
 // creature is, how to get there and what to bring. Everything is built in, so it works offline.
 class HunterRumourTool(private val context: Context, private val openWikiSync: () -> Unit = {}) {
-
-    companion object {
-        private val PARCHMENT = "#F2E3C0".toColorInt()
-        private val DARK_BROWN = "#3E2C12".toColorInt()
-        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
-        private val LIGHT_BUTTON = "#B89A63".toColorInt()
-        private val ROW_BROWN = "#E3CFA2".toColorInt()
-        private val PAPER = "#FFF8E6".toColorInt()
-        private val GO_GREEN = "#3E7A2E".toColorInt()
-        private val FADED = "#8C7B5E".toColorInt()
-        private val WARN = "#9C4A10".toColorInt()
-    }
 
     private val prefs = context.getSharedPreferences("hunter_rumours", Context.MODE_PRIVATE)
     private val sync = WikiSync(context)   // only what's already saved: your Hunter level, if you've set up WikiSync

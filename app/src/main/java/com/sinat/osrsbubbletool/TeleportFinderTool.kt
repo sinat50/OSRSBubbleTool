@@ -19,7 +19,14 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.edit
-import androidx.core.graphics.toColorInt
+import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
+import com.sinat.osrsbubbletool.Palette.DARK_BROWN
+import com.sinat.osrsbubbletool.Palette.FADED
+import com.sinat.osrsbubbletool.Palette.LIGHT_BUTTON
+import com.sinat.osrsbubbletool.Palette.PAPER
+import com.sinat.osrsbubbletool.Palette.PARCHMENT
+import com.sinat.osrsbubbletool.Palette.ROW_BROWN
+import com.sinat.osrsbubbletool.Palette.WARN
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -31,14 +38,6 @@ import org.json.JSONObject
 class TeleportFinderTool(private val context: Context, private val openWikiSync: () -> Unit = {}) {
 
     companion object {
-        private val PARCHMENT = "#F2E3C0".toColorInt()
-        private val DARK_BROWN = "#3E2C12".toColorInt()
-        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
-        private val LIGHT_BUTTON = "#B89A63".toColorInt()
-        private val ROW_BROWN = "#E3CFA2".toColorInt()
-        private val PAPER = "#FFF8E6".toColorInt()
-        private val FADED = "#8C7B5E".toColorInt()
-        private val WARN = "#9C4A10".toColorInt()
         private const val USER_AGENT = "OSRSBubbleTool/1.0 (personal Android app)"
         private const val API = "https://oldschool.runescape.wiki/api.php"
         private const val RESULTS = 25   // results in the list (it scrolls)
@@ -99,6 +98,7 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
                 }, full())
                 addView(label("Type an NPC, monster or place.", 11f).apply { setTextColor(FADED) }, full(1))
                 field = EditText(context).apply {
+                    setHintTextColor(Palette.FADED)
                     hint = "e.g. Zaff, Barrows, abyssal demon"
                     textSize = 14f
                     setSingleLine()

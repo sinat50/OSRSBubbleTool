@@ -22,7 +22,11 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.edit
-import androidx.core.graphics.toColorInt
+import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
+import com.sinat.osrsbubbletool.Palette.DARK_BROWN
+import com.sinat.osrsbubbletool.Palette.DEEP_RED
+import com.sinat.osrsbubbletool.Palette.PARCHMENT
+import com.sinat.osrsbubbletool.Palette.ROW_BROWN
 import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
@@ -37,11 +41,6 @@ class InventorySetupsTool(
 ) {
     companion object {
         const val CAPTURE_DELAY_MS = 500L  // wait after hiding the bubble before taking a screenshot
-        private val PARCHMENT = "#F2E3C0".toColorInt()
-        private val DARK_BROWN = "#3E2C12".toColorInt()
-        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
-        private val ROW_BROWN = "#E3CFA2".toColorInt()
-        private val DELETE_RED = "#A04030".toColorInt()
     }
 
     // The four parts of a setup. Each has its own saved area on screen.
@@ -207,6 +206,7 @@ class InventorySetupsTool(
 
         // Name (tap to edit)
         nameField = EditText(context).apply {
+            setHintTextColor(Palette.FADED)
             setText(setup.name)
             textSize = 16f
             setTextColor(DARK_BROWN)
@@ -253,7 +253,7 @@ class InventorySetupsTool(
             showPicture(section, bitmap)
         }
 
-        val deleteButton = button("Delete setup", DELETE_RED) {}
+        val deleteButton = button("Delete setup", DEEP_RED) {}
         deleteButton.setOnClickListener {
             if (!deleteArmed) {
                 deleteArmed = true

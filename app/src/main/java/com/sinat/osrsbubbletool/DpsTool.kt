@@ -26,6 +26,10 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.edit
 import androidx.core.graphics.toColorInt
+import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
+import com.sinat.osrsbubbletool.Palette.DARK_BROWN
+import com.sinat.osrsbubbletool.Palette.PARCHMENT
+import com.sinat.osrsbubbletool.Palette.ROW_BROWN
 import java.util.Locale
 import org.json.JSONObject
 
@@ -39,10 +43,6 @@ class DpsTool(
 ) {
     companion object {
         const val CAPTURE_DELAY_MS = 500L
-        private val PARCHMENT = "#F2E3C0".toColorInt()
-        private val DARK_BROWN = "#3E2C12".toColorInt()
-        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
-        private val ROW_BROWN = "#E3CFA2".toColorInt()
 
         // Puts gear into the calculator's saved session, then reloads the page to show it.
         // __GEAR__ is replaced with {"head": 1234, "cape": null, ...}
@@ -396,7 +396,7 @@ class DpsTool(
                 addView(TextView(context).apply {
                     text = note
                     textSize = 11f
-                    setTextColor("#C0600A".toColorInt())
+                    setTextColor(Palette.ORANGE)
                     setTypeface(typeface, Typeface.BOLD)
                 })
             }

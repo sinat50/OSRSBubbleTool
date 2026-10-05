@@ -1,11 +1,11 @@
 package com.sinat.osrsbubbletool
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.graphics.Typeface
-import android.Manifest
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -21,18 +21,18 @@ import android.widget.Toast
 import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import androidx.core.content.edit
-import androidx.core.graphics.toColorInt
 import androidx.core.net.toUri
+import androidx.core.view.WindowCompat
+import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
+import com.sinat.osrsbubbletool.Palette.DARK_BROWN
+import com.sinat.osrsbubbletool.Palette.GO_GREEN
+import com.sinat.osrsbubbletool.Palette.PARCHMENT
+import com.sinat.osrsbubbletool.Palette.ROW_BROWN
 
-// The app's own screens: the main screen, Permissions, and Legal.
+// The app's own screens: the main screen, Settings, Permissions, and Legal.
 class MainActivity : Activity() {
 
     companion object {
-        private val PARCHMENT = "#F2E3C0".toColorInt()
-        private val DARK_BROWN = "#3E2C12".toColorInt()
-        private val BUTTON_BROWN = "#8B6B3E".toColorInt()
-        private val ROW_BROWN = "#E3CFA2".toColorInt()
-        private val GO_GREEN = "#3E7A2E".toColorInt()
         private const val REQUEST_NOTIFICATIONS = 1
 
         // The BSD 2-Clause licence conditions and disclaimer (used by the Zulrah, ToA Puzzle Helper, RuneLite, Teleport Finder and Quest Helper credits)
@@ -43,7 +43,7 @@ class MainActivity : Activity() {
                 "THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
     }
 
-    private enum class Screen { MAIN, PERMISSIONS, LEGAL }
+    private enum class Screen { MAIN, SETTINGS, PERMISSIONS, LEGAL }
     private var screen = Screen.MAIN
     private var backCallback: OnBackInvokedCallback? = null
 
@@ -76,22 +76,30 @@ class MainActivity : Activity() {
         outState.putString("screen", screen.name)
     }
 
-    // Coming back from a settings page: update the permission ticks
+    // Coming back from a settings page: update the permission ticks (and the colours, if dark mode was
+    // switched in the bubble's Settings window meanwhile)
     override fun onResume() {
         super.onResume()
-        if (screen == Screen.PERMISSIONS) show(Screen.PERMISSIONS)
-        // look for a newer version on GitHub each time the app is opened
-        UpdateChecker.check(this) { if (!isDestroyed) styleUpdateButton() }
+        if (screen == Screen.PERMISSIONS || AppSettings.isDark(this) != Palette.dark) show(screen)
+        // look for a newer version on GitHub each time the app is opened (unless that's switched off in Settings)
+        if (AppSettings.checksUpdates(this)) UpdateChecker.check(this) { if (!isDestroyed) styleUpdateButton() }
     }
 
     private fun show(s: Screen) {
         screen = s
+        Palette.dark = AppSettings.isDark(this)
         val content = when (s) {
             Screen.MAIN -> mainScreen()
+            Screen.SETTINGS -> settingsScreen()
             Screen.PERMISSIONS -> permissionsScreen()
             Screen.LEGAL -> legalScreen()
         }
         setContentView(content)
+        // the clock and icons along the top (and bottom) of the screen: dark on the light page, light on the dark one
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = !Palette.dark
+            isAppearanceLightNavigationBars = !Palette.dark
+        }
         updateBackHandling()
     }
 
@@ -147,6 +155,8 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
             addView(button("Legal") { show(Screen.LEGAL) }.compact())
             addView(View(this@MainActivity), LinearLayout.LayoutParams(0, 1, 1f))
+            addView(button("Settings") { show(Screen.SETTINGS) }.compact())
+            addView(View(this@MainActivity), LinearLayout.LayoutParams(0, 1, 1f))
             addView(button("Permissions") { show(Screen.PERMISSIONS) }.compact())
         }
 
@@ -155,7 +165,9 @@ class MainActivity : Activity() {
             addView(LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 addView(View(this@MainActivity), LinearLayout.LayoutParams(0, 1, 1f))
-                addView(button("") { openReleasePage() }.compact().also { updateButton = it; styleUpdateButton() })
+                if (AppSettings.checksUpdates(this@MainActivity))
+                    addView(button("") { openReleasePage() }.compact().also { updateButton = it; styleUpdateButton() })
+                else updateButton = null
             }, matchWidth(0))
             addView(middle, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
             addView(label("Unofficial fan-made tool. Not affiliated with Jagex.", if (landscape) 10f else 11f).apply { gravity = Gravity.CENTER },
@@ -194,6 +206,18 @@ class MainActivity : Activity() {
         }
         startForegroundService(Intent(this, BubbleService::class.java))
         Toast.makeText(this, "Bubble started", Toast.LENGTH_SHORT).show()
+    }
+
+    // ---------------- Settings screen ----------------
+
+    // The same settings as the bubble's Settings window
+    private fun settingsScreen(): View = page(scrolling = true) {
+        addView(backButton(), wrap())
+        addView(label("Settings", 20f, bold = true), matchWidth(10))
+        // dark mode switched: draw this screen again in the new colours
+        SettingsTool(this@MainActivity) {
+            if (AppSettings.isDark(this@MainActivity) != Palette.dark) show(Screen.SETTINGS)
+        }.addSettings(this)
     }
 
     // ---------------- Permissions screen ----------------
