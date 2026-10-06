@@ -26,6 +26,9 @@ local.properties
 # Notes passed between work sessions (not part of the app)
 /HANDOFF.md
 
+# Plans and to-do files written by the Matt Pocock skills (see docs/agents/issue-tracker.md)
+/.scratch/
+
 # Python leftovers from the scripts in tools/
 __pycache__/
 *.pyc

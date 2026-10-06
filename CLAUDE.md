@@ -355,3 +355,17 @@ Each release is worked on in its own branch (named like `v1.0.6`), then merged i
   notifications), AFK timer (tap-based logout countdown first, then optional screen watchers), world map
   tool (RuneLite world map plugin data, BSD; map pictures from the wiki or drawn from game files like
   dennisdev/rs-map-viewer, BSD; minimap matching for "you are here").
+
+## Agent skills
+
+### Issue tracker
+
+Plans and to-dos are plain files in `.scratch/<feature>/`, kept off GitHub (in `.gitignore`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default status names (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix), written as a `Status:` line in each file. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` and `docs/adr/` at the top of the project, created only when needed. See `docs/agents/domain.md`.
