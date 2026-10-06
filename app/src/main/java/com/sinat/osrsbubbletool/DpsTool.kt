@@ -295,6 +295,8 @@ class DpsTool(
                         busy = false
                         lastCapture = picture
                         showRecognition(reading, picture)
+                        // the window was closed while this worked: let go of the pictures now (the guesses stay)
+                        if (resultsPanel?.isShown != true) forgetPicture()
                     }
                 } catch (t: Throwable) {
                     // e.g. out of memory on an older phone: say so, and let Import be tapped again

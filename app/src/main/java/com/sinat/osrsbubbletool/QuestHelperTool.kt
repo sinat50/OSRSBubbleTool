@@ -400,11 +400,13 @@ class QuestHelperTool(
         val data = sync.cached
         val term = search.trim()
         val matches = QuestBook.quests.filter { term.isEmpty() || it.name.contains(term, ignoreCase = true) }
+        // where you stand with each quest, worked out once per list (it checks every requirement)
+        val statusOf = matches.associateWith { QuestBook.status(it, data) }
 
         fun group(title: String, quests: List<QuestBook.QuestInfo>) {
             if (quests.isEmpty()) return
             list.addView(label("$title (${quests.size})", 13f, bold = true), full(10))
-            quests.forEach { list.addView(questRow(it, data), full(3)) }
+            quests.forEach { list.addView(questRow(it, data, statusOf.getValue(it)), full(3)) }
         }
 
         if (data == null) {
@@ -412,7 +414,7 @@ class QuestHelperTool(
             group("Miniquests", matches.filter { it.miniquest })
             return
         }
-        val by = matches.groupBy { QuestBook.status(it, data) }
+        val by = matches.groupBy { statusOf.getValue(it) }
         group("Started", by[Status.STARTED].orEmpty())
         group("Ready to start", by[Status.READY].orEmpty())
         group("Missing requirements", by[Status.MISSING].orEmpty())
@@ -421,8 +423,7 @@ class QuestHelperTool(
         if (list.isEmpty()) list.addView(label("No quests match \"$term\".", 12f), full(8))
     }
 
-    private fun questRow(q: QuestBook.QuestInfo, data: WikiSync.Data?): View {
-        val status = QuestBook.status(q, data)
+    private fun questRow(q: QuestBook.QuestInfo, data: WikiSync.Data?, status: Status): View {
         val (mark, color) = when (status) {
             Status.DONE -> "✓" to GO_GREEN
             Status.STARTED -> "◐" to ORANGE

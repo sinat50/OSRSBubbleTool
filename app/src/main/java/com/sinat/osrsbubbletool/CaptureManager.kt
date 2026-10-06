@@ -58,6 +58,11 @@ class CaptureManager(
         stopListeners.add(listener)
     }
 
+    // A tool closing down: stop telling it (otherwise the list keeps every closed tool, and its pictures, in memory)
+    fun removeStopListener(listener: () -> Unit) {
+        stopListeners.remove(listener)
+    }
+
     // Called by the bubble when Android answers the permission question
     fun onPermissionResult(intent: Intent) {
         val resultCode = intent.getIntExtra(BubbleService.EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
@@ -100,6 +105,6 @@ class CaptureManager(
     private fun handleStopped() {
         if (shuttingDown) return
         onActiveChanged(false)
-        stopListeners.forEach { it() }
+        stopListeners.toList().forEach { it() }
     }
 }

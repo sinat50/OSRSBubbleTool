@@ -79,8 +79,10 @@ class PuzzleBoxTool(
     private var replanAt = 0L                  // when to re-read the tiles, or 0 if not needed
     private var planId = 0                     // changes whenever guiding stops, so old results are ignored
 
+    private val captureStopped: () -> Unit = { onCaptureStopped() }
+
     init {
-        capture.addStopListener { onCaptureStopped() }
+        capture.addStopListener(captureStopped)
     }
 
     private fun dp(value: Int) = (value * context.resources.displayMetrics.density).toInt()
@@ -664,6 +666,8 @@ class PuzzleBoxTool(
 
     fun destroy() {
         destroyed = true
+        capture.removeStopListener(captureStopped)
+        lastFullView = null; lastPuzzleView = null   // the last scan's pictures (about 10 MB each)
         // closed down in the half second before a picture: show the bubble and window again, since the
         // step that would have done it is cancelled below
         if (hiddenForPicture) { setOverlaysVisible(true); hiddenForPicture = false }

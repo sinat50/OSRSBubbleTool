@@ -8,8 +8,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import org.json.JSONObject
 
-// Checks GitHub for a newer release of the app. It checks each time you open the app's main screen
-// (never in the background), and sends nothing about you or your phone.
+// Checks GitHub for a newer release of the app. It checks when you open the app's main screen, at most once an
+// hour (never in the background), and sends nothing about you or your phone.
 object UpdateChecker {
 
     private const val LATEST_API = "https://api.github.com/repos/sinat50/OSRSBubbleTool/releases/latest"
@@ -18,6 +18,7 @@ object UpdateChecker {
     enum class State { NOT_CHECKED, UP_TO_DATE, UPDATE_AVAILABLE }
 
     @Volatile private var checking = false
+    private const val RECHECK_AFTER_MS = 60 * 60 * 1000L   // turning the phone or coming back to the app doesn't ask again
 
     private fun prefs(context: Context) = context.getSharedPreferences("updates", Context.MODE_PRIVATE)
 
@@ -34,8 +35,10 @@ object UpdateChecker {
     // Asks GitHub for the latest release, then calls onChecked on the main thread
     fun check(context: Context, onChecked: () -> Unit) {
         if (checking) return
-        checking = true
         val app = context.applicationContext
+        val last = prefs(app).getLong("checked_at", 0L)
+        if (System.currentTimeMillis() - last in 0 until RECHECK_AFTER_MS) return   // (what it found then is still shown)
+        checking = true
         Thread {
             try {
                 val c = URL(LATEST_API).openConnection() as HttpURLConnection
@@ -45,6 +48,7 @@ object UpdateChecker {
                 c.readTimeout = 15_000
                 try {
                     if (c.responseCode == 200) {
+                        prefs(app).edit { putLong("checked_at", System.currentTimeMillis()) }
                         val j = JSONObject(c.inputStream.bufferedReader().use { it.readText() })
                         val tag = j.optString("tag_name")
                         if (tag.isNotEmpty() && !j.optBoolean("draft") && !j.optBoolean("prerelease")) {

@@ -491,15 +491,26 @@ class GearRecognizer(private val context: Context) {
         var bestS = s0.roundToInt()
         var bestX = x0.roundToInt()
         var bestY = y0.roundToInt()
-        for (s in (s0 * (1 - SIZE_RANGE)).toInt()..(s0 * (1 + SIZE_RANGE)).toInt()) {
-            for (y in (y0.toInt() - range)..(y0.toInt() + range)) {
-                for (x in (x0.toInt() - range)..(x0.toInt() + range)) {
-                    val score = layoutScore(g, s, x, y)
-                    if (score > bestScore) {
-                        bestScore = score; bestS = s; bestX = x; bestY = y
-                    }
+        // Every size and place is tried. On a very big area (one set by hand over most of the screen) that would take
+        // minutes, since the work grows with the width cubed: there it's tried every `step` pixels first, then
+        // pixel by pixel around the best. (Normal equipment panels are under 700 pixels wide: searched as always.)
+        val step = if (w > 700) (w + 499) / 500 else 1
+        val sizes = (s0 * (1 - SIZE_RANGE)).toInt()..(s0 * (1 + SIZE_RANGE)).toInt()
+        val xs = (x0.toInt() - range)..(x0.toInt() + range)
+        val ys = (y0.toInt() - range)..(y0.toInt() + range)
+        fun search(sizes: IntProgression, ys: IntProgression, xs: IntProgression) {
+            for (s in sizes) for (y in ys) for (x in xs) {
+                val score = layoutScore(g, s, x, y)
+                if (score > bestScore) {
+                    bestScore = score; bestS = s; bestX = x; bestY = y
                 }
             }
+        }
+        search(sizes step step, ys step step, xs step step)
+        if (step > 1) {
+            val s1 = bestS; val y1 = bestY; val x1 = bestX
+            search(max(sizes.first, s1 - step)..min(sizes.last, s1 + step),
+                max(ys.first, y1 - step)..min(ys.last, y1 + step), max(xs.first, x1 - step)..min(xs.last, x1 + step))
         }
 
         val rects = OFFSETS.mapValues { (_, off) ->

@@ -57,10 +57,12 @@ class LightBoxTool(
     private var expecting = 0                    // button we asked you to press while learning
     private var strays = 0                       // presses in a row that did what an already-learned button does
 
+    private val captureStopped: () -> Unit = {
+        if (!destroyed && tracking) stop("Screen capture is off. Tap Solve light box to turn it back on.")
+    }
+
     init {
-        capture.addStopListener {
-            if (!destroyed && tracking) stop("Screen capture is off. Tap Solve light box to turn it back on.")
-        }
+        capture.addStopListener(captureStopped)
     }
 
     private fun dp(value: Int) = (value * context.resources.displayMetrics.density).toInt()
@@ -303,6 +305,7 @@ class LightBoxTool(
 
     fun destroy() {
         destroyed = true
+        capture.removeStopListener(captureStopped)
         // closed down in the half second before a picture: show the bubble and window again, since the
         // step that would have done it is cancelled below
         if (hiddenForPicture) { setOverlaysVisible(true); hiddenForPicture = false }

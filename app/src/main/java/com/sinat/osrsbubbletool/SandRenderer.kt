@@ -512,12 +512,21 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
             lamp.tiles = arrayOfNulls(tiles.size)
             lamp.tileStale = BooleanArray(tiles.size) { true }
         }
-        if (lamp.stale) { lamp.stale = false; lamp.tileStale.fill(true) }
         // the tiles its light reaches
         val tx0 = max(0, floor((lamp.flameX - lightReach) / TILE).toInt())
         val tx1 = min(tilesX - 1, floor((lamp.flameX + lightReach) / TILE).toInt())
         val ty0 = max(0, floor((lamp.flameY - lightReach) / TILE).toInt())
         val ty1 = min(tilesY - 1, floor((lamp.flameY + lightReach) / TILE).toInt())
+        if (lamp.stale) {
+            lamp.stale = false
+            lamp.tileStale.fill(true)
+            // moved: let go of the tiles its light no longer reaches (each keeps a picture on the graphics chip)
+            for (k in lamp.tiles.indices) {
+                if (lamp.tiles[k] == null || (k % tilesX in tx0..tx1 && k / tilesX in ty0..ty1)) continue
+                lamp.tiles[k]?.discardDisplayList()
+                lamp.tiles[k] = null
+            }
+        }
         var ready = false                         // the program has been set up for this lantern
         for (ty in ty0..ty1) for (tx in tx0..tx1) {
             val k = ty * tilesX + tx
@@ -594,6 +603,13 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
     private fun gaveUp(e: Exception) {
         broken = true
         android.util.Log.w("ZenGarden", "Smooth drawing not available: ${e.message}")
+    }
+
+    // A lantern was taken away: let the graphics chip forget its light's pictures now, not whenever memory is tidied
+    fun drop(lamp: Lamp) {
+        lamp.tiles.forEach { it?.discardDisplayList() }
+        lamp.tiles = arrayOfNulls(0)
+        lamp.tileStale = BooleanArray(0)
     }
 
     // The window closed: let the graphics chip forget the kept pictures (they're drawn again when it opens)

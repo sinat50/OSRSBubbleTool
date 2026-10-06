@@ -2105,6 +2105,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         // the lanterns' light in the smooth drawing: one for each lantern, with its flame where the lantern is
         val gpu = smooth
         if (gpu != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val before = gpu.lamps.toList()
             gpu.lamps.clear()
             for (k in lamps.indices) {
                 val layer = lampLights[k]
@@ -2112,6 +2113,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                 s.set(lamps[k].x, lamps[k].y, lamps[k].r, lampTurn[k])
                 gpu.lamps.add(s)
             }
+            for (old in before) if (old !in gpu.lamps) gpu.drop(old)   // lanterns taken away
         }
     }
 
@@ -2360,10 +2362,12 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                     if (!moved) tapFirefly(x, y)
                 } else if (tool >= STONE) {
                     val s = held
+                    var added = false
                     if (!moved) {
                         // a tap: take away the item you tapped, or put a new one down
                         if (s != null) { remember(); items.remove(s) }
                         else if (items.size < MAX_ITEMS) {
+                            added = true
                             remember()
                             snapTo(x, y)
                             val thing = newItem(tool, snapX, snapY)
@@ -2374,8 +2378,12 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                         }
                     } else if (s != null) settle(s)
                     held = null
-                    markCovered()
-                    redrawAll()   // the whole tray (the lantern light falls differently now), a band at a time
+                    // something was taken away, put down or moved: the whole tray (the lantern light falls differently
+                    // now), a band at a time. (A swipe over bare sand, or a tap with the tray full, changed nothing.)
+                    if (s != null || added) {
+                        markCovered()
+                        redrawAll()
+                    }
                 } else {
                     sound.level(0f)
                     if (strokeRemembered && tool != BRUSH) { if (!steadyHand || !steady()) liftOut() }

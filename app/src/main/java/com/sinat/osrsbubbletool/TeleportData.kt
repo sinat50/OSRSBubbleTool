@@ -200,6 +200,7 @@ object TeleportData {
         "event", "holiday", "christmas", "halloween", "hallowe'en", "easter", "birthday", "april fools",
         "tutorial", "fight caves wave", "echo", "mirror", "clone", "illusion", "npc contact")
     private val NOT_A_PLACE_RE = NOT_A_PLACE.map { Regex("""\b""" + Regex.escape(it) + """s?\b""") }
+    private val SKILL_REQ = Regex("""^(\d+)\s+([A-Za-z]+)$""")   // "70 Agility" (made once: checked very often)
     private val YEAR = Regex("""\b(19|20)\d\d\b""")   // "Santa (2019)": a holiday event from that year
 
     // The suggestions worth showing: pages that are places, one line per place. "Black dragon" already
@@ -369,7 +370,7 @@ object TeleportData {
         if (requirements.isBlank()) return emptyList()
         val missing = ArrayList<String>()
         for (part in requirements.split(';').map { it.trim() }.filter { it.isNotEmpty() }) {
-            val skill = Regex("""^(\d+)\s+([A-Za-z]+)$""").find(part)
+            val skill = SKILL_REQ.find(part)
             if (skill != null) {
                 val need = skill.groupValues[1].toIntOrNull() ?: continue
                 val have = levels(skill.groupValues[2])

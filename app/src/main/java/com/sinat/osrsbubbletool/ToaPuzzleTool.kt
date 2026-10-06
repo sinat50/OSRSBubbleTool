@@ -152,6 +152,7 @@ class ToaPuzzleTool(
         hideMapOverlay()
         destroyed = true
         handler.removeCallbacksAndMessages(null)
+        endWatchWorker()
         // that may have thrown away a finished look's "give the memory back" step, so give it back now
         // (a look still being worked on gives it back again when it finishes)
         watchBusy = false
@@ -806,6 +807,7 @@ class ToaPuzzleTool(
         if (!matchWatching) return
         matchWatching = false
         handler.removeCallbacks(matchTick)
+        endWatchWorker()
         freeWatchMemory()
         hideMapOverlay()
         if (!destroyed) setWindowCompact(BubbleService.COMPACT_OFF)
@@ -837,7 +839,7 @@ class ToaPuzzleTool(
             val allowed = memory.allowed
             val run = watchRun
             watchBusy = true
-            Thread {
+            watchWorker().execute {
                 var lookBoards: ToaReader.MatchBoards? = null
                 var lookTiles: List<ToaReader.MatchTile>? = null
                 try {
@@ -883,9 +885,15 @@ class ToaPuzzleTool(
                         handler.postDelayed(matchTick, MATCH_QUICK_MS)
                     } else quickLooks = 0
                 }
-            }.start()
+            }
         }
     }
+
+    // One background thread for Watch's looks, kept while watching (rather than a new one for each of the
+    // ~1,000 looks in a 5-minute Watch), and ended when watching stops
+    private var watcher: java.util.concurrent.ExecutorService? = null
+    private fun watchWorker() = watcher ?: java.util.concurrent.Executors.newSingleThreadExecutor().also { watcher = it }
+    private fun endWatchWorker() { watcher?.shutdown(); watcher = null }   // (a look still running finishes first)
 
 
     // Test builds only: how long each part of a Watch look takes, averaged over 20 looks, in the phone's log

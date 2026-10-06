@@ -128,6 +128,7 @@ class ScreenCapturer(
         val d = display ?: return
         d.surface = null   // stops screen copying without ending the capture
         paused = true
+        packed = null   // (nothing to look at while paused: let its memory go)
         drain()
     }
 
@@ -211,19 +212,46 @@ class ScreenCapturer(
             val plane = image.planes[0]
             val pixelStride = plane.pixelStride
             val rowStride = plane.rowStride
-            val paddedWidth = rowStride / pixelStride   // rows can have extra padding at the end
-            val padded = createBitmap(paddedWidth, image.height)
-            val buffer = plane.buffer
-            if (buffer.remaining() < rowStride * image.height) {
-                // some phones leave out the padding after the last row: pad it so the copy fits
-                val full = java.nio.ByteBuffer.allocateDirect(rowStride * image.height)
-                full.put(buffer)
-                full.rewind()
-                padded.copyPixelsFromBuffer(full)
-            } else padded.copyPixelsFromBuffer(buffer)
-            val shot = if (paddedWidth == image.width) padded
-                else Bitmap.createBitmap(padded, 0, 0, image.width, image.height).also { padded.recycle() }
-            return if (singleApp()) onScreen(shot) else shot
+            val iw = image.width
+            val ih = image.height
+            val src = plane.buffer
+            val rowBytes = iw * pixelStride
+            // Only the game shared: the picture is placed where the game sits on the screen, the rest left black
+            var w = iw; var h = ih; var ox = 0; var oy = 0
+            if (singleApp()) {
+                val (sw, sh, _) = screenSize()
+                if (iw <= sw && ih <= sh) {   // (bigger: the phone is mid-turn, so it's used as it is)
+                    val (x, y) = contentOffset(iw, ih)
+                    if (x + iw <= sw && y + ih <= sh) { w = sw; h = sh; ox = x; oy = y }
+                }
+            }
+            val shot = createBitmap(w, h)
+            if (w == iw && rowStride == rowBytes && src.remaining() >= rowBytes * ih) {
+                shot.copyPixelsFromBuffer(src)   // the usual case: the rows are already back to back
+                return shot
+            }
+            // Otherwise the rows are copied one by one into a buffer kept for this (so each look makes one picture,
+            // not three): skipping the padding some phones put at the end of each row, and placing the game.
+            // (Made once and reused: the picture is copied out of it, so nothing keeps hold of it.)
+            val size = w * h * 4
+            val out = packed?.takeIf { it.capacity() >= size }
+                ?: java.nio.ByteBuffer.allocateDirect(size).also { packed = it }
+            out.clear()
+            if (w != iw || h != ih) {
+                // black everywhere first (red, green, blue 0, fully opaque)
+                val black = ByteArray(w * 4)
+                for (i in 3 until black.size step 4) black[i] = 0xFF.toByte()
+                for (y in 0 until h) out.put(black)
+            }
+            val row = src.duplicate()
+            for (y in 0 until ih) {
+                row.limit(y * rowStride + rowBytes).position(y * rowStride)
+                out.position(((oy + y) * w + ox) * 4)
+                out.put(row)
+            }
+            out.position(0).limit(size)
+            shot.copyPixelsFromBuffer(out)
+            return shot
         } catch (e: RuntimeException) {
             return null   // an odd picture from the phone: skip it rather than crash
         } finally {
@@ -231,18 +259,8 @@ class ScreenCapturer(
         }
     }
 
-    // Places a picture of just the game where the game is on the screen, so the tools can use
-    // screen positions. The rest is left black.
-    private fun onScreen(shot: Bitmap): Bitmap {
-        val (w, h, _) = screenSize()
-        if (shot.width > w || shot.height > h) return shot   // the phone is mid-turn: use it as it is
-        val (ox, oy) = contentOffset(shot.width, shot.height)
-        val full = createBitmap(w, h)
-        full.eraseColor(android.graphics.Color.BLACK)
-        android.graphics.Canvas(full).drawBitmap(shot, ox.toFloat(), oy.toFloat(), null)
-        shot.recycle()
-        return full
-    }
+    // Holds one picture's rows while they're put in order (see grab), let go when capture pauses
+    private var packed: java.nio.ByteBuffer? = null
 
     // The newest screen image, read straight from the capture without making a picture.
     // Much quicker when only a few pixels are needed. Null if nothing changed.
@@ -311,6 +329,7 @@ class ScreenCapturer(
         display = null
         reader?.close()
         reader = null
+        packed = null
         projection = null
         width = 0
         height = 0
