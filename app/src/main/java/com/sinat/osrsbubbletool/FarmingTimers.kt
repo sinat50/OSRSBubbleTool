@@ -100,7 +100,11 @@ object FarmingTimers {
                 Timer(4, "fruit_trees", 0, 0, false)
             ).also { save(context, it) }
         // read each timer on its own, so one damaged entry can't lose (or crash on) the rest
-        val array = try { JSONArray(text) } catch (e: Exception) { return mutableListOf() }
+        val array = try { JSONArray(text) } catch (e: Exception) {
+            // unreadable: keep a copy before the next save overwrites it, so the timers aren't lost for good
+            prefs(context).edit { putString("timers_backup", text) }
+            return mutableListOf()
+        }
         val list = mutableListOf<Timer>()
         for (i in 0 until array.length()) {
             try {

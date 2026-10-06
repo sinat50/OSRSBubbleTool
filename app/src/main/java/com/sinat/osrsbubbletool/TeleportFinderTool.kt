@@ -45,6 +45,7 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
 
     private val handler = Handler(Looper.getMainLooper())
     private val work = Executors.newSingleThreadExecutor()
+    private var destroyed = false   // set when the tool is closed down (bubble closed, or dark mode/text size changed)
     private val prefs = context.getSharedPreferences("teleport_finder", Context.MODE_PRIVATE)
     private val sync = WikiSync(context)   // your quests and levels, if you've set up WikiSync (already saved; no download)
     private val teleports: List<TeleportData.Teleport> by lazy {
@@ -173,7 +174,7 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
         val text = q.trim()
         val id = ++searchId
         if (text.length < 2) { suggestions = emptyList(); refresh(); return }
-        work.execute {
+        background {
             val list = try {
                 // Only pages with a map or a spawn list on them, since those are the ones the finder can
                 // place (this leaves out guides, money making pages, items and so on). One request: the
@@ -230,7 +231,7 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
         refresh()
         toTop()
         val id = ++searchId
-        work.execute {
+        background {
             var found: List<TeleportData.Spot>? = checked[title]   // already read for the suggestions
             var onPage = found?.isNotEmpty() ?: false
             var realTitle = title
@@ -353,7 +354,7 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
             if (working != key) {
                 working = key
                 val title = page.orEmpty()   // read here: the page can change while this works in the background
-                work.execute {
+                background {
                     var needs = emptyList<String>()
                     val list = try {
                         val map = map()
@@ -450,7 +451,14 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
         (context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)?.hideSoftInputFromWindow(field.windowToken, 0)
     }
 
+    // Runs a job on the background thread, unless the tool has been closed down. A wiki request that was
+    // already running can still finish after that and ask for more work, which would crash the app.
+    private fun background(job: () -> Unit) {
+        if (!destroyed) work.execute(job)
+    }
+
     fun destroy() {
+        destroyed = true
         handler.removeCallbacksAndMessages(null)
         work.shutdownNow()
     }

@@ -257,7 +257,8 @@ class BubbleService : Service() {
         val onBack: (() -> Unit)?,         // the window's ◀ button; null hides it
         val onClosed: () -> Unit = {},     // its window was closed
         val onRotated: () -> Unit = {},    // the phone turned
-        val onDestroy: () -> Unit = {}     // the bubble is closing: tidy up
+        val onDestroy: () -> Unit = {},    // the bubble is closing: tidy up
+        val isBusy: () -> Boolean = { false }   // still working with its window closed (a puzzle guide on screen)
     )
     // Each tool is only set up the first time you open it, so tools you don't use cost nothing
     private val toolParts = mutableMapOf<Tool, ToolParts>()
@@ -639,7 +640,8 @@ class BubbleService : Service() {
     }
 
     private fun showToolWindow() {
-        if (darkModeWaiting) applyDarkMode()   // the phone's dark mode changed while a window was open
+        // the phone's dark mode changed while a window was open (still waits if a puzzle guide is on screen)
+        if (darkModeWaiting) applyDarkMode(fromPhone = true)
         val window = toolWindows.getOrPut(currentTool) { buildToolWindow(currentTool) }
         if (currentTool == Tool.GAMES) applyFrameless(window)
         val params = makeWindowParams()
@@ -762,6 +764,7 @@ class BubbleService : Service() {
     // COMPACT_BOTTOM_LEFT), so the game can be seen while it shows its answer; or (COMPACT_OFF) to go back to
     // where and how big it was
     private var compactSaved: IntArray? = null   // x, y, width, height, and the wanted x, y, width, height before shrinking
+    private var compactPlace = COMPACT_OFF       // which corner it's shrunk into (to put it back there when the phone turns)
 
     private fun setWindowCompact(place: Int) {
         val on = place != COMPACT_OFF
@@ -772,6 +775,7 @@ class BubbleService : Service() {
         if (!on) {
             val saved = compactSaved ?: return
             compactSaved = null
+            compactPlace = COMPACT_OFF
             bar.visibility = View.VISIBLE
             corner?.visibility = View.VISIBLE
             params.x = saved[0]; params.y = saved[1]; params.width = saved[2]; params.height = saved[3]
@@ -782,6 +786,7 @@ class BubbleService : Service() {
         }
         if (compactSaved == null) compactSaved = intArrayOf(params.x, params.y, params.width, params.height,
             shownWantX, shownWantY, shownWantW, shownWantH)
+        compactPlace = place
         bar.visibility = View.GONE
         corner?.visibility = View.GONE
         params.width = ViewGroup.LayoutParams.WRAP_CONTENT
@@ -1021,12 +1026,13 @@ class BubbleService : Service() {
             )
         }
         Tool.PUZZLE_BOX -> PuzzleBoxTool(toolContext, windowManager, capture, ::setOverlaysVisible) { hideToolWindow() }.let { t ->
-            ToolParts(t::buildView, onBack = null, onClosed = t::onWindowClosed, onRotated = t::onRotated, onDestroy = t::destroy)
+            ToolParts(t::buildView, onBack = null, onClosed = t::onWindowClosed, onRotated = t::onRotated, onDestroy = t::destroy,
+                isBusy = t::isGuiding)
         }
         // (closing the Light Box window keeps it solving: the instructions stay on the light box; tap the bubble to
         // bring the window back, and Stop to end it)
         Tool.LIGHT_BOX -> LightBoxTool(toolContext, windowManager, capture, ::setOverlaysVisible) { hideToolWindow() }.let { t ->
-            ToolParts(t::buildView, onBack = null, onRotated = t::onRotated, onDestroy = t::destroy)
+            ToolParts(t::buildView, onBack = null, onRotated = t::onRotated, onDestroy = t::destroy, isBusy = t::isGuiding)
         }
         Tool.INVENTORY_SETUPS -> InventorySetupsTool(toolContext, windowManager, capture, ::setOverlaysVisible).let { t ->
             ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed, onRotated = t::onRotated, onDestroy = t::destroy)
@@ -1496,7 +1502,7 @@ class BubbleService : Service() {
         val dark = AppSettings.isDark(this)
         darkModeWaiting = false
         if (dark == builtDark) { Palette.dark = dark; return }
-        if (fromPhone && shownWindow != null) { darkModeWaiting = true; return }
+        if (fromPhone && (shownWindow != null || toolParts.values.any { it.isBusy() })) { darkModeWaiting = true; return }
         Palette.dark = dark
         builtDark = dark
         rebuildToolWindows()   // (the web pages built again set the wiki's theme)
@@ -1558,7 +1564,15 @@ class BubbleService : Service() {
         clampBubble()
         windowManager.updateViewLayout(bubble, bubbleParams)
         toolParts.values.forEach { it.onRotated() }
-        if (shownWindow != null) {
+        val shrunk = compactSaved
+        if (shownWindow != null && shrunk != null) {
+            // a shrunk window (a ToA answer) stays shrunk in its corner; when it's done it goes back to its
+            // normal size and place for the new way round, not the old one's
+            val fresh = makeWindowParams()
+            shrunk[0] = fresh.x; shrunk[1] = fresh.y; shrunk[2] = fresh.width; shrunk[3] = fresh.height
+            shrunk[4] = fresh.x; shrunk[5] = fresh.y; shrunk[6] = fresh.width; shrunk[7] = fresh.height
+            setWindowCompact(compactPlace)
+        } else if (shownWindow != null) {
             val params = makeWindowParams()
             rememberWanted(params)
             placeClearOfBars(params)

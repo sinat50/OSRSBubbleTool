@@ -55,6 +55,7 @@ class PuzzleBoxTool(
     private var scanButton: TextView? = null
     private var areaButton: TextView? = null
     private var destroyed = false
+    private var hiddenForPicture = false   // the bubble and window are hidden while a picture is about to be taken
 
     // Kept so you can tap the result to compare with the full screenshot
     private var lastFullView: Bitmap? = null
@@ -195,6 +196,7 @@ class PuzzleBoxTool(
         if (!capture.isActive) {
             status?.text = "Waiting for screen-capture permission..."
             capture.request { ok ->
+                if (destroyed) return@request   // closed down (dark mode, text size) while asking
                 if (ok) scan()
                 else status?.text = "Couldn't turn on screen capture: ${capture.lastError}."
             }
@@ -205,10 +207,12 @@ class PuzzleBoxTool(
         val id = planId   // changes if you stop, rotate or set the area meanwhile: then this scan is dropped
         capture.matchScreenSize()
         setOverlaysVisible(false)
+        hiddenForPicture = true
         handler.postDelayed({
             if (destroyed) return@postDelayed
             val shot = capture.grab()
             setOverlaysVisible(true)
+            hiddenForPicture = false
             if (id != planId) return@postDelayed
             if (shot == null) {
                 status?.text = "Couldn't capture the screen. Try again."
@@ -647,8 +651,14 @@ class PuzzleBoxTool(
         }
     }
 
+    // Scanning, solving or guiding (the bubble waits for this before rebuilding the tools for dark mode)
+    fun isGuiding() = solving || tracking || guide.isShowing
+
     fun destroy() {
         destroyed = true
+        // closed down in the half second before a picture: show the bubble and window again, since the
+        // step that would have done it is cancelled below
+        if (hiddenForPicture) { setOverlaysVisible(true); hiddenForPicture = false }
         handler.removeCallbacksAndMessages(null)   // including a scan that was about to take its picture
         stopGuide(null)
         puzzleArea.hide()

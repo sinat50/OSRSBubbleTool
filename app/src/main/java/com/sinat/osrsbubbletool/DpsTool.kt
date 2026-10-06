@@ -107,7 +107,9 @@ class DpsTool(
     fun buildView(webView: WebView): View {
         web = webView
         // Load the item icons now, in the background, so Import doesn't have to wait for them
-        Thread { try { recognizer.warmUp() } catch (_: Exception) { } }.start()
+        // (Throwable, not Exception: running out of memory on an older phone would otherwise close the whole
+        // app. If it fails, Import tries again and says so if it can't.)
+        Thread { try { recognizer.warmUp() } catch (_: Throwable) { } }.start()
 
         val importButton = button("Import my gear") { importGear() }
         val setArea = button("Set area") { toggleAreaSetup() }

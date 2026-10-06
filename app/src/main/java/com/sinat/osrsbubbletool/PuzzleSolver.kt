@@ -119,8 +119,12 @@ object PuzzleSolver {
 
     // ---------------- Search 2: quicker, near-shortest route ----------------
 
+    // A board waiting to be looked at. The board is kept packed into two numbers (a and c, see key()), not
+    // as a list of 25: a hard scramble can leave over a million of these waiting, and full lists took
+    // 150-200 MB, enough to run a phone out of memory.
     private class Node(
-        val board: IntArray,
+        val a: Long,
+        val c: Long,
         val blank: Int,
         val g: Int,
         val f: Double,
@@ -139,15 +143,30 @@ object PuzzleSolver {
         return Key(a, c)
     }
 
+    // Unpacks a node's board into b (the last tile is whichever one is missing from the first 24)
+    private fun unpack(node: Node, b: IntArray) {
+        var a = node.a
+        var c = node.c
+        for (i in 11 downTo 0) { b[i] = (a and 31L).toInt(); a = a shr 5 }
+        for (i in 23 downTo 12) { b[i] = (c and 31L).toInt(); c = c shr 5 }
+        var sum = 0
+        for (i in 0 until 24) sum += b[i]
+        b[24] = SIZE * (SIZE - 1) / 2 - sum
+    }
+
     private fun weightedAStar(start: IntArray, weight: Double): List<Int>? {
         val open = PriorityQueue<Node>(compareBy { it.f })
         val visited = HashSet<Key>()
-        open.add(Node(start, start.indexOf(EMPTY), 0, weight * heuristic(start), null, -1))
+        val startKey = key(start)
+        open.add(Node(startKey.a, startKey.b, start.indexOf(EMPTY), 0, weight * heuristic(start), null, -1))
         var expanded = 0
+        val board = IntArray(SIZE)   // the board being looked at, unpacked
+        val nb = IntArray(SIZE)
 
         while (open.isNotEmpty()) {
             val node = open.poll() ?: break
-            if (heuristic(node.board) == 0) {
+            unpack(node, board)
+            if (heuristic(board) == 0) {
                 val moves = ArrayList<Int>()
                 var n: Node = node
                 while (true) {
@@ -158,17 +177,18 @@ object PuzzleSolver {
                 moves.reverse()
                 return moves
             }
-            if (!visited.add(key(node.board))) continue
+            if (!visited.add(Key(node.a, node.c))) continue
             if (++expanded > ASTAR_LIMIT) return null
 
             for (next in neighbours[node.blank]) {
                 if (node.parent != null && next == node.parent.blank) continue
-                val nb = node.board.copyOf()
+                board.copyInto(nb)
                 nb[node.blank] = nb[next]
                 nb[next] = EMPTY
-                if (key(nb) in visited) continue
+                val k = key(nb)
+                if (k in visited) continue
                 val g = node.g + 1
-                open.add(Node(nb, next, g, g + weight * heuristic(nb), node, next))
+                open.add(Node(k.a, k.b, next, g, g + weight * heuristic(nb), node, next))
             }
         }
         return null

@@ -39,6 +39,7 @@ class LightBoxTool(
     private var status: TextView? = null
     private var startButton: TextView? = null
     private var destroyed = false
+    private var hiddenForPicture = false   // the bubble and window are hidden while a picture is about to be taken
 
     // Solving state
     private var layout: LightBoxReader.Layout? = null
@@ -103,6 +104,7 @@ class LightBoxTool(
         if (!capture.isActive) {
             status?.text = "Waiting for screen-capture permission..."
             capture.request { ok ->
+                if (destroyed) return@request   // closed down (dark mode, text size) while asking
                 if (ok) start() else status?.text = "Couldn't turn on screen capture: ${capture.lastError}."
             }
             return
@@ -111,10 +113,12 @@ class LightBoxTool(
         val id = ++session   // a second tap, a rotation or Stop meanwhile makes this search out of date
         capture.matchScreenSize()
         setOverlaysVisible(false)
+        hiddenForPicture = true
         handler.postDelayed({
             if (destroyed) return@postDelayed
             val shot = capture.grab()
             setOverlaysVisible(true)
+            hiddenForPicture = false
             if (id != session) return@postDelayed
             if (shot == null) {
                 status?.text = "Couldn't capture the screen. Try again."
@@ -284,8 +288,14 @@ class LightBoxTool(
         if (tracking || guide.isShowing) stop("Screen rotated. Tap Solve light box to start again.")
     }
 
+    // Solving or guiding (the bubble waits for this before rebuilding the tools for dark mode)
+    fun isGuiding() = tracking || guide.isShowing
+
     fun destroy() {
         destroyed = true
+        // closed down in the half second before a picture: show the bubble and window again, since the
+        // step that would have done it is cancelled below
+        if (hiddenForPicture) { setOverlaysVisible(true); hiddenForPicture = false }
         tracking = false
         session++
         handler.removeCallbacksAndMessages(null)

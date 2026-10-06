@@ -26,7 +26,7 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
             "#3DDC5A".toColorInt(),  // move 1: green
             "#FFD60A".toColorInt(),  // move 2: yellow
             "#FF9500".toColorInt(),  // move 3: orange
-            "#FF3B30".toColorInt()   // move 4: red
+            "#FF3B30".toColorInt()   // move 4: redcal
         )
 
         // Outline thickness for move 1, 2, 3, 4, as a fraction of a tile's width.

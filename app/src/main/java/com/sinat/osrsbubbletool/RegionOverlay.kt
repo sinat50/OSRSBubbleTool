@@ -68,6 +68,7 @@ class RegionOverlay(
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
         }
+        keepOnScreen(p, screen)   // (a frame saved off the edge by an older version comes back)
 
         val v = FrameView()
         windowManager.addView(v, p)
@@ -99,6 +100,14 @@ class RegionOverlay(
         frame?.let { windowManager.removeView(it) }
         frame = null
         params = null
+    }
+
+    // Keeps the whole frame on the screen, so it can always be grabbed again (it's saved where you leave it)
+    private fun keepOnScreen(p: WindowManager.LayoutParams, screen: Point) {
+        p.width = p.width.coerceAtMost(screen.x)
+        p.height = p.height.coerceAtMost(screen.y)
+        p.x = p.x.coerceIn(0, screen.x - p.width)
+        p.y = p.y.coerceIn(0, screen.y - p.height)
     }
 
     private fun matchesSavedScreen(width: Int, height: Int) =
@@ -144,6 +153,7 @@ class RegionOverlay(
         private var startW = 0
         private var startH = 0
         private var resizing = false
+        private var screen = Point()   // the screen's size, read when a drag starts
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
@@ -174,17 +184,19 @@ class RegionOverlay(
                     startW = p.width
                     startH = p.height
                     resizing = event.x > width - handleSize && event.y > height - handleSize
+                    screen = realScreenSize()
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = (event.rawX - downX).toInt()
                     val dy = (event.rawY - downY).toInt()
                     if (resizing) {
-                        p.width = max(minSize, startW + dx)
-                        p.height = max(minSize, startH + dy)
+                        p.width = max(minSize, startW + dx).coerceAtMost(screen.x - p.x)
+                        p.height = max(minSize, startH + dy).coerceAtMost(screen.y - p.y)
                     } else {
                         p.x = startX + dx
                         p.y = startY + dy
                     }
+                    keepOnScreen(p, screen)
                     windowManager.updateViewLayout(this, p)
                 }
             }
