@@ -370,6 +370,13 @@ class MainActivity : Activity() {
             "Old School RuneScape and RuneScape are trademarks of Jagex Limited. Item, monster and game pictures are (c) Jagex Limited.\n\n" +
             "OSRS Bubble Tool is free and has no ads or paid features.")
 
+        section("This app's licence",
+            "OSRS Bubble Tool is free software: (c) 2026 sinat50, licensed under the GNU General Public License, version 3 " +
+            "or any later version (gnu.org/licenses/gpl-3.0). You can use, change and share it; if you share a changed " +
+            "version, share its source code under the same licence. It comes with no warranty. The full text is in the " +
+            "LICENSE file at github.com/sinat50/OSRSBubbleTool.\n\n" +
+            "That covers the app's own code. What it includes from others keeps its own terms, listed below.")
+
         section("OSRS Wiki",
             "Content from the Old School RuneScape Wiki (oldschool.runescape.wiki) is used under the Creative Commons " +
             "Attribution-NonCommercial-ShareAlike 3.0 licence (creativecommons.org/licenses/by-nc-sa/3.0). " +

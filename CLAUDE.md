@@ -2,7 +2,8 @@
 
 A free, ad-free Android app for Old School RuneScape mobile: a floating bubble over the game that opens
 small tool windows. Kotlin, Android Views (no Compose), one app module. Package `com.sinat.osrsbubbletool`.
-GitHub: sinat50/OSRSBubbleTool. The README is the user-facing description of every tool.
+GitHub: sinat50/OSRSBubbleTool. Licence: GPL-3.0-or-later (`LICENSE`; the included wiki content, BSD parts and
+game pictures keep their own terms). The README is the user-facing description of every tool.
 
 ## At the start of every new chat
 

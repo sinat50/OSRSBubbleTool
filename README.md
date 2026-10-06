@@ -105,6 +105,16 @@ The app only shows information and waits for you to tap. It never reads the game
 - The Zen Garden's wooden frame uses the [Dark Wood](https://polyhaven.com/a/dark_wood) texture from [Poly Haven](https://polyhaven.com), by Dimitrios Savva, Rico Cilliers and Dario Barresi, released into the public domain ([CC0](https://creativecommons.org/publicdomain/zero/1.0/)); its colour was toned for the app.
 - XP calculators by [oldschool.tools](https://oldschool.tools), shooting star data by [07.gg](https://07.gg).
 
+## Licence
+
+OSRS Bubble Tool is free software: © 2026 sinat50, licensed under the [GNU General Public License, version 3 or
+any later version](LICENSE) (GPL-3.0-or-later). You can use, change and share it; if you share a changed version,
+share its source code under the same licence. It comes with no warranty.
+
+That covers the app's own code. The things it includes from others keep their own terms, listed under Credits:
+the OSRS Wiki content stays under CC BY-NC-SA 3.0 (not for commercial use), the BSD-licensed parts keep their
+notices, and the game pictures are Jagex's, used under Jagex's Fan Content Policy.
+
 ## Legal
 
 Created using intellectual property belonging to Jagex Limited under the terms of Jagex's Fan Content Policy. This content is not endorsed by or affiliated with Jagex.
