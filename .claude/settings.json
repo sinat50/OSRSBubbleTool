@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew.bat assembleDebug)",
+      "Bash(./gradlew.bat lintDebug assembleDebug)",
+      "Bash(./gradlew.bat assembleDebug lintDebug)",
+      "Bash(./gradlew.bat assembleDebug lintDebug testDebugUnitTest)",
+      "Bash(./gradlew.bat lintDebug)",
+      "Bash(./gradlew.bat testDebugUnitTest)",
+      "Bash(python tools/update-check/check_updates.py)",
+      "Bash(python tools/update-check/check_updates.py --fresh)"
+    ]
+  }
+}

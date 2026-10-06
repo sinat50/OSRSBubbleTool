@@ -1,30 +1,34 @@
-# Issue tracker: Local Markdown
+# Plans and to-dos (the issue tracker)
 
-Issues and specs for this repo live as markdown files in `.scratch/`.
+Plans and to-dos are plain text files in `.scratch/` at the top of the project. The folder is in `.gitignore`, so it
+stays on the owner's computer only (not on GitHub, not backed up by Git). `.scratch/README.md` lists what's in it.
 
-## Conventions
+## How the files are laid out
 
-- One feature per directory: `.scratch/<feature-slug>/`
-- The spec is `.scratch/<feature-slug>/spec.md`
-- Implementation issues are one file per ticket at `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01`, never a single combined tickets file
-- Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings)
-- Comments and conversation history append to the bottom of the file under a `## Comments` heading
+- One folder per feature or topic: `.scratch/<topic>/`, e.g. `.scratch/afk-alert/`.
+- The plan for it is `.scratch/<topic>/spec.md`.
+- If the plan is split into separate jobs, each job is its own file: `.scratch/<topic>/issues/<NN>-<name>.md`,
+  numbered `01`, `02`... (three digits, `001`, if a topic will ever have more than 99).
+- Every file has a `Status:` line near the top (see `triage-labels.md` for the allowed words). When work is
+  finished, set `Status: done`.
+- Notes added later go at the bottom under `## Notes`, newest last, each starting with its date.
 
 ## When a skill says "publish to the issue tracker"
 
-Create a new file under `.scratch/<feature-slug>/` (creating the directory if needed).
+Create the file under `.scratch/<topic>/` (make the folder if needed) and add a line for it to `.scratch/README.md`.
 
 ## When a skill says "fetch the relevant ticket"
 
-Read the file at the referenced path. The user will normally pass the path or the issue number directly.
+Read the file at the path given. The owner will normally name the topic or the file.
 
-## Wayfinding operations
+## Which jobs are ready to work on
 
-Used by `/wayfinder`. The **map** is a file with one **child** file per ticket.
+A job is ready when its status is `ready-for-agent` and every file named on its `Blocked by:` line (if it has one)
+is `done`. Never pick up a job marked `needs-info`, `needs-triage`, `ready-for-human`, `wontfix` or `done`.
+If several are ready, take the lowest number first.
 
-- **Map**: `.scratch/<effort>/map.md` (the Notes / Decisions-so-far / Fog body).
-- **Child ticket**: `.scratch/<effort>/issues/NN-<slug>.md`, numbered from `01`, with the question in the body. A `Type:` line records the ticket type (`research`/`prototype`/`grilling`/`task`); a `Status:` line records `claimed`/`resolved`.
-- **Blocking**: a `Blocked by: NN, NN` line near the top. A ticket is unblocked when every file it lists is `resolved`.
-- **Frontier**: scan `.scratch/<effort>/issues/` for files that are open, unblocked, and unclaimed; first by number wins.
-- **Claim**: set `Status: claimed` and save before any work.
-- **Resolve**: append the answer under an `## Answer` heading, set `Status: resolved`, then append a context pointer (gist + link) to the map's Decisions-so-far in `map.md`.
+## Agents working in a separate copy of the project
+
+`.scratch/` isn't in Git, so a helper working in its own copy of the project (a "worktree") can't see it. Give
+it the plan's text directly in its instructions, and write any results back into the files in the main project
+folder yourself.

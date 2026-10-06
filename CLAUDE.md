@@ -223,7 +223,7 @@ Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're gener
 
 - On the owner's PC, build with `gradlew.bat assembleDebug`, and run Android's checks with
   `gradlew.bat lintDebug` (report in `app/build/reports/lint-results-debug.sarif`). The only warnings left
-  are 95 "SetTextI18n" (text written in the code), left on purpose; see Open items.
+  are 95 "SetTextI18n" (text written in the code), left on purpose; see `.scratch/lint-text-warnings/`.
 - ToA screen reading is tested on the PC with `app/src/test/.../ToaReaderTest.kt` (skipped unless pointed at
   pictures): `TOA_SHOTS=<folder>` reads every screenshot fresh; `TOA_REPLAY=<folder>` replays a recording
   (files `f_<time>.png`) through the matching reader and the same memory rules as the app, printing each
@@ -336,35 +336,20 @@ Each release is worked on in its own branch (named like `v1.0.6`), then merged i
 
 ## Open items and ideas
 
-- ToA ideas: reading the obelisk puzzle; tracing the remaining symbol drawings from the owner's close-up
-  addition-room screenshot; a matching symbol is sometimes missed when no clear view of its board is had.
-
-- "SetTextI18n" warnings: ask the owner whether to switch that check off (recommended for an English-only
-  app) or move the text into `strings.xml`.
-- Licence: the app has no LICENSE file yet. GPL-3.0 is the likely choice (the DPS item list is GPL-3.0,
-  and it's needed for F-Droid).
-- F-Droid: needs the licence, an update-check switch for F-Droid builds, fastlane store listing files
-  and screenshots. The included game pictures, `empty_slots.png` and the wiki text would likely get the
-  "Non-Free Assets" label.
-- RuneScape map project data (github.com/mejrs/data_osrs) has no licence: ask the author before using it
-  in bulk. It was recorded before Varlamore, so it has nothing there.
-- Teleport Finder: Mount Karuulm's inner levels, Giant Mole, Corporeal Beast, Wilderness GWD, brine rats,
-  Isle of Souls and Waterfall dungeons, Evil Chicken's Lair and Bryophyta are still estimates. The
-  calcified moth's landing spot and the Neypotzli entrance are estimated (ask the owner what's nearby).
-- Planned: Expedition board (semi-idle game for the Game Room; decide check-in length, ending, art,
-  notifications), AFK timer (tap-based logout countdown first, then optional screen watchers), world map
-  tool (RuneLite world map plugin data, BSD; map pictures from the wiki or drawn from game files like
-  dennisdev/rs-map-viewer, BSD; minimap matching for "you are here").
+Plans, to-dos, questions for the owner and things still to test are files in `.scratch/` (on the owner's computer
+only), listed with their status in `.scratch/README.md`. Add new ones there, not here.
 
 ## Agent skills
 
 ### Issue tracker
 
-Plans and to-dos are plain files in `.scratch/<feature>/`, kept off GitHub (in `.gitignore`). See `docs/agents/issue-tracker.md`.
+Plans and to-dos are plain files in `.scratch/<topic>/`, kept off GitHub (in `.gitignore`), listed in
+`.scratch/README.md`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-The five default status names (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix), written as a `Status:` line in each file. See `docs/agents/triage-labels.md`.
+A `Status:` line in each file: needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix or done. See
+`docs/agents/triage-labels.md`.
 
 ### Domain docs
 

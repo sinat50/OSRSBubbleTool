@@ -1,15 +1,16 @@
-# Triage Labels
+# Status words
 
-The skills speak in terms of five canonical triage roles. This file maps those roles to the actual label strings used in this repo's issue tracker.
+Every file in `.scratch/` has one `Status:` line near the top, using one of these words. The skills' own names for
+them are the same.
 
-| Label in mattpocock/skills | Label in our tracker | Meaning                                  |
-| -------------------------- | -------------------- | ---------------------------------------- |
-| `needs-triage`             | `needs-triage`       | Maintainer needs to evaluate this issue  |
-| `needs-info`               | `needs-info`         | Waiting on reporter for more information |
-| `ready-for-agent`          | `ready-for-agent`    | Fully specified, ready for an AFK agent  |
-| `ready-for-human`          | `ready-for-human`    | Requires human implementation            |
-| `wontfix`                  | `wontfix`            | Will not be actioned                     |
+| Status            | What it means                                                                      |
+| ----------------- | ---------------------------------------------------------------------------------- |
+| `needs-triage`    | New: the owner hasn't decided yet whether or when to do it                         |
+| `needs-info`      | Waiting for the owner to answer a question (the question is in the file)           |
+| `ready-for-agent` | Planned clearly enough for Claude to build without more questions                  |
+| `ready-for-human` | Only the owner can do it (testing in the game, a decision, signing a release...)   |
+| `wontfix`         | Decided against: kept so it isn't suggested again                                  |
+| `done`            | Finished                                                                           |
 
-When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
-
-Edit the right-hand column to match whatever vocabulary you actually use.
+When a skill talks about one of these (for example "mark it ready for an agent"), write that word on the
+`Status:` line.
