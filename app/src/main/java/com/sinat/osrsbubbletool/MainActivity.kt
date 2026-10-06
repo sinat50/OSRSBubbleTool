@@ -91,7 +91,7 @@ class MainActivity : Activity() {
         screen = s
         // The colours are shared with the bubble. If it's holding off a dark mode switch (the phone changed while a
         // tool was in use), the bubble's windows keep their colours: this screen is built in the new ones, then
-        // the bubble's are put back.
+        // the bubble's colours are put back.
         val bubbleColours = Palette.dark
         Palette.dark = AppSettings.isDark(this)
         val dark = Palette.dark
