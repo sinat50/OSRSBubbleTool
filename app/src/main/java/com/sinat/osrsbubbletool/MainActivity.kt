@@ -80,25 +80,34 @@ class MainActivity : Activity() {
     // switched in the bubble's Settings window meanwhile)
     override fun onResume() {
         super.onResume()
-        if (screen == Screen.PERMISSIONS || AppSettings.isDark(this) != Palette.dark) show(screen)
+        if (screen == Screen.PERMISSIONS || AppSettings.isDark(this) != shownDark) show(screen)
         // look for a newer version on GitHub each time the app is opened (unless that's switched off in Settings)
         if (AppSettings.checksUpdates(this)) UpdateChecker.check(this) { if (!isDestroyed) styleUpdateButton() }
     }
 
+    private var shownDark = false   // whether this screen was last drawn in the dark colours
+
     private fun show(s: Screen) {
         screen = s
+        // The colours are shared with the bubble. If it's holding off a dark mode switch (the phone changed while a
+        // tool was in use), the bubble's windows keep their colours: this screen is built in the new ones, then
+        // the bubble's are put back.
+        val bubbleColours = Palette.dark
         Palette.dark = AppSettings.isDark(this)
+        val dark = Palette.dark
+        shownDark = dark
         val content = when (s) {
             Screen.MAIN -> mainScreen()
             Screen.SETTINGS -> settingsScreen()
             Screen.PERMISSIONS -> permissionsScreen()
             Screen.LEGAL -> legalScreen()
         }
+        if (BubbleService.isRunning) Palette.dark = bubbleColours
         setContentView(content)
         // the clock and icons along the top (and bottom) of the screen: dark on the light page, light on the dark one
         WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = !Palette.dark
-            isAppearanceLightNavigationBars = !Palette.dark
+            isAppearanceLightStatusBars = !dark
+            isAppearanceLightNavigationBars = !dark
         }
         updateBackHandling()
     }
@@ -216,7 +225,7 @@ class MainActivity : Activity() {
         addView(label("Settings", 20f, bold = true), matchWidth(10))
         // dark mode switched: draw this screen again in the new colours
         SettingsTool(this@MainActivity) {
-            if (AppSettings.isDark(this@MainActivity) != Palette.dark) show(Screen.SETTINGS)
+            if (AppSettings.isDark(this@MainActivity) != shownDark) show(Screen.SETTINGS)
         }.addSettings(this)
     }
 

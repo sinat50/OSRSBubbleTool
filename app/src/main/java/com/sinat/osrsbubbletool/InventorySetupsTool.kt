@@ -389,6 +389,8 @@ class InventorySetupsTool(
                 }
                 val pic = picture
                 handler.post {
+                    // the setup was deleted while this saved: delete the picture too, so it isn't left in the backup
+                    if (setup !in setups) { File(folder, setup.id).deleteRecursively(); return@post }
                     if (current !== setup) return@post
                     if (pic != null && message.endsWith("saved.")) showPicture(section, pic)
                     status?.text = message

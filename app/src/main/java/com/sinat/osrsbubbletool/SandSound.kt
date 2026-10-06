@@ -112,11 +112,17 @@ class SandSound {
     // How loud to play: 0 = quiet (the sound then stops by itself)
     fun level(v: Float) {
         target = v
-        if (v > 0f && !running) {
-            running = true
-            stopNow = false
-            Thread({ play() }, "SandSound").start()
+        if (v > 0f) {
+            stopNow = false   // (a sound still winding down after stop() carries on instead)
+            startIfStopped()
         }
+    }
+
+    @Synchronized
+    private fun startIfStopped() {
+        if (running) return
+        running = true
+        Thread({ play() }, "SandSound").start()
     }
 
     // The window closed: stop straight away
@@ -190,7 +196,9 @@ class SandSound {
         } finally {
             try { track?.stop() } catch (e: Exception) { }
             track?.release()
-            running = false
+            synchronized(this) { running = false }
+            // asked to play again just as this one was finishing: start again, rather than drop it
+            if (target > 0f && !stopNow) startIfStopped()
         }
     }
 }

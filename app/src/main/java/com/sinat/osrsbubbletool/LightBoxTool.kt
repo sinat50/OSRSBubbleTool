@@ -55,6 +55,7 @@ class LightBoxTool(
     private var lastSeen = 0L
     private var solution: List<Int>? = null
     private var expecting = 0                    // button we asked you to press while learning
+    private var strays = 0                       // presses in a row that did what an already-learned button does
 
     init {
         capture.addStopListener {
@@ -148,6 +149,7 @@ class LightBoxTool(
         layout = found
         state = reading
         effects.fill(null)
+        strays = 0
         candidate = -1
         misses = 0
         finished = false
@@ -221,8 +223,16 @@ class LightBoxTool(
         var note = ""
         if (solution == null && known == -1 && effects[expecting] == null) {
             effects[expecting] = flipped   // learned what this button does
+            strays = 0
         } else if (solution == null && known != -1 && known != expecting) {
-            note = "That was ${LETTERS[known]}. "
+            // The app only sees the lights change, not which button was pressed. Twice in a row "that was A"
+            // while asking for B most likely means B was pressed earlier when A was asked for, so what was
+            // learned as A is really B: swap it, and ask for A again.
+            if (++strays >= 2) {
+                effects[expecting] = flipped
+                effects[known] = null
+                strays = 0
+            } else note = "That was ${LETTERS[known]}. "
         }
         update(note)
     }

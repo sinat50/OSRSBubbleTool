@@ -26,8 +26,8 @@ object PuzzleFinder {
         val mask = BooleanArray(w * h)
         for (y in 0 until h) for (x in 0 until w) mask[y * w + x] = isWood(p.rgb(x * 2, y * 2))
 
-        // 2. The biggest roughly-square patch is the frame (with the lines between tiles)
-        var best: Rect? = null
+        // 2. Roughly-square patches: one of them is the frame (with the lines between tiles)
+        val patches = ArrayList<Rect>()
         val stack = IntArray(w * h)
         for (start in mask.indices) {
             if (!mask[start]) continue
@@ -49,14 +49,21 @@ object PuzzleFinder {
             val bw = (maxX - minX + 1) * 2
             val bh = (maxY - minY + 1) * 2
             if (bw < 100 || bh < 0.85f * bw || bh > 1.15f * bw) continue
-            if (best == null || bw * bh > best.width() * best.height()) {
-                best = Rect(minX * 2, minY * 2, (maxX + 1) * 2, (maxY + 1) * 2)
-            }
+            patches.add(Rect(minX * 2, minY * 2, (maxX + 1) * 2, (maxY + 1) * 2))
         }
-        val outer = best ?: return null
 
-        // 3. How thick the frame is on each side: walk inwards until the wood ends.
-        //    Five lines per side, and the middle answer is used (one may cross the empty space).
+        // 3. The biggest patch whose sides are as thick as the puzzle's frame (a bigger dark-brown square in
+        //    the game, like a wall in shadow, is skipped)
+        for (outer in patches.sortedByDescending { it.width() * it.height() }) {
+            tilesInside(p, outer)?.let { return it }
+        }
+        return null
+    }
+
+    // The tiles inside a patch of frame-coloured wood, or null if its sides aren't as thick as the puzzle's frame
+    private fun tilesInside(p: LightBoxReader.PixelSource, outer: Rect): Rect? {
+        // How thick the frame is on each side: walk inwards until the wood ends.
+        // Five lines per side, and the middle answer is used (one may cross the empty space).
         fun thickness(side: Int): Int {
             val runs = IntArray(5)
             for (k in 0 until 5) {

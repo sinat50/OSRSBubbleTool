@@ -153,6 +153,7 @@ object QuestBook {
         return when (data.questState(quest.name)) {
             WikiSync.FINISHED -> Status.DONE
             WikiSync.IN_PROGRESS -> Status.STARTED
+            null -> Status.UNKNOWN   // WikiSync doesn't list this quest yet (a new one): it may already be done
             else -> if (missing(quest.requirements, data).isEmpty()) Status.READY else Status.MISSING
         }
     }

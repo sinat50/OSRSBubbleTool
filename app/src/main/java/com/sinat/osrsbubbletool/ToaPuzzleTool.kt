@@ -173,7 +173,8 @@ class ToaPuzzleTool(
     fun onWindowClosed() {
         stopMatchWatch(null)
         cancelReading()
-        if (onScreen) { onScreen = false; hideMapOverlay() }
+        // (and the full page back, since the window opens at its full size again; the small row's Done would do nothing)
+        if (onScreen) { onScreen = false; hideMapOverlay(); show() }
     }
 
     // The phone turned: the puzzle has moved on screen, so watching where it was is no use

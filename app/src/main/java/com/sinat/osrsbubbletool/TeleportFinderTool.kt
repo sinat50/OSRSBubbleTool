@@ -74,6 +74,7 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
     // What's on screen
     private var query = ""
     private var suggestions: List<String> = emptyList()
+    private var suggestionsFor = ""                         // the text the suggestions were found for
     private var page: String? = null                       // the wiki page picked
     private var spots: List<TeleportData.Spot> = emptyList()
     private var spot = 0                                    // which of its spots
@@ -109,7 +110,9 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
                     background = GradientDrawable().apply { setColor(PAPER); setStroke(dp(1), BUTTON_BROWN); cornerRadius = dp(6).toFloat() }
                     setText(query)
                     setOnEditorActionListener { _, _, _ ->
-                        suggestions.firstOrNull()?.let { pick(it) } ?: searchNow(text.toString())
+                        // the first suggestion, if it's for what's typed now (not still for an earlier, shorter search)
+                        val first = if (suggestionsFor == text.toString().trim()) suggestions.firstOrNull() else null
+                        first?.let { pick(it) } ?: searchNow(text.toString())
                         true
                     }
                     addTextChangedListener(object : TextWatcher {
@@ -210,7 +213,7 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
             handler.post {
                 if (id != searchId) return@post
                 if (list == null) { message = "Couldn't reach the OSRS Wiki. Check your internet connection."; suggestions = emptyList() }
-                else { message = null; suggestions = list }
+                else { message = null; suggestions = list; suggestionsFor = text }
                 if (page == null) refresh()
             }
         }
@@ -232,7 +235,9 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
         toTop()
         val id = ++searchId
         background {
-            var found: List<TeleportData.Spot>? = checked[title]   // already read for the suggestions
+            // already read for the suggestions (if none of its spots had teleports, it's read again below to tell
+            // apart a page with no map at all from one with no teleport nearby)
+            var found: List<TeleportData.Spot>? = checked[title]?.takeIf { it.isNotEmpty() }
             var onPage = found?.isNotEmpty() ?: false
             var realTitle = title
             if (found == null) try {

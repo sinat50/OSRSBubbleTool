@@ -82,8 +82,8 @@ class FlyerView(context: Context, private val best: () -> Int, private val onSco
         r = min(h * 0.035f, w * 0.06f).coerceAtLeast(6f)
         pillarW = max(r * 2.8f, w * 0.14f)
         sky = LinearGradient(0f, 0f, 0f, ground, SKY_TOP, SKY_BOTTOM, Shader.TileMode.CLAMP)
-        // the window was resized: start over, since the pillars were placed for the old size
-        if (state != State.READY || ow == 0) reset()
+        // the window was resized: start over, since the pillars and the waiting bird were placed for the old size
+        reset()
     }
 
     private fun reset() {

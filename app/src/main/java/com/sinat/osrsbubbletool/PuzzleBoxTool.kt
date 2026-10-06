@@ -419,6 +419,11 @@ class PuzzleBoxTool(
             // Time to re-read the tiles. This needs the newest picture of the screen, so it goes before the
             // check below, which would use that picture up and leave the re-plan waiting for another one.
             if (!solving && now >= replanAt) {
+                // no fresh picture of the screen for a long while: give up rather than show "Re-planning..." for good
+                if (now - replanAt > LOST_AFTER_MS) {
+                    stopGuide("Lost sight of the puzzle. If it's still open, tap Scan puzzle to carry on.")
+                    return
+                }
                 replanNow(area)
                 return
             }
@@ -500,7 +505,10 @@ class PuzzleBoxTool(
                 stopGuide("Lost track of the puzzle. Tap Scan puzzle to start again.")
                 return@load
             }
-            identify(puzzle, puzzles) { match ->
+            // it's the same puzzle as before, so only compare with that one (quicker, and a half-slid tile
+            // can't make it look like a different puzzle)
+            val same = puzzles.filter { it.name == puzzleName }.ifEmpty { puzzles }
+            identify(puzzle, same) { match ->
                 if (!tracking || id != planId) return@identify
                 if (match == null || !match.solvable) {
                     stopGuide("Lost track of the puzzle. Tap Scan puzzle to start again.")

@@ -93,6 +93,9 @@ class WikiSync(context: Context) {
                     } finally {
                         connection.disconnect()
                     }
+                } catch (e: org.json.JSONException) {
+                    // it answered, but with something that isn't player data (a maintenance page, a cut-off reply)
+                    error = "WikiSync sent back something unreadable. Try again in a moment."
                 } catch (e: Exception) {
                     error = "Couldn't reach WikiSync. Check your internet connection."
                 }

@@ -859,11 +859,15 @@ object ToaReader {
         // The symbols a tile could show: in a solo raid, only the five that start unmatched
         val allowed: List<ToaPuzzles.Symbol> get() = if (soloRaid == true) SOLO_SYMBOLS else ToaPuzzles.MATCHING_SYMBOLS
 
-        // Watch is starting: glows have to be seen afresh, and solo or not is decided again
-        fun startWatch() { glowSince.clear(); glowNearUi.clear(); soloRaid = null }
+        // Watch is starting: glows have to be seen afresh. Solo or not is decided again only if nothing is known yet:
+        // Watch started again partway through a group raid would see four or more pairs matched and think it solo.
+        fun startWatch() {
+            glowSince.clear(); glowNearUi.clear()
+            if (symbols.isEmpty() && done.isEmpty()) soloRaid = null
+        }
 
         // Forget everything
-        fun clear() { symbols.clear(); done.clear(); votes.clear(); active = null; startWatch() }
+        fun clear() { symbols.clear(); done.clear(); votes.clear(); active = null; soloRaid = null; startWatch() }
 
         // Adds what one picture showed. `screenW` is the screen's width, to tell where the game's buttons are.
         // True if anything changed.
@@ -875,6 +879,10 @@ object ToaReader {
             fun nearUi(t: Int) = boards.tileX(t) !in (screenW * 0.1f)..(screenW * 0.72f)
             var changed = false
             unsure = false
+            // the tile you've just flipped (it shows its symbol while you stand on it). If two show one (another
+            // player's, or the last one not faded yet), the one already marked stays marked, so it doesn't flicker.
+            val showing = (0 until 18).filter { tiles[it].state == TILE_SYMBOL }
+            if (showing.isNotEmpty() && active !in showing) { active = showing.first(); changed = true }
             for (t in 0 until 18) {
                 val tile = tiles[t]
                 when (tile.state) {
@@ -889,8 +897,6 @@ object ToaReader {
                     TILE_SYMBOL -> {
                         glowSince.remove(t)
                         glowNearUi.remove(t)
-                        // the tile you've just flipped (it shows its symbol while you stand on it)
-                        if (active != t) { active = t; changed = true }
                         val sym = tile.symbol ?: run { unsure = true; continue }
                         val k = ToaPuzzles.MATCHING_SYMBOLS.indexOf(sym)
                         val v = votes.getOrPut(t) { IntArray(9) }

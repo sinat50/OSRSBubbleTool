@@ -18,6 +18,8 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.webkit.JsResult
+import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -47,7 +49,7 @@ class DpsTool(
         // Puts gear into the calculator's saved session, then reloads the page to show it.
         // __GEAR__ is replaced with {"head": 1234, "cape": null, ...}
         private const val LOAD_GEAR_JS = """
-            (async function() {
+            (async function() { try {
                 var gear = __GEAR__;
                 var db = await new Promise(function(res, rej) {
                     var r = indexedDB.open('localforage');
@@ -64,7 +66,8 @@ class DpsTool(
                 });
                 if (!state || !state.loadouts) { alert('Open the calculator once, then try again.'); return; }
                 var ix = state.selectedLoadout || 0;
-                var loadout = state.loadouts[ix];
+                var loadout = state.loadouts[ix] || state.loadouts[0];
+                if (!loadout) { alert('Open the calculator once, then try again.'); return; }
                 if (!loadout.equipment) loadout.equipment = {};
                 for (var slot in gear) {
                     loadout.equipment[slot] = gear[slot] === null ? null : { id: gear[slot] };
@@ -75,7 +78,7 @@ class DpsTool(
                     q.onerror = function() { rej(q.error); };
                 });
                 location.reload();
-            })();
+            } catch (e) { alert("Couldn't load your gear into the calculator. Open the calculator once, then try again."); } })();
         """
     }
 
@@ -106,6 +109,14 @@ class DpsTool(
 
     fun buildView(webView: WebView): View {
         web = webView
+        // The script that loads your gear says what went wrong in an alert: show it in the status line
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onJsAlert(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
+                showStatus(message)
+                result?.confirm()
+                return true
+            }
+        }
         // Load the item icons now, in the background, so Import doesn't have to wait for them
         // (Throwable, not Exception: running out of memory on an older phone would otherwise close the whole
         // app. If it fails, Import tries again and says so if it can't.)
@@ -255,12 +266,24 @@ class DpsTool(
                 .associateWith { picksPrefs.getInt(it, 0) }
             Thread {
                 try {
-                    // Find the side panel by itself; the area set by hand is only a backup
-                    val area = PanelFinder.find(LightBoxReader.Pixels(shot))
-                        ?: equipmentArea.savedArea(shot.width, shot.height)
-                    val r = area?.let { Rect(it) }
-                    if (r == null || !r.intersect(0, 0, shot.width, shot.height) || r.width() < 40 || r.height() < 60) {
-                        shot.recycle()
+                    // Find the side panel by itself; the area set by hand is a backup, also tried when the panel
+                    // found by itself has no equipment slots in it (it found some other window)
+                    val found = PanelFinder.find(LightBoxReader.Pixels(shot))
+                    val saved = equipmentArea.savedArea(shot.width, shot.height)
+                    var tab = cut(shot, found ?: saved)
+                    var result = tab?.let { t -> try { recognizer.recognize(t, preferred) } catch (e: Exception) { null } }
+                    if ((result == null || result.slots.isEmpty()) && found != null && saved != null && saved != found) {
+                        val other = cut(shot, saved)
+                        val second = other?.let { t -> try { recognizer.recognize(t, preferred) } catch (e: Exception) { null } }
+                        if (other != null && second != null && second.slots.isNotEmpty()) {
+                            if (tab != null && tab !== shot) tab.recycle()
+                            tab = other; result = second
+                        } else if (other != null && other !== shot) other.recycle()
+                    }
+                    if (tab !== shot) shot.recycle()   // the full screenshot isn't needed any more
+                    val picture = tab
+                    val reading = result
+                    if (picture == null) {
                         handler.post {
                             busy = false
                             showStatus("Couldn't find your equipment tab. Make sure it's open and not covered, " +
@@ -268,13 +291,10 @@ class DpsTool(
                         }
                         return@Thread
                     }
-                    val tab = Bitmap.createBitmap(shot, r.left, r.top, r.width(), r.height())
-                    if (tab !== shot) shot.recycle()   // the full screenshot isn't needed any more
-                    val result = try { recognizer.recognize(tab, preferred) } catch (e: Exception) { null }
                     handler.post {
                         busy = false
-                        lastCapture = tab
-                        showRecognition(result, tab)
+                        lastCapture = picture
+                        showRecognition(reading, picture)
                     }
                 } catch (t: Throwable) {
                     // e.g. out of memory on an older phone: say so, and let Import be tapped again
@@ -282,6 +302,13 @@ class DpsTool(
                 }
             }.start()
         }, CAPTURE_DELAY_MS)
+    }
+
+    // The part of the screenshot inside area, or null if there's no area or it's too small or off the screen
+    private fun cut(shot: Bitmap, area: Rect?): Bitmap? {
+        val r = area?.let { Rect(it) } ?: return null
+        if (!r.intersect(0, 0, shot.width, shot.height) || r.width() < 40 || r.height() < 60) return null
+        return Bitmap.createBitmap(shot, r.left, r.top, r.width(), r.height())
     }
 
     // The captured window with each found slot outlined in gold
@@ -462,13 +489,17 @@ class DpsTool(
                 val index = picked[slot] ?: 0
                 val item = options[index].item
                 gear.put(slot, item?.id ?: JSONObject.NULL)
-                // you switched this slot to another guess: remember it for next time
+                // you switched this slot to another guess: remember it for next time; you kept a different
+                // item than the one remembered (or nothing): forget it, so it isn't put first again
                 if (index != 0 && item != null) putInt(slot, item.id)
+                else if (picksPrefs.contains(slot) && picksPrefs.getInt(slot, 0) != item?.id) remove(slot)
             }
         }
         closeResults()
-        showStatus("Loading your gear into the calculator...")
+        val loading = "Loading your gear into the calculator..."
+        showStatus(loading)
         web?.evaluateJavascript(LOAD_GEAR_JS.replace("__GEAR__", gear.toString()), null)
-        handler.postDelayed({ showStatus(null) }, 3000)
+        // clear it after a moment, unless something else is showing by then (an error, or a new import)
+        handler.postDelayed({ if (status?.text?.toString() == loading) showStatus(null) }, 3000)
     }
 }

@@ -312,6 +312,9 @@ class QuestSolverViews(private val context: Context, private val refresh: () -> 
                         addView(button("✓ Worked", GO_GREEN) { save(order + r, emptyList()) }.apply { textSize = 11f },
                             LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { rightMargin = dp(4) })
                         addView(button("✗ Reset", RED) { save(order, wrong + r) }.apply { textSize = 11f })
+                    } else {
+                        // tapped ✗ by mistake: put it back, without losing the order found so far
+                        addView(button("Undo") { save(order, wrong - r) }.apply { textSize = 11f })
                     }
                 }, full(3))
             }

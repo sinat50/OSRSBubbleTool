@@ -1235,10 +1235,10 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     // When the finger lifts: a nearly straight stroke becomes perfectly straight, a nearly round one becomes a
     // perfect curve (or a whole circle), and anything else is smoothed out. The stroke is taken back out of the
     // sand and raked again along the tidied path. (Only the squares the stroke raked go back to how they were, so
-    // whatever the auto rake did meanwhile stays.)
-    private fun steady() {
-        val before = undoStack.lastOrNull() ?: return
-        if (before.heights.size != heights.size) return
+    // whatever the auto rake did meanwhile stays.) False if the stroke was left as it is (then it lifts out as usual).
+    private fun steady(): Boolean {
+        val before = undoStack.lastOrNull() ?: return false
+        if (before.heights.size != heights.size) return false
         val path = resample(points, pointCount)
         // the finger trembles where it stops: leave out the last bit (as far as the rake trails behind it on its
         // string), so the tidied line ends where the rake did, not in a scraped stripe
@@ -1246,7 +1246,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         val endX = path[2 * n - 2]
         val endY = path[2 * n - 1]
         while (n > 1 && hypot(path[2 * n - 2] - endX, path[2 * n - 1] - endY) < HAND_STRING) n--
-        if (n < 12 * RES) return   // (shorter than 12 dp: leave it)
+        if (n < 12 * RES) return false   // (shorter than 12 dp: leave it)
         val ax = path[0]; val ay = path[1]; val bx = path[2 * n - 2]; val by = path[2 * n - 1]
         val chord = hypot(bx - ax, by - ay)
         var off = 0f
@@ -1260,7 +1260,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
             val arc = arcThrough(path, n)
             if (arc != null) { tidy = arc; exact = true } else { tidy = smoothed(path, n); exact = false }
         }
-        if (markX1 < 0) return
+        if (markX1 < 0) return false
         // the stroke taken back out (only inside the box around it)
         val base = before.heights
         for (y in max(0, markY0)..min(gh - 1, markY1)) for (x in max(0, markX0)..min(gw - 1, markX1)) {
@@ -1277,6 +1277,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         hand.end = length
         for (k in 1 until tidy.size / 2) rakeTo(hand, tidy[2 * k], tidy[2 * k + 1], if (exact) 1f else 0.5f)
         redrawDirty()
+        return true
     }
 
     // The points again, one square apart
@@ -2377,7 +2378,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                     redrawAll()   // the whole tray (the lantern light falls differently now), a band at a time
                 } else {
                     sound.level(0f)
-                    if (strokeRemembered && tool != BRUSH) { if (steadyHand) steady() else liftOut() }
+                    if (strokeRemembered && tool != BRUSH) { if (!steadyHand || !steady()) liftOut() }
                 }
             }
             MotionEvent.ACTION_CANCEL -> {
@@ -2425,7 +2426,10 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         hand.start(cx + r * cos(start), cy + r * sin(start), tool)
         hand.end = r * sweep                 // (all the way round: it lifts out smoothly over its own start)
         var done = 0f
-        if (soundOn) sound.level(0.55f * if (tool == RAKE) 1f else 0.6f)
+        if (soundOn) {
+            sound.voice = if (tool == STICK) SandSound.STICK else SandSound.RAKE   // (Automatic may have changed it)
+            sound.level(0.55f * if (tool == RAKE) 1f else 0.6f)
+        }
         anim = ValueAnimator.ofFloat(0f, sweep).apply {
             duration = (500 + r / RES * 8).toLong().coerceAtMost(1800)
             interpolator = LinearInterpolator()
@@ -2457,7 +2461,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         wave = FloatArray(4) { Random.nextFloat() * 6.28f }
         items.forEach { it.rings = 0 }
         smoothedTo = 0
-        if (soundOn) sound.level(0.5f)
+        if (soundOn) { sound.voice = SandSound.RAKE; sound.level(0.5f) }
         anim = ValueAnimator.ofInt(0, gw).apply {
             duration = 450
             interpolator = LinearInterpolator()
@@ -2711,7 +2715,8 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         saveSoon()
         val near = flies.firstOrNull { it.leaving < 0f && hypot(it.x - x, it.y - y) < 12f * RES }
         if (near != null) near.leaving = LEAVE_SECONDS
-        else if (flies.count { it.leaving < 0f } < MAX_FLIES) flies.add(Firefly(x, y))
+        // (ones flying away count too: only MAX_FLIES can have their light drawn at once)
+        else if (flies.size < MAX_FLIES) flies.add(Firefly(x, y))
         changed = true
         startFlies()
     }

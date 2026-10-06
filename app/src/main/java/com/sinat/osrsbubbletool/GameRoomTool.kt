@@ -319,6 +319,7 @@ class GameRoomTool(
     // Zen mode: just the tray, with round icons in the bottom left that come and go (see ZenScreen). The garden
     // scales to fit the window (or, with scaling off in the settings, grows and shrinks with it).
     private fun sandGarden(): View {
+        raking = null   // a new garden starts with Automatic off
         val garden = SandGardenView(context, File(context.filesDir, "zen_garden.bin"),
             prefs.getInt("sand_tool", SandGardenView.RAKE).coerceIn(0, SandGardenView.TOOL_NAMES.size - 1)).apply {
             scaleToFit = prefs.getBoolean("sand_scale", true)
