@@ -9,35 +9,30 @@ game pictures keep their own terms). The README is the user-facing description o
 
 Run `python tools/update-check/check_updates.py` (from the project folder) and tell the owner in a few plain
 lines what changed upstream (wiki pages, pictures, source projects, new quests, game updates) and what it
-would mean for the app. Only report: don't update anything unless the owner asks. It reuses its report for
-6 hours, so running it often costs nothing. When a change has been dealt with, or the owner says it doesn't
-matter, mark it with `--checked NAME` (that writes `tools/update-check/checked.json`). The whole
-`tools/update-check/` folder is in `.gitignore` (the owner's own research tool, not on GitHub); how to use it
-is at the top of the script.
+would mean for the app. Only report: update nothing unless the owner asks. It reuses its report for 6 hours.
+When a change has been dealt with, or the owner says it doesn't matter, mark it with `--checked NAME`. The
+`tools/update-check/` folder is the owner's own tool (in `.gitignore`); how to use it is at the top of the script.
 
 ## Working with the owner
 
 - The owner has no coding experience. Explain in plain language, give exact click-by-click steps for
   Android Studio (Windows), and write code comments in plain language too.
-- **Always ask the owner before sending any input to their phone.** No taps, swipes, key presses or other
-  input (`adb shell input`, `monkey`, and so on), and no opening the app on their screen (`am start`), without
-  asking first, every time. The app is made for Old School RuneScape: any automated input while the game is
-  running could get the owner's account banned. Installing a build is fine without asking. Taking a screenshot
-  is fine when they ask for one or agree to it.
-- They test by pressing ▶ in Android Studio on a Samsung phone (SM-S942W), usually in landscape. The phone
-  is often plugged into the PC, so builds can be installed directly (see Checking your work).
+- **Always ask the owner before sending any input to their phone.** Taps, swipes, key presses or other input
+  (`adb shell input`, `monkey`, and so on) and opening the app on their screen (`am start`) each need their OK,
+  every time: the app is made for Old School RuneScape, and automated input while the game runs could get the
+  owner's account banned. Installing a build needs no OK. A screenshot is fine when they ask for one or agree.
+- They test by pressing ▶ in Android Studio on a Samsung phone (SM-S942W), usually in landscape.
 - Priorities, in order: battery, storage, accuracy. Nothing runs in the background unless it must.
-- The signing key lives in `C:\Users\Tanis\Documents\Androiddev\Keys\` and must never be uploaded, moved
-  into the project or committed. Don't ask for access to that folder.
-- Don't send the README every time; update it when features change and mention it at commit time.
+- The signing key lives in `C:\Users\Tanis\Documents\Androiddev\Keys\`: it stays there, out of the project and
+  out of Git. That folder is off limits.
+- Update the README when features change and mention it at commit time (no need to show it every time).
 - Release notes and commit messages are written for players, not developers. The owner commits in Android
   Studio themselves: finish a change with a suggested commit message. Start every commit message with the version
   being worked on, from the release branch's name (`git branch --show-current`, e.g. `v1.0.8 Zen Garden: ...`), not
   `versionName`, which still shows the last release until it's bumped at release time.
 - When committing, remind them that brand-new files sit under "Unversioned Files" in the Commit window and
-  are NOT ticked by default (a commit once left out `AssetDownloader.kt` and `GearIcons.kt`). `HANDOFF.md`
-  (notes between work sessions) is in `.gitignore`, so it never shows up there.
-- Android Studio's commit check ("Analyze code") lists warnings; they don't block a commit.
+  are NOT ticked by default (a commit once left out `AssetDownloader.kt` and `GearIcons.kt`).
+- Android Studio's commit check ("Analyze code") lists warnings and grammar flags; they don't block a commit.
 
 ## Where things are
 
@@ -48,9 +43,9 @@ Code: `app/src/main/java/com/sinat/osrsbubbletool/` (one file per tool, roughly)
 | `BubbleService.kt` | The bubble, its long-press menu, tool windows (move/resize), the `Tool` list (its order is the menu order), `makeParts()` (the one place each tool is set up), and keeping windows clear of the status bar |
 | `MainActivity.kt` | Main screen, Permissions, Legal (all credits and licence notices) |
 | `CaptureManager.kt`, `ScreenCapturer.kt`, `CapturePermissionActivity.kt` | Screen capture: asked once per bubble session; Android 14+ can share just the game |
-| `PuzzleBoxTool.kt`, `PuzzleFinder.kt`, `GridFinder.kt`, `TileMatcher.kt`, `PuzzleSolver.kt`, `MoveGuideOverlay.kt`, `PuzzleReferences.kt` | Puzzle Box Solver |
-| `LightBoxTool.kt`, `LightBoxReader.kt`, `LightBoxGuideOverlay.kt` | Light Box Solver |
-| `ToaPuzzleTool.kt`, `ToaPuzzles.kt`, `ToaReader.kt` | ToA Puzzle Helper (Beta): the five Path of Scabaras puzzles. `ToaPuzzles` = rules and answers (from the LlemonDuck Tombs of Amascut plugin, BSD); `ToaReader` = screen reading, plus `MatchMemory`, what matching Watch remembers between pictures (no Android parts, testable on the PC; the replay test uses the same `MatchMemory`); `ToaPuzzleTool` = the pages, Watch loops and the map drawn at the bottom of the screen. See "ToA Puzzle Helper" below |
+| `PuzzleBoxTool.kt`, `PuzzleFinder.kt`, `GridFinder.kt`, `TileMatcher.kt`, `PuzzleSolver.kt`, `MoveGuideOverlay.kt`, `PuzzleReferences.kt` | Puzzle Box Solver (`MoveGuideOverlay.kt` also holds the guide-window helpers the Light Box shares) |
+| `LightBoxTool.kt`, `LightBoxReader.kt`, `LightBoxGuideOverlay.kt` | Light Box Solver (`LightBoxReader.forEachPatch` is shared with the Puzzle Box) |
+| `ToaPuzzleTool.kt`, `ToaPuzzles.kt`, `ToaReader.kt` | ToA Puzzle Helper (Beta): the five Path of Scabaras puzzles. **Read `docs/toa-helper.md` before changing these.** |
 | `DpsTool.kt`, `GearRecognizer.kt`, `GearIcons.kt`, `PanelFinder.kt` | DPS Calculator (wiki web page) and Import my gear |
 | `InventorySetupsTool.kt`, `RegionOverlay.kt`, `PuzzleAreaOverlay.kt` | Inventory Setups, and the "set area by hand" frames |
 | `TeleportFinderTool.kt`, `TeleportData.kt`, `WalkMap.kt` | Teleport Finder (Beta): wiki lookup, teleport list, walking-route search |
@@ -59,16 +54,16 @@ Code: `app/src/main/java/com/sinat/osrsbubbletool/` (one file per tool, roughly)
 | `HunterRumourTool.kt`, `HunterRumours.kt` | Hunter Rumours |
 | `ZulrahTool.kt` | Zulrah Helper |
 | `FarmingTool.kt`, `FarmingTimers.kt`, `FarmingTimerReceiver.kt` | Timers (one exact alarm per timer, no background work) |
-| `GameRoomTool.kt`, `Game2048View.kt`, `FlyerView.kt`, `GameData.kt`, `SandGardenView.kt`, `SandRenderer.kt`, `SandSound.kt`, `SandGardenLayout.kt` | Game Room: 2048, Wing It and the Zen Garden (`SandRenderer` = the smooth drawing on Android 13+: `shade` hands it each square's values (brightness, slopes, height, placed things), which two graphics-chip programs blend smoothly and colour per screen pixel, the lanterns' light included (worked out entirely on the graphics chip, ridge shadows and all); the sand and each lantern's light are kept in 64-square tiles, redrawn only where the sand changed; older phones use the garden's own square-by-square colours and `relight`; `SandSound` = its raking sound, made in code: filtered noise whose tone was fitted to the owner's recording `tools/sandsound.mp3`; placed things are baked into the sand's own surface (`bake`: height, colour and soft outline per square) so the sun, lantern and firefly light and shadows treat them like the sand; `SandGardenLayout` = zen mode: `ZenScreen` (the tray in its wooden frame, `SandGardenView.drawFrame`, with a button carved into each corner block: Exit top left, the arrow bottom left that opens and closes the row of round `ZenIcon`s along the bottom, and move/resize top and bottom right) and `FlowRow`; the window has no top bar or background (`BubbleService.setGamesFrameless`): its own move and resize corners become invisible touch areas on the carved corners (`pinGamesCorners`), and the window shrinks to the tray (`fitGamesWindowToTray`); the garden scales to fit the window unless "Scale garden to window" is off (the tray sits in the window's top-left corner, not centred, so resizing keeps that corner still). The frame's wood is `res/drawable-nodpi/zen_wood.jpg` (Poly Haven, CC0, credited); `tools/gardenbox.png` is the owner's frame sketch, not committed) |
-| `CalculatorTool.kt`, `NotesTool.kt`, `UpdateChecker.kt`, `WikiLinkActivity.kt` | Calculator, Notepad, GitHub update check, wiki links opening in the bubble |
-| `SettingsTool.kt`, `Palette.kt` | Settings (`AppSettings`: dark mode, tool and web page text size, bubble size/fade/hold time/vibration, window width in landscape, reset windows, tools hidden from the menu, update check; the page is shared by the bubble's Settings window and the main screen's Settings screen; the bubble hears changes through `BubbleService.settingsChanged`) and the app's colours, light and dark (see "Dark mode" below) |
+| `GameRoomTool.kt`, `Game2048View.kt`, `FlyerView.kt`, `GameData.kt`, `SandGardenView.kt`, `SandRenderer.kt`, `SandSound.kt`, `SandGardenLayout.kt` | Game Room: 2048, Wing It and the Zen Garden. **Read `docs/zen-garden.md` before changing the `Sand*` files.** |
+| `CalculatorTool.kt`, `NotesTool.kt`, `UpdateChecker.kt`, `WikiLinkActivity.kt` | Calculator, Notepad, GitHub update check (at most once an hour), wiki links opening in the bubble |
+| `SettingsTool.kt`, `Palette.kt` | Settings (`AppSettings`; the page is shared by the bubble's Settings window and the main screen; the bubble hears changes through `BubbleService.settingsChanged`) and the app's colours, light and dark |
 
 Resources: `app/src/main/res/`: `drawable/ic_bubble.xml` (the bubble), `ic_launcher_bubble*.xml` and
 `ic_launcher_monochrome.xml` (app icon, plus its one-colour version for Android 13+ themed icons),
-`xml/backup_rules.xml` and `xml/data_extraction_rules.xml` (what Android backs up, see below). There are no
-layout files: every screen is built in code.
+`xml/backup_rules.xml` and `xml/data_extraction_rules.xml` (what Android backs up). There are no layout files:
+every screen is built in code.
 
-Data: `app/src/main/assets/`
+Data: `app/src/main/assets/` (how to run the scripts: `tools/README.md`)
 
 | File | Built by | From |
 | --- | --- | --- |
@@ -80,208 +75,113 @@ Data: `app/src/main/assets/`
 | `dps/empty_slots.png` | cut from a game screenshot | what empty equipment slots look like |
 | `dps/icons/` (4,991 item pictures, 2.6 MB), `puzzles/`, `quest_images/` | `tools/dps/fetch_pictures.py` | DPS calculator repository at `GearIcons.COMMIT`; OSRS Wiki |
 
-See `tools/README.md` for how to run the scripts.
+On the owner's computer only (in `.gitignore`): `.scratch/` (plans and to-dos, see below), `trailer/` (the app's
+trailer and the ToA demo video; how to update them is in `trailer/README.md`), `tools/update-check/`.
 
-`trailer/` (at the top of the project, and in `.gitignore`, so it's only on the owner's computer, not on
-GitHub) holds the finished trailer, its opening and closing cards as clips and stills (`trailer/out/`), and
-the source for all of it. To update the cards for new features, edit `trailer/splash.json` and follow
-`trailer/README.md`. The closing card lists all 18 tools from the README (no "Also:"); the full 36 s trailer
-in `trailer/full-trailer/` still has the old list and says "17 tools". The PC has no Node.js or ffmpeg: the
-cards were recorded with a Python port of `render.js` (Playwright for Python plus imageio-ffmpeg in a
-throwaway environment). `trailer/toa-demo/` holds a 62 s ToA Puzzle Helper demo (`toa-demo.mp4`, made from
-`raw/toa_demo.mp4`, a phone screen recording, by `edit.py` and `captions.py`: cuts, speed-ups with "3× speed"
-labels, captions, the owner's name in the chat smeared, then `outro-wide.mp4`, the closing card at the phone's
-2340×1080). Phone screen recordings: `adb shell screenrecord --time-limit 0 /sdcard/Movies/<name>.mp4` with
-the game already sideways; stop it with `kill -INT` on the `screenrecord` process (`pkill` hits the wrong one)
-so the file is finished properly, then copy it off and delete it from the phone. In Git Bash, set
-`MSYS_NO_PATHCONV=1` or phone paths get mangled.
-
-Don't read or search `build/`, `.gradle/`, `.idea/` or `.kotlin/`: they're generated and huge.
+`build/`, `.gradle/`, `.idea/` and `.kotlin/` are generated and huge: leave them out of reads and searches.
 
 ## How things work (the parts that aren't obvious)
 
 - **Tools** are only created the first time they're opened. Each one gives `makeParts()` a `ToolParts`:
-  its window contents, its ◀ action, and what to do when its window closes, the phone turns, or the
-  bubble closes. A new tool needs its line in the `Tool` list and its part in `makeParts()` (the build
-  fails until it has both).
-- **Windows**: every tool window can be moved (drag the top bar) and resized (bottom-right corner;
-  double-tap it to reset), except the Light Box and Puzzle Box Solvers, which are small and sit top right.
-  Windows share one position; each tool remembers its own size per orientation. The Notepad starts at
-  the top, sized to fit above the keyboard.
+  its window contents, its ◀ action, what to do when its window closes, the phone turns or the bubble closes,
+  and `isBusy` (still working with its window closed, like a puzzle guide). A new tool needs its line in the
+  `Tool` list and its part in `makeParts()` (the build fails until it has both).
+- **Windows**: every tool window can be moved (drag the top bar, `moveWindowTo`) and resized (bottom-right
+  corner; double-tap it to reset), except the Light Box and Puzzle Box Solvers, which are small and sit top right.
+  Windows share one position; each tool remembers its own size per orientation. The Notepad starts at the top,
+  sized to fit above the keyboard. A tool can shrink its window to a few buttons in a corner
+  (`setWindowCompact`); it stays shrunk when the phone turns.
 - **Status bar and navigation bar**: Android draws them over everything, so a window's bar under them can't be
   grabbed. Overlay windows aren't told when they show or hide (window insets don't work for them), so
-  `BubbleService.addBarProbes()` adds two invisible strips (read together by `checkBars`, just after they're laid
-  out and again after the phone turns, since a strip can be laid out before the screen size catches up) Android keeps clear of the bars: a 1-pixel-wide one
-  top to bottom (its top = status bar, its bottom = a navigation bar along the bottom) and a 1-pixel-tall one
-  across the top (its ends = a navigation bar down one side, as on the emulator in landscape). While the bars
-  show, windows and the bubble stay clear of them (`placeClearOfBars`, `clearRight()`/`clearBottom()` for
-  dragging and resizing; too big windows get smaller for a while); they go back to where you left them
-  (`shownWantX/Y/W/H`) when the bars hide, as they do in the game. Status bar tested on the owner's phone;
-  navigation bar (October 2026) tested on the owner's phone (3-button bar at the bottom, 144 px) and the
-  emulator (3-button bar on the right in landscape, at the bottom upright).
-- **Game pictures come with the app** (owner's decision, October 2026), in `assets/dps/icons/`,
-  `assets/puzzles/` and `assets/quest_images/`, made by `tools/dps/fetch_pictures.py`. They're Jagex's
-  artwork, included under Jagex's Fan Content Policy; if Jagex objects, the fallback is downloading them
-  again. History: v1.0.6 test builds downloaded them instead (first a 170 MB ZIP of the whole DPS calculator
-  repository, almost all monster pictures; then each picture separately: GitHub was ~30 s at 48 at once,
-  jsDelivr 2.5-5 min until its caches warm). osrsbox-db's per-slot files were checked too: frozen since
-  2021, only 67% of the items. `MainActivity.removeOldDownloads()` deletes those downloaded copies once.
-  The DPS tool loads all item pictures into memory when its window first opens (the owner chose to keep
-  this, so Import my gear is quick).
-- **Dark mode** (October 2026): every screen's colours come from `Palette` (tools import its `PARCHMENT`, `DARK_BROWN`...
-  directly, `import com.sinat.osrsbubbletool.Palette.PARCHMENT`), read when a view is built. Switching it makes `BubbleService.rebuildToolWindows()`
-  destroy and rebuild all tools (the open window reopens; the Wiki keeps its page); the main screen redraws. When
-  the phone's own dark mode changes under "Match phone", the rebuild waits until no tool window is open (it would
-  stop a ToA Watch or a puzzle guide mid-use).
-  Pictures drawn like the game (ToA maps, puzzle diagrams, Zen Garden, game icons) keep fixed colours (`INK` in
-  `ToaPuzzleTool`). Web pages get a dark theme context, so sites with a `prefers-color-scheme` dark look use it
-  (DPS calculator; GE Prices is dark anyway); the OSRS Wiki ignores that and uses a `theme=dark`/`light` cookie
-  (Weird Gloop themes), set by `setWikiTheme` (which remembers if it last set it dark, so it's set back to light
-  even if dark mode was turned off while the bubble was closed). Text boxes set their own text and hint colours (the service's
-  theme otherwise follows the phone's dark mode). Tested on the emulator; the Settings menu entry sits below a
-  line after the tools, above Close bubble. The web text size multiplies each page's own `textZoom`.
+  `BubbleService.addBarProbes()` adds two invisible strips that Android keeps clear of the bars, read together by
+  `checkBars` (after layout and again after the phone turns): a 1-pixel-wide one top to bottom (its top = status
+  bar, its bottom = a navigation bar along the bottom) and a 1-pixel-tall one across the top (its ends = a
+  navigation bar down one side, as on the emulator in landscape). While the bars show, windows and the bubble stay
+  clear of them (`placeClearOfBars`, `clearRight()`/`clearBottom()` for dragging and resizing; too big windows
+  get smaller for a while), and go back to where you left them (`shownWantX/Y/W/H`) when the bars hide, as they
+  do in the game.
+- **Game pictures come with the app** (owner's decision), in `assets/dps/icons/`, `assets/puzzles/` and
+  `assets/quest_images/`. They're Jagex's artwork, included under Jagex's Fan Content Policy; if Jagex objects,
+  the fallback is downloading them instead (tried in v1.0.6 test builds: slow, from GitHub or jsDelivr).
+  `MainActivity.removeOldDownloads()` deletes those old downloaded copies once. The DPS tool loads all item
+  pictures into memory when its window first opens (the owner chose this, so Import my gear is quick).
+- **Dark mode**: every screen's colours come from `Palette` (tools import its `PARCHMENT`, `DARK_BROWN`...
+  directly), read when a view is built. Switching it makes `BubbleService.rebuildToolWindows()` destroy and
+  rebuild all tools (the open window reopens; the Wiki keeps its page); the main screen redraws in its own
+  colours. When the phone's own dark mode changes under "Match phone", the rebuild waits until no tool window is
+  open and no tool `isBusy` (it would stop a ToA Watch or a puzzle guide mid-use). Pictures drawn like the game
+  (ToA maps, puzzle diagrams, Zen Garden, game icons) keep fixed colours (`INK` in `ToaPuzzleTool`). Web pages get
+  a dark theme context, so sites with a `prefers-color-scheme` dark look use it; the OSRS Wiki ignores that and
+  uses a `theme=dark`/`light` cookie, set by `setWikiTheme` (which remembers if it last set it dark, so it's set
+  back to light even if dark mode was turned off while the bubble was closed). Text boxes set their own text and
+  hint colours.
 - **Tool text size**: tools are built with `BubbleService.toolContext`, a wrapper whose resources have Android's
   font scale multiplied by the setting (so every `textSize` in sp grows; dp sizes and drawn pictures don't).
-  Changing it rebuilds the tools like dark mode, 0.7 s after the last − or + tap (`TEXT_SIZE_WAIT_MS`). Tested at 130% on the owner's phone (Settings, Light Box, ToA
-  list fit). Vibration on long-press couldn't be checked remotely (the phone was on silent, which stops touch
-  vibration); window width was tested on the emulator in landscape; everything else on the owner's phone.
-- **Backups**: only shared preferences and `files/setups/` (Inventory Setups pictures) are backed up or
-  moved to a new phone (Android stops backing up an app entirely past 25 MB).
-- **Screen capture** pauses itself 3 seconds after the last use and is asked for once per bubble session.
-  With single-app sharing, pictures are placed where the game sits on screen. The Puzzle Box and Light Box
-  Solvers check the screen every 80 ms while guiding (`capture.sample`, a few pixels, no picture made);
-  if only the game is shared and you leave it (`capture.gameHidden`), they stop and take their outlines off
-  the screen. A re-plan needs a fresh picture, so it must `grab()` before anything `sample()`s that tick.
-  Heavy work (finding the puzzle, reading tiles, recognising gear) runs on background threads.
+  Changing it rebuilds the tools like dark mode, 0.7 s after the last − or + tap (`TEXT_SIZE_WAIT_MS`). The web
+  text size multiplies each page's own `textZoom`.
+- **Backups**: only shared preferences and `files/setups/` (Inventory Setups pictures) are backed up or moved to
+  a new phone (Android stops backing up an app entirely past 25 MB).
+- **Screen capture** pauses itself 3 seconds after the last use and is asked for once per bubble session. Each
+  picture (`grab`) is one bitmap; with single-app sharing it's placed where the game sits on screen. The Puzzle
+  Box and Light Box Solvers check the screen every 80 ms while guiding (`capture.sample`, a few pixels, no
+  picture made); if only the game is shared and you leave it (`capture.gameHidden`), they stop and take their
+  outlines off the screen. A re-plan needs a fresh picture, so it must `grab()` before anything `sample()`s that
+  tick. Heavy work (finding the puzzle, reading tiles, recognising gear) runs on background threads; all
+  `grab()` calls are on the main thread.
 - **Battery**: web pages in hidden windows are paused; Wing It only animates while you're playing; the Zen
-  Garden's sand is a height grid (1.5 squares per dp, `SandGardenView.RES`; every size in squares is written as dp × RES) redrawn only where the rake touched it (big changes, like placing something or Undo, are redrawn a band of rows per frame, `redrawAll`), its sound thread
-  runs only while raking, and its light is fixed (a slider only changes a wash and the lantern strength); while a lantern is
-  out and the garden is on screen it redraws ~25 times a second for the flame flicker (only the brightness of each
-  lantern's own ready-made light picture changes, each in its own time, nothing is recalculated); the auto rake and the fireflies each run ~30 frames a
-  second only while switched on / let out and the garden is on screen (a glowing firefly relights only its own
-  patch, every other square); nothing
-  allocates objects in `onDraw`.
-- **Teleport Finder routes**: `WalkMap` spreads out from the target (reverse Dijkstra over the collision
-  map plus `walks.txt`). Walks can carry requirements ("70 Agility; Regicide"); with WikiSync set up, ones
-  you can't use are skipped. Closed-off areas fall back to dungeon-entrance estimates ("guess" results).
-  Joins into closed-off areas are precomputed (`find_closed_off_areas.py`).
-- **Wiki links** from the game open in the bubble's Wiki window via `WikiLinkActivity`, only if the owner
-  turns on "Open by default" for the wiki (it can't be auto-verified: not our website).
-- **ToA Puzzle Helper** (built October 2026 with the owner testing live in raids; all reading was built from
-  the owner's phone screenshots, never guessed):
-  - Light: one picture, finds the ring of 8 plates (unlit = solid yellow square on purple, lit = pale glow with
-    a beam; facing east the squares show as diamonds). Addition: reads the red number from the chat line "The
-    number N has been hastily chipped into the stone." (digit templates typed by the owner into the chat; only
-    the left 60% of the screen is searched, so a red HP orb can't fool it). The symbol layout is fixed every
-    raid. Sequence: one picture finds the 9 tiles, then `capture.sample` checks just those tiles ~12×/s for
-    the 5 flashes. The tiles are found only once, when Watch is tapped, so the camera must stay still until they
-    flash (the page's tip under Watch says so). It waits 20 s for the first flash (`WATCH_FIRST_FLASH_MS`; the
-    owner tried 2 minutes and found it excessive), with a seconds countdown next to Stop in the shrunk window
-    (`sequenceSecondsLeft`), then 5 s for each next one. Obelisk: tap-in only (obelisks are small and hard to see from the safe spot).
-  - Matching ("Watch"): the camera follows the player, so both 3×3 boards are found again in every picture,
-    3 looks a second (~130 ms each on the phone), plus up to 3 quick looks in a row (40 ms apart) right after a
-    look that saw a symbol not settled yet (`MatchMemory.unsure`), so it's caught before the player steps off it.
-    A pair counts as matched after glowing 0.8 s (was 1.5 s; replays unchanged apart from marking sooner). Hard-won rules, each found from real failures:
-    first look needs both boards side by side, and picks the pair with the most yellow on both (the
-    see-through inventory over the next room's floor makes a perfect fake board of "hidden-grey" squares);
-    after that each board keeps its identity and direction from the last picture (`orientLike`; players turn
-    the camera a lot); if both are lost it searches afresh (`freshPair`); jumps over 2.5 tiles are bad fits;
-    only boards actually found are read, and symbols only from boards with 8+ of 9 tiles lined up (7 can be a
-    tile out of place, which put a wiggle on the wrong tile at close zoom); a tile counts as matched only in
-    pairs (`settlePairs`; the orbs by the minimap can look like a glow), or alone after glowing 4 s away from
-    the right-hand UI (a raid's starting pairs, whose partner may be hidden). Revealed symbols vanish when the
-    player steps on the next tile and are often half hidden by the player, so recognition compares only the
-    visible points against 31 samples (`SYMBOL_SAMPLES`, from the matching and addition rooms).
-  - Several "obvious" improvements made the recorded replays worse and were undone: searching only near the
-    boards, skipping a board once found whole, fewer candidate marks, best pair every frame, nearest board to
-    last time. Always check a change against the recordings (see Checking your work).
-  - Answers on screen: after a reading (or while watching) the window shrinks to a few buttons
-    (`BubbleService.setWindowCompact`: `COMPACT_TOP_LEFT`, or `COMPACT_BOTTOM_LEFT` for the addition puzzle so
-    the chat stays clear) and the puzzle's map is drawn alone at the bottom of the screen in a separate
-    untouchable overlay. Both areas are skipped when reading. Each page: a tip line, main buttons, a `?` for
-    instructions, and tap-in controls behind "Solve manually". The list of puzzles shows a small picture of
-    each board (`puzzleIcon`, drawn with the same helpers as the maps, part-way through the puzzle); the owner
-    liked them as they are.
-  - Per-pixel code must not use Kotlin function types like `(Int, Int) -> Boolean`: on Android every call
-    boxes its arguments (a million objects per look, 500 ms instead of 85). `ToaReader.Skip` is a
-    `fun interface` for that reason.
-  - Test builds only (debuggable): pictures a reader couldn't make sense of are saved to the app's
-    `cache/toa_debug` (newest 30, one per 2 s), and Watch logs its timings (`adb logcat -s ToaWatch`).
-- **Every outside source must be credited** on the Legal screen (`MainActivity.legalScreen`) and in the
-  README's Credits. Check the licence first: BSD/MIT/GPL are fine with notices; no licence means look
-  things up only, don't copy in bulk.
+  Garden's rules are in `docs/zen-garden.md`.
+- **Teleport Finder routes**: `WalkMap` spreads out from the target (reverse Dijkstra over the collision map
+  plus `walks.txt`). Walks can carry requirements ("70 Agility; Regicide"); with WikiSync set up, ones you can't
+  use are skipped. Closed-off areas fall back to dungeon-entrance estimates ("guess" results). Joins into
+  closed-off areas are precomputed (`find_closed_off_areas.py`).
+- **Wiki links** from the game open in the bubble's Wiki window via `WikiLinkActivity`, only if the owner turns
+  on "Open by default" for the wiki (it can't be auto-verified: not our website).
+- **Every outside source must be credited** on the Legal screen (`MainActivity.legalScreen`) and in the README's
+  Credits. Check the licence first: BSD/MIT/GPL are fine with notices; with no licence, look things up only
+  (copying in bulk needs the author's permission).
 
 ## Code style
 
 - Colours: `"#3E2C12".toColorInt()`; saved settings: `prefs.edit { putInt(...) }`; web addresses:
   `"...".toUri()` (androidx core-ktx). Android's check (lint) flags the older forms.
-- No Kotlin function types (`(Int) -> Boolean`) in code run for every pixel: they box on Android. Use a
-  `fun interface` (see `ToaReader.Skip`).
-- Plain-language comments, matching the existing ones. Text shown on screen is written in the code (the app
-  is English-only), not in `strings.xml`.
+- Code run for every pixel uses a `fun interface` (see `ToaReader.Skip`), never a Kotlin function type like
+  `(Int, Int) -> Boolean`: on Android every call boxes its arguments (a million objects per look, 500 ms instead
+  of 85).
+- Plain-language comments, matching the existing ones. Text shown on screen is written in the code (the app is
+  English-only), not in `strings.xml`.
 
 ## Checking your work
 
-- On the owner's PC, build with `gradlew.bat assembleDebug`, and run Android's checks with
-  `gradlew.bat lintDebug` (report in `app/build/reports/lint-results-debug.sarif`). The only warnings left
-  are 95 "SetTextI18n" (text written in the code), left on purpose; see `.scratch/lint-text-warnings/`.
-- ToA screen reading is tested on the PC with `app/src/test/.../ToaReaderTest.kt` (skipped unless pointed at
-  pictures): `TOA_SHOTS=<folder>` reads every screenshot fresh; `TOA_REPLAY=<folder>` replays a recording
-  (files `f_<time>.png`) through the matching reader and the same memory rules as the app, printing each
-  frame, every change to the remembered boards (`MEMORY` lines) and the time per picture; `TOA_DEBUG_FRAME=n`
-  lists the candidate boards in frame n. Run with `--rerun-tasks`: Gradle otherwise skips the test when only
-  the folder changed. The pictures are never part of the project.
-- Recording a live solve: while the owner plays, two `adb exec-out screencap -p` loops save ~2.5 pictures a
-  second until told to stop (the owner says "start" and "stop"). Recordings and screenshots are kept outside
-  the project in `C:\Users\Tanis\Documents\Androiddev\toa_recordings\` (never commit them; the `Keys` folder
-  next to it is off limits): `matching_1\` (192 pictures, a full solo solve: the replay should end with all
-  nine pairs matched), `matching_2\` (114 pictures, a later run that started with the inventory open) and
-  `screenshots\` (every puzzle room, used with TOA_SHOTS). Any change to the matching reader must replay both
-  recordings without getting worse. Put new recordings there too.
-- Zen Garden smoothness: test builds log, once a second while the garden is busy, the main thread's time on
-  each step (`adb logcat -s ZenTiming`: rake, shade, light, draw). The game's frame rate while the garden runs:
-  `dumpsys SurfaceFlinger --timestats -enable -clear`, wait, `--timestats -dump` (the game's layer is its
-  `SurfaceView[com.jagex.oldscape.android...]`); the garden's own last ~120 frames: `dumpsys gfxinfo
-  com.sinat.osrsbubbletool framestats`. October 2026, with the smooth drawing: game 60-62 fps with 0 dropped
-  frames (garden idle, Auto, or raking); garden ~2 ms of graphics chip per frame; raking ~25% of the main thread.
-  Lessons: nothing slow may run on the main thread mid-stroke (the lantern light and saving both made strokes
-  stutter until moved off it: the light onto the graphics chip, saving onto a background thread), and only the
-  squares a press can touch are visited. The garden's Battery saver setting (Android 13+) switches to the
-  garden's own drawing; measured October 2026 with 4 lanterns and fireflies out (30 s each): idle, processor 25.5%
-  vs 27.8% of a core, graphics chip 4.0% vs 0.9% busy (`/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage`); raking,
-  78% vs 69% and 14% vs 2.7%. Lanterns and fireflies keep the garden redrawing ~25-30 times a second even when
-  idle (about a quarter of a core): worth trimming one day.
-  A fair before/after test (5 October 2026): the owner's garden (4 lanterns, fireflies, dark, small window) restored
-  from a backup before each run, then 30 s of scripted back-and-forth strokes (`adb shell input swipe`, only with
-  the owner's OK and the game closed). Sending the graphics chip only the changed value pictures, and redrawing
-  the frame only when it changes, took raking from 87% to 81% of a core, the graphics chip from 35% to 32% busy,
-  late frames from ~3.5% to ~2% and the slowest 1% from 13-14 ms to 11-12 ms; idle unchanged (10.6%, 3-4%). The
-  phone's screen runs at 120 Hz, so the garden draws ~118 frames a second while raking. Nonstop scripted strokes
-  are much heavier than October's hand measurement, so only compare runs done the same way.
-- Battery check: read the app's processor time from `/proc/<pid>/stat` (fields 14+15, in 1/100 s) at the start
-  and end of a minute with the feature on and off, plus `dumpsys meminfo com.sinat.osrsbubbletool`.
-  October 2026: matching Watch ≈ 45% of one core (the game itself ≈ 80%), about 20-30 MB extra memory.
-- The owner is happy to be asked for screenshots ("screenshot") or to describe what they see; taking one with
-  `adb exec-out screencap -p` while they play is the fastest way to understand a problem.
-- Phone plugged in: `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe install -r
-  app\build\outputs\apk\debug\app-debug.apk` installs the build (fine without asking; same as ▶; it closes the bubble, so
-  the owner has to tap Start Bubble again), and `adb shell dumpsys window windows` shows where the app's
-  windows really are on screen. Never send input (`adb shell input` taps or swipes) to the phone without asking
-  first, every time: the game may be running, and automated input could get their account banned.
-- Emulator: "Phone Emulator" (`emulator -avd Phone_Emulator`, Android 16, 2340×1080 like the owner's phone,
-  shows up as `emulator-5554`; pick it in Android Studio's device list next to ▶). Good for layouts, buttons and
-  crashes; not for speed or battery numbers (it runs on the PC's graphics card). Never install the game on it
-  (Jagex can flag emulator logins). The "ask before input" rule is about the owner's phone.
-- `TeleportData.kt` and `WalkMap.kt` have no Android parts, so routes can be tested on a computer with
-  `tools/teleport-finder/test/` (see its README section).
-- When writing files to the owner's computer remotely: write, wait a few seconds, then read the file back
-  and compare checksums. Committing immediately after copying has delivered stale files before.
-- `/code-review ultra` (started by the owner, billed) reviews a branch's changes against `master`, not the
-  whole app.
+- Build with `./gradlew.bat assembleDebug`, and run Android's checks with `./gradlew.bat lintDebug` (report in
+  `app/build/reports/lint-results-debug.sarif`). Expected warnings: 95 "SetTextI18n" (text written in the code,
+  see `.scratch/lint-text-warnings/`) and 2 "IconXmlAndPng" (the app icon).
+- PC tests: `./gradlew.bat testDebugUnitTest`. `PuzzleSolverTest` solves 20 scrambles; `ToaReaderTest` needs
+  recordings (see `docs/toa-helper.md`). `TeleportData.kt` and `WalkMap.kt` have no Android parts, so routes are
+  tested with `tools/teleport-finder/test/` (see its README section).
+- Installing: `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe install -r app\build\outputs\apk\debug\app-debug.apk`
+  (same as ▶; it closes the bubble, so the owner taps Start Bubble again). If the phone has a signed release
+  build, the install is refused: uninstalling erases the app's data, so it needs the owner's OK.
+  `adb shell dumpsys window windows` shows where the app's windows really are on screen.
+- Screenshots: `adb exec-out screencap -p` while the owner plays is the fastest way to understand a problem; ask
+  first ("screenshot"), or ask them to describe what they see.
+- Screen recordings: `adb shell screenrecord --time-limit 0 /sdcard/Movies/<name>.mp4` with the game already
+  sideways; stop it with `kill -INT` on the `screenrecord` process (`pkill` hits the wrong one) so the file is
+  finished properly, then copy it off and delete it from the phone. In Git Bash, set `MSYS_NO_PATHCONV=1` or phone
+  paths get mangled.
+- Battery: read the app's processor time from `/proc/<pid>/stat` (fields 14+15, in 1/100 s) at the start and end
+  of a minute with the feature on and off, plus `dumpsys meminfo com.sinat.osrsbubbletool`.
+- Emulator: "Phone Emulator" (`emulator -avd Phone_Emulator`, Android 16, 2340×1080 like the owner's phone;
+  pick it in Android Studio's device list next to ▶). Good for layouts, buttons and crashes; not for speed or
+  battery numbers. Keep the game off it (Jagex can flag emulator logins). The "ask before input" rule is about
+  the owner's phone.
+- When writing files to the owner's computer remotely: write, wait a few seconds, then read the file back and
+  compare checksums. Committing immediately after copying has delivered stale files before.
+- `/code-review ultra` (started by the owner, billed) reviews a branch's changes against `master`, not the whole
+  app. A whole-app review is `/code-review high <files>`, a few tools at a time.
 
 ## Releasing
 
-Each release is worked on in its own branch (named like `v1.0.6`), then merged into `master`.
+Each release is worked on in its own branch (named like `v1.0.9`), then merged into `master`.
 
 1. Bump `versionCode` and `versionName` in `app/build.gradle.kts`.
 2. Commit in Android Studio (check no `.jks` file is in the list, and new files are ticked).
@@ -291,67 +191,14 @@ Each release is worked on in its own branch (named like `v1.0.6`), then merged i
 5. GitHub → Releases → new release, tag `vX.Y.Z` (the update checker reads the tag), not a pre-release,
    attach `OSRSBubbleTool-X.Y.Z.apk`.
 
-## Current state (5 October 2026)
+Tags use the "v" form (`1.0.3` is the one exception). A published release's tag stays as it is: renaming it on
+GitHub creates the new tag on the latest master (that happened to v1.0.5 and was fixed by force-pushing the tag
+back to its commit from Android Studio's terminal, which has the GitHub login). Latest release: v1.0.8 (5 October
+2026, versionCode 9).
 
-- v1.0.8 released on 5 October 2026 (tag `v1.0.8`, versionCode 9, merged into `master`): the Zen Garden in the
-  Game Room (with zen mode, Automatic patterns, the reworked bonsai, stones, lanterns and flowers, shadows, and the
-  Tone slider), the Settings page with dark mode, and windows that avoid the navigation bar. Automatic rings only
-  stones and lanterns, with one stick (a two-stick version was tried and dropped). Not confirmed on the phone before
-  release: the pattern list (hold Automatic), the grid's side midpoints, the Tone slider, and the rings change.
+## Plans, to-dos and things to test
 
-- v1.0.7 released on 3 October 2026 (tag `v1.0.7`, versionCode 8, merged into `master`): the new ToA Puzzle
-  Helper (Beta). The ToA notes below still list what hasn't been tested live.
-
-- v1.0.6 released on 1 October 2026 (tag `v1.0.6`, versionCode 7, merged into `master`). Changes since v1.0.5:
-  smarter Teleport Finder, bubble remembers its spot, tools set up only when first opened, Puzzle Box re-plan
-  and stutter fixes, solvers stop when you leave the game, smaller backups, Notepad moves and resizes,
-  windows stay clear of the status bar, DPS calculator item pictures and puzzle/quest pictures included,
-  code tidy-up, themed app icon. `HANDOFF.md` described the start of this release and can be deleted.
-- Release tags: `v1.0.0`-`v1.0.7` use the "v" form except `1.0.3`. Never rename a published release's tag on
-  GitHub: it creates the new tag on the latest master (that happened to v1.0.5 and was fixed by
-  force-pushing the tag back to its commit, from Android Studio's terminal, which has the GitHub login).
-- Tested on the phone: Notepad moving/resizing, status bar handling (Notepad and Wiki).
-- Not yet tested on the phone (released anyway): the included pictures (Import my gear, a puzzle scan, the Dragon Slayer II map), Teleport Finder
-  searches (with and without WikiSync), bubble position after restarting, Puzzle Box re-plan after an
-  unplanned move, solvers stopping when you leave the game (single-app sharing), the code tidy-up
-  (colours, settings, Zulrah taps, Wing It, wiki links), the themed icon.
-
-## ToA Puzzle Helper status (released in v1.0.7)
-
-- New ToA Puzzle Helper (Beta), committed in stages ("New ToA Puzzle Helper", "ToA Puzzle Helper reads the
-  screen", then the matching/battery work). Credits for the LlemonDuck plugin are on the Legal screen and in
-  the README.
-- Tested live on the phone: light reading, addition number, sequence watching, matching Watch (many runs),
-  the map at the bottom with the shrunk window, the redrawn symbols.
-- 2 October 2026: matching Watch made quicker (quick looks after an unsettled
-  symbol, pairs green after 0.8 s); sequence Watch's 20 s countdown next to Stop and the "keep the camera still"
-  tip. Replays of both recordings unchanged apart from pairs marked ~0.7 s sooner. Seen in one live raid (the
-  demo recording): matching finished with all nine pairs and the sequence watch numbered all five flashes.
-- Not yet tested live: the quick looks' effect on missed symbols (the owner's complaint: waiting on a tile or
-  going back to it), the light/addition/sequence answers-at-the-bottom layout in a real raid, the addition
-  number with digits other than 3 and 0, group raids (no starting pairs; line/crook/hand/bird samples come
-  from the addition room only), the release build's speed.
-- Owner's preferences for these tools: compact windows (few words, one row of buttons, `?` for instructions),
-  maps kept straight (snapped to the nearest direction), green for "step here", symbols drawn like the game's
-  (the owner checks them against the game and has corrected the knives, foot and hand).
-
-## Open items and ideas
-
-Plans, to-dos, questions for the owner and things still to test are files in `.scratch/` (on the owner's computer
-only), listed with their status in `.scratch/README.md`. Add new ones there, not here.
-
-## Agent skills
-
-### Issue tracker
-
-Plans and to-dos are plain files in `.scratch/<topic>/`, kept off GitHub (in `.gitignore`), listed in
-`.scratch/README.md`. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-A `Status:` line in each file: needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix or done. See
-`docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context: one `CONTEXT.md` and `docs/adr/` at the top of the project, created only when needed. See `docs/agents/domain.md`.
+They're files in `.scratch/<topic>/`, listed with their status in `.scratch/README.md` (add new ones there).
+How they're laid out: `docs/agents/issue-tracker.md`; status words (needs-triage, needs-info, ready-for-agent,
+ready-for-human, wontfix, done): `docs/agents/triage-labels.md`; the word list and decision records
+(`CONTEXT.md`, `docs/adr/`, made only when needed): `docs/agents/domain.md`.
