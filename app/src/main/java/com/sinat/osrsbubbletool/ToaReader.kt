@@ -184,9 +184,9 @@ object ToaReader {
 
     // ---------------- Light puzzle ----------------
 
-    // What was read: the lit plates (as ToaPuzzles numbers them) and how far to turn the map, in degrees
-    // clockwise, so it looks like the screen (always 0: the plates are numbered to match instead)
-    class LightReading(val lit: Int, val rotation: Float)
+    // What was read: the lit plates (as ToaPuzzles numbers them). The map is never turned: the plates are numbered
+    // from whichever corner needs the least turning, so they already match the screen.
+    class LightReading(val lit: Int)
 
     // Finds the ring of eight plates on screen and reads which are lit. Null if it can't be seen.
     fun readLights(p: LightBoxReader.PixelSource): LightReading? {
@@ -196,7 +196,7 @@ object ToaReader {
             if (cell == 4 || square.plates[cell]?.lit != true) continue
             lit = lit or (1 shl (if (cell > 4) cell - 1 else cell))   // ToaPuzzles skips the middle
         }
-        return LightReading(lit, straight(square.turn))
+        return LightReading(lit)
     }
 
     // ---------------- Sequence puzzle ----------------

@@ -468,7 +468,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
             savedFlies = 0
             startFlies()
         } else {
-            items.forEach { makeLooks(it) }   // only the drawing size changed
+            items.forEach { makeLooks(it) }   // only the drawing size changed (this just fills in any flowers' missing blossoms)
             invalidate()
         }
     }

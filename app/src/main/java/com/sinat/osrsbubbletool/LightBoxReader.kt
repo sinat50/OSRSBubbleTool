@@ -173,7 +173,29 @@ object LightBoxReader {
             mask[y * w + x] = r > 135 && g > 135 && abs(r - g) < 20 && b < 40
         }
         val blobs = mutableListOf<Blob>()
+        forEachPatch(mask, w, h) { patch ->
+            val bw = (patch.maxX - patch.minX + 1) * 2f
+            val bh = (patch.maxY - patch.minY + 1) * 2f
+            if (bw >= 10f && bh / bw in 0.5f..1.1f && patch.count * 4f >= 0.25f * bw * bh) {
+                blobs.add(Blob(patch.sumX * 2f / patch.count, patch.sumY * 2f / patch.count, bw))
+            }
+            blobs.size < 200   // (plenty: stop there)
+        }
+        return blobs
+    }
+
+    // One patch of touching marked squares: how many, their total position (for the middle) and the box around them
+    class Patch {
+        var count = 0; var sumX = 0L; var sumY = 0L
+        var minX = 0; var maxX = 0; var minY = 0; var maxY = 0
+    }
+
+    // Finds each patch of touching squares marked in `mask` (w by h, cleared as it goes) and hands it to `onPatch`,
+    // which says whether to carry on. Shared by the Light Box and the Puzzle Box. (onPatch runs once per patch,
+    // not per pixel, so it's fine as a function type here.)
+    fun forEachPatch(mask: BooleanArray, w: Int, h: Int, onPatch: (Patch) -> Boolean) {
         val stack = IntArray(w * h)
+        val patch = Patch()
         for (start in mask.indices) {
             if (!mask[start]) continue
             var top = 0
@@ -193,14 +215,10 @@ object LightBoxReader {
                 if (y > 0 && mask[i - w]) { mask[i - w] = false; stack[top++] = i - w }
                 if (y < h - 1 && mask[i + w]) { mask[i + w] = false; stack[top++] = i + w }
             }
-            val bw = (maxX - minX + 1) * 2f
-            val bh = (maxY - minY + 1) * 2f
-            if (bw < 10f || bh / bw < 0.5f || bh / bw > 1.1f) continue
-            if (count * 4f < 0.25f * bw * bh) continue
-            blobs.add(Blob(sumX * 2f / count, sumY * 2f / count, bw))
-            if (blobs.size >= 200) break
+            patch.count = count; patch.sumX = sumX; patch.sumY = sumY
+            patch.minX = minX; patch.maxX = maxX; patch.minY = minY; patch.maxY = maxY
+            if (!onPatch(patch)) return
         }
-        return blobs
     }
 
     // ---------------- Solving ----------------

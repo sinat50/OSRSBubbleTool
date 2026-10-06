@@ -341,18 +341,21 @@ class ScreenCapturer(
     private fun newReader(w: Int, h: Int): ImageReader =
         ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2)
 
-    // The full screen size in pixels, including the status bar and navigation bar
+    // The full screen size in pixels, and the screen's dots per inch
     private fun screenSize(): Triple<Int, Int, Int> {
-        val wm = context.getSystemService(WindowManager::class.java)
-        val dpi = context.resources.displayMetrics.densityDpi
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val b = wm.currentWindowMetrics.bounds
-            Triple(b.width(), b.height(), dpi)
-        } else {
-            val m = DisplayMetrics()
-            @Suppress("DEPRECATION")
-            wm.defaultDisplay.getRealMetrics(m)
-            Triple(m.widthPixels, m.heightPixels, dpi)
-        }
+        val (w, h) = fullScreenSize(context.getSystemService(WindowManager::class.java))
+        return Triple(w, h, context.resources.displayMetrics.densityDpi)
     }
 }
+
+// The full screen size in pixels (width to height), including the status bar and navigation bar. Shared by the
+// bubble and the screen capture, so both always agree on it.
+fun fullScreenSize(wm: WindowManager): Pair<Int, Int> =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        wm.currentWindowMetrics.bounds.let { it.width() to it.height() }
+    } else {
+        val m = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        wm.defaultDisplay.getRealMetrics(m)
+        m.widthPixels to m.heightPixels
+    }

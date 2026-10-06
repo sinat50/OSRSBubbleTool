@@ -103,7 +103,6 @@ class ToaPuzzleTool(
 
     private var lightLit = 0                          // lit plates, one bit each
     private var lightEntered = false                  // you've tapped in what's lit, so show the answer
-    private var lightTurn = 0f                        // how far the map is turned to match the camera
     private var lightNote: String? = null             // what the last screen reading found
     private var additionTarget = 0                    // the tablet's number, 0 = not picked yet
     private var additionNote: String? = null          // what the last screen reading found
@@ -314,7 +313,7 @@ class ToaPuzzleTool(
         val answer = ToaPuzzles.solveLights(lightLit)
         tip("close your chat and inventory first, so all eight plates can be seen.")
         addView(bar(button("Read the screen", GO_GREEN) { readLights() } to 2f,
-            button("Clear") { lightLit = 0; lightEntered = false; lightTurn = 0f; lightNote = null; show() } to 1f), full(4))
+            button("Clear") { lightLit = 0; lightEntered = false; lightNote = null; show() } to 1f), full(4))
         help("Stand still with all eight plates on screen and tap Read the screen (the bubble hides for a moment " +
             "while it looks). The answer appears at the bottom of the screen and this window shrinks to a corner; " +
             "Done brings it back. Or tap Solve manually and tap each plate that's lit in the game: it glows pale, with a beam of light. Then " +
@@ -337,7 +336,7 @@ class ToaPuzzleTool(
     // The ring of plates: lit ones glow, the ones to step on have a green border
     private fun lightBoardView(maxHeightDp: Int): View {
         val answer = ToaPuzzles.solveLights(lightLit)
-        return Board(3, 3, (0 until 8).map { ToaPuzzles.lightCell(it) }, maxHeightDp = maxHeightDp, turn = lightTurn, onTap = { i ->
+        return Board(3, 3, (0 until 8).map { ToaPuzzles.lightCell(it) }, maxHeightDp = maxHeightDp, onTap = { i ->
             if (lightManual) { lightLit = lightLit xor (1 shl i); lightEntered = true; show() }
         }) { canvas, i, r ->
             if (lightLit shr i and 1 == 1) litPlate(canvas, r) else plate(canvas, r)
@@ -356,7 +355,6 @@ class ToaPuzzleTool(
             lightNote = "Couldn't find the plates. Stand still with all eight on screen, then try again."
         } else {
             lightLit = result.lit
-            lightTurn = result.rotation
             lightEntered = true
             val n = Integer.bitCount(result.lit)
             lightNote = "Read $n lit plate${if (n == 1) "" else "s"}. Wrong? Tap a plate to fix it."

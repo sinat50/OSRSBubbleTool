@@ -320,17 +320,8 @@ class BubbleService : Service() {
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
     // The full screen size, including the camera cutout area at the edge
-    private fun screenWidth(): Int =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) windowManager.currentWindowMetrics.bounds.width()
-        else android.util.DisplayMetrics().also {
-            @Suppress("DEPRECATION") windowManager.defaultDisplay.getRealMetrics(it)
-        }.widthPixels
-
-    private fun screenHeight(): Int =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) windowManager.currentWindowMetrics.bounds.height()
-        else android.util.DisplayMetrics().also {
-            @Suppress("DEPRECATION") windowManager.defaultDisplay.getRealMetrics(it)
-        }.heightPixels
+    private fun screenWidth(): Int = fullScreenSize(windowManager).first
+    private fun screenHeight(): Int = fullScreenSize(windowManager).second
 
     // Let a window go right up to the screen edges, even beside the camera cutout
     private fun allowScreenEdges(p: WindowManager.LayoutParams) {
@@ -1113,20 +1104,8 @@ class BubbleService : Service() {
                     startWindowX = params.x
                     startWindowY = params.y
                 }
-                MotionEvent.ACTION_MOVE -> {
-                    // not under the status bar or the navigation bar while they're showing (you couldn't grab it there)
-                    val maxX = maxOf(0, clearRight() - params.width)
-                    params.x = (startWindowX + (event.rawX - downRawX).toInt()).coerceIn(minOf(navLeft, maxX), maxX)
-                    if (currentTool != Tool.LIGHT_BOX && currentTool != Tool.PUZZLE_BOX) windowX = params.x  // others share one position
-                    shownWantX = params.x
-                    if (isResizable(currentTool)) {
-                        val maxY = maxOf(0, clearBottom() - params.height)
-                        params.y = (startWindowY + (event.rawY - downRawY).toInt()).coerceIn(minOf(statusBarTop, maxY), maxY)
-                        windowY = params.y
-                        shownWantY = params.y
-                    }
-                    shownWindow?.let { windowManager.updateViewLayout(it, params) }
-                }
+                MotionEvent.ACTION_MOVE -> moveWindowTo(params, startWindowX + (event.rawX - downRawX).toInt(),
+                    startWindowY + (event.rawY - downRawY).toInt(), moveY = isResizable(currentTool))
             }
             true
         }
@@ -1169,6 +1148,22 @@ class BubbleService : Service() {
     private val minWindowWidth get() = dp(150)
     private val minWindowHeight get() = dp(140)
 
+    // Moves the open window while it's dragged (by its top bar or its move symbol), up and down too if moveY. Not under
+    // the status bar or the navigation bar while they're showing (you couldn't grab it there).
+    private fun moveWindowTo(params: WindowManager.LayoutParams, x: Int, y: Int, moveY: Boolean) {
+        val maxX = maxOf(0, clearRight() - params.width)
+        params.x = x.coerceIn(minOf(navLeft, maxX), maxX)
+        if (currentTool != Tool.LIGHT_BOX && currentTool != Tool.PUZZLE_BOX) windowX = params.x  // others share one position
+        shownWantX = params.x
+        if (moveY) {
+            val maxY = maxOf(0, clearBottom() - params.height)
+            params.y = y.coerceIn(minOf(statusBarTop, maxY), maxY)
+            windowY = params.y
+            shownWantY = params.y
+        }
+        shownWindow?.let { windowManager.updateViewLayout(it, params) }
+    }
+
     // The move symbol (for windows without a top bar): drag it to move the window anywhere
     @SuppressLint("ClickableViewAccessibility")
     private fun moveCorner(): View = object : View(this) {
@@ -1208,17 +1203,8 @@ class BubbleService : Service() {
                     downRawX = e.rawX; downRawY = e.rawY
                     startX = params.x; startY = params.y
                 }
-                MotionEvent.ACTION_MOVE -> {
-                    val maxX = maxOf(0, clearRight() - params.width)
-                    params.x = (startX + (e.rawX - downRawX).toInt()).coerceIn(minOf(navLeft, maxX), maxX)
-                    windowX = params.x
-                    shownWantX = params.x
-                    val maxY = maxOf(0, clearBottom() - params.height)
-                    params.y = (startY + (e.rawY - downRawY).toInt()).coerceIn(minOf(statusBarTop, maxY), maxY)
-                    windowY = params.y
-                    shownWantY = params.y
-                    shownWindow?.let { windowManager.updateViewLayout(it, params) }
-                }
+                MotionEvent.ACTION_MOVE -> moveWindowTo(params, startX + (e.rawX - downRawX).toInt(),
+                    startY + (e.rawY - downRawY).toInt(), moveY = true)
             }
             true
         }

@@ -31,7 +31,7 @@ class ToaReaderTest {
             val text = reading?.let { r ->
                 val lit = (0 until 8).filter { r.lit shr it and 1 == 1 }
                 val steps = ToaPuzzles.solveLights(r.lit).let { s -> (0 until 8).filter { s shr it and 1 == 1 } }
-                "lit $lit, turn ${"%.0f".format(r.rotation)}°, step on $steps"
+                "lit $lit, step on $steps"
             } ?: "no light puzzle"
             val number = ToaReader.readAdditionNumber(Shot(f))?.let { ", addition number $it" } ?: ""
             val shot = Shot(f)

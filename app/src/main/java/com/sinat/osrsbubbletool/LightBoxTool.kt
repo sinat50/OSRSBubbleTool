@@ -52,7 +52,6 @@ class LightBoxTool(
     private var candidate = -1
     private var candidateSince = 0L
     private var candidateSeen = 0
-    private var lastSeen = 0L
     private var solution: List<Int>? = null
     private var expecting = 0                    // button we asked you to press while learning
     private var strays = 0                       // presses in a row that did what an already-learned button does
@@ -155,7 +154,6 @@ class LightBoxTool(
         candidate = -1
         misses = 0
         finished = false
-        lastSeen = SystemClock.uptimeMillis()
         if (state == LightBoxReader.ALL_ON) {
             status?.text = "This light box is already solved!"
             return
@@ -201,7 +199,6 @@ class LightBoxTool(
             return
         }
         misses = 0
-        lastSeen = now
         if (finished) return   // just watching for it to close
         if (reading != null) {
             if (reading != candidate) {

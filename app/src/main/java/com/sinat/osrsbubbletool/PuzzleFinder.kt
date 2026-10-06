@@ -28,28 +28,13 @@ object PuzzleFinder {
 
         // 2. Roughly-square patches: one of them is the frame (with the lines between tiles)
         val patches = ArrayList<Rect>()
-        val stack = IntArray(w * h)
-        for (start in mask.indices) {
-            if (!mask[start]) continue
-            var top = 0
-            stack[top++] = start
-            mask[start] = false
-            var minX = w; var maxX = 0; var minY = h; var maxY = 0
-            while (top > 0) {
-                val i = stack[--top]
-                val x = i % w
-                val y = i / w
-                if (x < minX) minX = x; if (x > maxX) maxX = x
-                if (y < minY) minY = y; if (y > maxY) maxY = y
-                if (x > 0 && mask[i - 1]) { mask[i - 1] = false; stack[top++] = i - 1 }
-                if (x < w - 1 && mask[i + 1]) { mask[i + 1] = false; stack[top++] = i + 1 }
-                if (y > 0 && mask[i - w]) { mask[i - w] = false; stack[top++] = i - w }
-                if (y < h - 1 && mask[i + w]) { mask[i + w] = false; stack[top++] = i + w }
+        LightBoxReader.forEachPatch(mask, w, h) { patch ->
+            val bw = (patch.maxX - patch.minX + 1) * 2
+            val bh = (patch.maxY - patch.minY + 1) * 2
+            if (bw >= 100 && bh >= 0.85f * bw && bh <= 1.15f * bw) {
+                patches.add(Rect(patch.minX * 2, patch.minY * 2, (patch.maxX + 1) * 2, (patch.maxY + 1) * 2))
             }
-            val bw = (maxX - minX + 1) * 2
-            val bh = (maxY - minY + 1) * 2
-            if (bw < 100 || bh < 0.85f * bw || bh > 1.15f * bw) continue
-            patches.add(Rect(minX * 2, minY * 2, (maxX + 1) * 2, (maxY + 1) * 2))
+            true
         }
 
         // 3. The biggest patch whose sides are as thick as the puzzle's frame (a bigger dark-brown square in

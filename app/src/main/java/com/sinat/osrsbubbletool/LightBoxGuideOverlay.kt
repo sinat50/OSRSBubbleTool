@@ -5,11 +5,8 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.RectF
-import android.os.Build
-import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import androidx.core.graphics.toColorInt
@@ -46,26 +43,7 @@ class LightBoxGuideOverlay(private val context: Context, private val windowManag
         // where the buttons and the title bar are inside the overlay, worked out once rather than on every redraw
         buttonBoxes = List(8) { RectF(layout.buttonRect(it)).apply { offset(-area.left.toFloat(), -area.top.toFloat()) } }
         titleBox = RectF(layout.titleRect()).apply { offset(-area.left.toFloat(), -area.top.toFloat()) }
-        val p = WindowManager.LayoutParams(
-            area.width(), area.height(),
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = area.left
-            y = area.top
-            alpha = 0.8f   // Android only lets taps pass through overlays that are a little see-through
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
-                fitInsetsTypes = 0
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-            }
-        }
+        val p = guideWindowParams(area)
         val v = GuideView()
         windowManager.addView(v, p)
         view = v
@@ -99,18 +77,9 @@ class LightBoxGuideOverlay(private val context: Context, private val windowManag
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
-            // The overlay may land a little away from where it was asked to be (status bar,
-            // camera cutout). Measure where it really is once, and move it to line up.
             if (!aligned) {
                 aligned = true
-                val loc = IntArray(2)
-                getLocationOnScreen(loc)
-                val p = params
-                if (p != null && (loc[0] != area.left || loc[1] != area.top)) {
-                    p.x += area.left - loc[0]
-                    p.y += area.top - loc[1]
-                    windowManager.updateViewLayout(this, p)
-                }
+                params?.let { lineUpGuide(this, it, area, windowManager) }
             }
             val l = layout ?: return
 

@@ -95,26 +95,7 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
         // the message strip inside the overlay, worked out once rather than on every redraw
         bannerInWindow = RectF(banner).apply { offset(-window.left.toFloat(), -window.top.toFloat()) }
 
-        val p = WindowManager.LayoutParams(
-            window.width(), window.height(),
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            x = window.left
-            y = window.top
-            alpha = 0.8f   // Android only lets taps pass through overlays that are a little see-through
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
-                fitInsetsTypes = 0
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-            }
-        }
+        val p = guideWindowParams(window)
         val v = GuideView()
         windowManager.addView(v, p)
         view = v
@@ -156,18 +137,9 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
-            // The overlay may land a little away from where it was asked to be (status bar,
-            // camera cutout). Measure where it really is once, and move it to line up.
             if (!aligned) {
                 aligned = true
-                val loc = IntArray(2)
-                getLocationOnScreen(loc)
-                val p = params
-                if (p != null && (loc[0] != window.left || loc[1] != window.top)) {
-                    p.x += window.left - loc[0]
-                    p.y += window.top - loc[1]
-                    windowManager.updateViewLayout(this, p)
-                }
+                params?.let { lineUpGuide(this, it, window, windowManager) }
             }
             val ox = window.left.toFloat()
             val oy = window.top.toFloat()
@@ -207,5 +179,41 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
                 canvas.drawText(message, b.centerX(), y, text)
             }
         }
+    }
+}
+
+// ---------------- Shared by the Puzzle Box and Light Box guides ----------------
+
+// A see-through window over `area` of the screen that taps pass straight through, allowed beside the camera cutout
+fun guideWindowParams(area: Rect) = WindowManager.LayoutParams(
+    area.width(), area.height(),
+    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+    PixelFormat.TRANSLUCENT
+).apply {
+    gravity = Gravity.TOP or Gravity.START
+    x = area.left
+    y = area.top
+    alpha = 0.8f   // Android only lets taps pass through overlays that are a little see-through
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+        fitInsetsTypes = 0
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+    }
+}
+
+// The overlay may land a little away from where it was asked to be (status bar, camera cutout). Called once it's
+// drawn: measures where it really is, and moves it to line up with `area`.
+fun lineUpGuide(view: View, params: WindowManager.LayoutParams, area: Rect, windowManager: WindowManager) {
+    val loc = IntArray(2)
+    view.getLocationOnScreen(loc)
+    if (loc[0] != area.left || loc[1] != area.top) {
+        params.x += area.left - loc[0]
+        params.y += area.top - loc[1]
+        windowManager.updateViewLayout(view, params)
     }
 }
