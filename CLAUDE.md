@@ -138,7 +138,10 @@ trailer and the ToA demo video; how to update them is in `trailer/README.md`), `
   use are skipped. Closed-off areas fall back to dungeon-entrance estimates ("guess" results). Joins into
   closed-off areas are precomputed (`find_closed_off_areas.py`).
 - **Wiki links** from the game open in the bubble's Wiki window via `WikiLinkActivity`, only if the owner turns
-  on "Open by default" for the wiki (it can't be auto-verified: not our website).
+  on "Open by default" for the wiki (it can't be auto-verified: not our website). `WikiLinkActivity` is exported, so any app
+  can aim a link straight at it and claim to be the game: `WikiAddress.safe` lets through only https
+  `oldschool.runescape.wiki` pages (checked again in `BubbleService.onStartCommand`), never other sites, scripts or
+  data pages (security review, October 2026; `WikiAddressTest`).
 - **Every outside source must be credited** on the Legal screen (`MainActivity.legalScreen`) and in the README's
   Credits. Check the licence first: BSD/MIT/GPL are fine with notices; with no licence, look things up only
   (copying in bulk needs the author's permission).

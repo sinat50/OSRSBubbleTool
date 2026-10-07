@@ -316,7 +316,8 @@ class BubbleService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_CAPTURE_RESULT) capture.onPermissionResult(intent)
-        if (intent?.action == ACTION_OPEN_WIKI) intent.getStringExtra(EXTRA_URL)?.let { openWikiLink(it) }
+        // (checked again here: only real OSRS Wiki pages open in the Wiki window, see WikiAddress)
+        if (intent?.action == ACTION_OPEN_WIKI) intent.getStringExtra(EXTRA_URL)?.let { WikiAddress.safe(it) }?.let { openWikiLink(it) }
         return START_NOT_STICKY
     }
 

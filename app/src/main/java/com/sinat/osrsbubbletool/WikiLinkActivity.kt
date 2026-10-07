@@ -17,6 +17,22 @@ import androidx.core.net.toUri
 //
 // Android only sends wiki links here if you allow it: Settings > Apps > OSRS Bubble Tool >
 // Open by default > Add link (the app's Permissions screen has a button for this).
+// Only real OSRS Wiki pages may open in the bubble's Wiki window. Android only sends this app wiki links on its own,
+// but another app can aim a link straight at it (and claim to be the game), so every address is checked here.
+object WikiAddress {
+    private const val HOST = "oldschool.runescape.wiki"
+
+    // The address made safe to open (always https), or null if it isn't a plain OSRS Wiki page: another website, a
+    // disguised one (a name before @, an odd port), or a script, data or file address
+    fun safe(raw: String): String? = try {
+        val u = java.net.URI(raw)
+        val scheme = u.scheme?.lowercase()
+        if ((scheme != "https" && scheme != "http") || !HOST.equals(u.host, ignoreCase = true) ||
+            u.rawUserInfo != null || u.port != -1) null
+        else "https://$HOST" + (u.rawPath ?: "") + (u.rawQuery?.let { "?$it" } ?: "") + (u.rawFragment?.let { "#$it" } ?: "")
+    } catch (e: Exception) { null }
+}
+
 class WikiLinkActivity : Activity() {
 
     companion object {
@@ -25,7 +41,8 @@ class WikiLinkActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val uri = intent?.data
+        // (anything but a real wiki page is ignored: see WikiAddress)
+        val uri = intent?.data?.toString()?.let { WikiAddress.safe(it) }?.toUri()
         if (uri != null) {
             val from = referrer?.takeIf { it.scheme == "android-app" }?.host   // the app that sent it, if known
             val toBubble = when (from) {
