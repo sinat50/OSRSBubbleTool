@@ -40,7 +40,7 @@ Code: `app/src/main/java/com/sinat/osrsbubbletool/` (one file per tool, roughly)
 
 | File | What it is |
 | --- | --- |
-| `BubbleService.kt` | The bubble, its long-press menu, tool windows (move/resize), the `Tool` list (its order is the menu order), `makeParts()` (the one place each tool is set up), and keeping windows clear of the status bar |
+| `BubbleService.kt`, `ScreenBars.kt` | The bubble, its long-press menu, tool windows (move/resize), the `Tool` list (its order is the menu order) and `makeParts()` (the one place each tool is set up). `ScreenBars` = the maths for keeping the bubble and windows clear of the status and navigation bars (see below) |
 | `MainActivity.kt` | Main screen, Permissions, Legal (all credits and licence notices) |
 | `CaptureManager.kt`, `ScreenCapturer.kt`, `CapturePermissionActivity.kt` | Screen capture: asked once per bubble session; Android 14+ can share just the game |
 | `PuzzleBoxTool.kt`, `PuzzleFinder.kt`, `GridFinder.kt`, `TileMatcher.kt`, `PuzzleSolver.kt`, `MoveGuideOverlay.kt`, `PuzzleReferences.kt` | Puzzle Box Solver (`MoveGuideOverlay.kt` also holds the guide-window helpers the Light Box shares) |
@@ -97,9 +97,11 @@ trailer and the ToA demo video; how to update them is in `trailer/README.md`), `
   `checkBars` (after layout and again after the phone turns): a 1-pixel-wide one top to bottom (its top = status
   bar, its bottom = a navigation bar along the bottom) and a 1-pixel-tall one across the top (its ends = a
   navigation bar down one side, as on the emulator in landscape). While the bars show, windows and the bubble stay
-  clear of them (`placeClearOfBars`, `clearRight()`/`clearBottom()` for dragging and resizing; too big windows
-  get smaller for a while), and go back to where you left them (`shownWantX/Y/W/H`) when the bars hide, as they
-  do in the game.
+  clear of them (too big windows get smaller for a while), and go back to where you left them (`shownWantX/Y/W/H`)
+  when the bars hide, as they do in the game. All the arithmetic is in `ScreenBars` (reading the strips, ignoring
+  readings taken mid-turn, placing, dragging, resizing, the bubble), tested on the PC (`ScreenBarsTest`); the
+  service holds the current `Bars` and moves the windows. Checked on the emulator (October 2026) sideways and
+  upright: bubble and windows stop exactly at the bars.
 - **Game pictures come with the app** (owner's decision), in `assets/dps/icons/`, `assets/puzzles/` and
   `assets/quest_images/`. They're Jagex's artwork, included under Jagex's Fan Content Policy; if Jagex objects,
   the fallback is downloading them instead (tried in v1.0.6 test builds: slow, from GitHub or jsDelivr).
@@ -156,7 +158,7 @@ trailer and the ToA demo video; how to update them is in `trailer/README.md`), `
   `app/build/reports/lint-results-debug.sarif`). Expected warnings: 95 "SetTextI18n" (text written in the code,
   see `.scratch/lint-text-warnings/`) and 2 "IconXmlAndPng" (the app icon).
 - PC tests: `./gradlew.bat testDebugUnitTest`, in `app/src/test/`: the Puzzle Box and Light Box solvers, the ToA
-  answers, farming growth times, quest requirement checks, and the Zen Garden's save file, placed things and auto rake patterns (expected answers worked out by hand or from the
+  answers, farming growth times, quest requirement checks, the Zen Garden's save file, placed things and auto rake patterns, and keeping windows clear of the bars (expected answers worked out by hand or from the
   game, never copied from the code); `ToaReaderTest` needs recordings (see `docs/toa-helper.md`). The real
   `org.json` is added for tests only (Android's own isn't on the PC). Code with Android parts gets a pure version
   to test (like `FarmingTimers.finishTime` taking the tick offset as a number). `TeleportData.kt` and `WalkMap.kt` have no Android parts, so routes are

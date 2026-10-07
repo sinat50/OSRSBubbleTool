@@ -782,8 +782,8 @@ class BubbleService : Service() {
         corner?.visibility = View.GONE
         params.width = ViewGroup.LayoutParams.WRAP_CONTENT
         params.height = ViewGroup.LayoutParams.WRAP_CONTENT
-        params.x = navLeft
-        params.y = statusBarTop
+        params.x = bars.left
+        params.y = bars.top
         shownWantX = 0
         shownWantY = 0
         shownWantW = ViewGroup.LayoutParams.WRAP_CONTENT
@@ -793,7 +793,7 @@ class BubbleService : Service() {
             // down to the bottom once it knows how tall it is (still measured from the top, so dragging works)
             window.post {
                 if (shownWindow !== window || compactSaved == null) return@post
-                params.y = maxOf(statusBarTop, clearBottom() - window.height)
+                params.y = maxOf(bars.top, bars.clearBottom(screenHeight()) - window.height)
                 shownWantY = params.y
                 windowManager.updateViewLayout(window, params)
             }
@@ -840,12 +840,10 @@ class BubbleService : Service() {
     }
 
     private fun clampBubble() {
-        val size = bubbleSize()
         // (never under the status bar or the navigation bar while they're showing, where it couldn't be touched)
-        bubbleParams.x = bubbleParams.x.coerceIn(minOf(navLeft, clearRight() - size).coerceAtLeast(0),
-            maxOf(0, clearRight() - size))
-        bubbleParams.y = bubbleParams.y.coerceIn(minOf(statusBarTop, clearBottom() - size).coerceAtLeast(0),
-            maxOf(0, clearBottom() - size))
+        val spot = ScreenBars.keepBubble(bubbleParams.x, bubbleParams.y, bubbleSize(), screenWidth(), screenHeight(), bars)
+        bubbleParams.x = spot.x
+        bubbleParams.y = spot.y
     }
 
     // ---------------- Keeping clear of the status bar and the navigation bar ----------------
@@ -854,17 +852,11 @@ class BubbleService : Service() {
     // strip: along the bottom, or down one side in landscape) on top of everything, so anything under them can't be
     // touched. While the game is open the phone hides them and you can use the whole screen; elsewhere (the app's
     // own screen, the home screen) they show, and windows and the bubble are kept clear of them.
-    private var statusBarTop = 0     // how far down the status bar reaches right now (0 = hidden)
-    private var navBottom = 0        // how far up the navigation bar reaches from the bottom (0 = hidden, or at a side)
-    private var navLeft = 0          // how far in it reaches from the left or right side (0 = not there)
-    private var navRight = 0
+    private var bars = Bars()        // how far each bar reaches in right now (all 0 = hidden; the maths: ScreenBars)
     private var shownWantX = 0       // where you put the open window; it goes back there when the bars hide
     private var shownWantY = 0
     private var shownWantW = 0       // and how big you made it (it may be smaller for a while to fit between the bars)
     private var shownWantH = 0
-
-    private fun clearRight() = screenWidth() - navRight      // the right edge of the part of the screen you can touch
-    private fun clearBottom() = screenHeight() - navBottom   // and its bottom edge
 
     // You moved or resized the open window (or it opened): this is where and how big you want it
     private fun rememberWanted(params: WindowManager.LayoutParams) {
@@ -920,31 +912,21 @@ class BubbleService : Service() {
         val down = barProbes[0]
         val across = barProbes[1]
         if (down.height == 0 || across.width == 0) return@Runnable   // not laid out yet
-        val w = screenWidth()
-        val h = screenHeight()
         val loc = IntArray(2)
         down.getLocationOnScreen(loc)
-        val top = loc[1]
-        val bottom = h - loc[1] - down.height
+        val downTop = loc[1]
         across.getLocationOnScreen(loc)
-        val left = loc[0]
-        val right = w - loc[0] - across.width
-        // a strip longer than the screen means the screen size hasn't caught up with a turn yet: the layout that
-        // follows (or the check after the turn) reads them again
-        if (bottom < 0 || right < 0) return@Runnable
-        onBarsChanged(top, bottom, left, right)
+        // (null: read while the phone turns, against the old screen size: the layout that follows, or the check after
+        // the turn, reads them again)
+        val now = ScreenBars.fromStrips(downTop, down.height, loc[0], across.width, screenWidth(), screenHeight())
+            ?: return@Runnable
+        onBarsChanged(now)
     }
 
-    // A bar appeared or hid: how far each one reaches in from its edge now (0 = not there)
-    private fun onBarsChanged(top: Int, bottom: Int, left: Int, right: Int) {
-        val b = bottom.coerceAtLeast(0); val l = left.coerceAtLeast(0); val r = right.coerceAtLeast(0)
-        // no bar is ever a third of the screen: a strip read mid-turn against the old screen size
-        if (b > screenHeight() / 3 || l > screenWidth() / 3 || r > screenWidth() / 3) return
-        if (top == statusBarTop && b == navBottom && l == navLeft && r == navRight) return
-        statusBarTop = top
-        navBottom = b
-        navLeft = l
-        navRight = r
+    // How far the bars reach in, read from the strips: if a bar appeared or hid, everything moves
+    private fun onBarsChanged(now: Bars) {
+        if (now.sameAs(bars)) return
+        bars = now
         // move things just after this, not while Android is in the middle of laying out windows
         bubble.post {
             if (destroyed) return@post
@@ -962,34 +944,13 @@ class BubbleService : Service() {
     // from under them, and if it's then too big to fit, made smaller for now. It goes back to its own place and
     // size when they hide again.
     private fun placeClearOfBars(params: WindowManager.LayoutParams) {
-        val right = clearRight()
-        val bottom = clearBottom()
-        // across
-        params.x = maxOf(shownWantX, navLeft)
-        if (shownWantW > 0) {
-            params.width = shownWantW
-            if (params.x + params.width > right) {
-                params.x = maxOf(navLeft, right - params.width)
-                params.width = minOf(params.width, right - params.x)
-            }
-        } else {
-            // a window as wide as what's in it (a shrunk window): kept clear once its width is known
-            val w = shownWindow?.width ?: 0
-            if (w > 0 && params.x + w > right) params.x = maxOf(navLeft, right - w)
-        }
-        // down
-        params.y = maxOf(shownWantY, statusBarTop)
-        if (shownWantH > 0) {
-            params.height = shownWantH
-            if (params.y + params.height > bottom) {
-                params.y = maxOf(statusBarTop, bottom - params.height)
-                params.height = minOf(params.height, bottom - params.y)
-            }
-        } else {
-            // a window as tall as what's in it (Light Box, Puzzle Box, a shrunk window): kept clear once its height is known
-            val h = shownWindow?.height ?: 0
-            if (h > 0 && params.y + h > bottom) params.y = maxOf(statusBarTop, bottom - h)
-        }
+        // (a window as big as what's in it, like a shrunk one, is kept clear once its size is known)
+        val b = ScreenBars.place(Box(shownWantX, shownWantY, shownWantW, shownWantH), shownWindow?.width ?: 0,
+            shownWindow?.height ?: 0, screenWidth(), screenHeight(), bars)
+        params.x = b.x
+        params.y = b.y
+        if (shownWantW > 0) params.width = b.w
+        if (shownWantH > 0) params.height = b.h
     }
 
     private fun buildToolWindow(tool: Tool): LinearLayout {
@@ -1151,13 +1112,12 @@ class BubbleService : Service() {
     // Moves the open window while it's dragged (by its top bar or its move symbol), up and down too if moveY. Not under
     // the status bar or the navigation bar while they're showing (you couldn't grab it there).
     private fun moveWindowTo(params: WindowManager.LayoutParams, x: Int, y: Int, moveY: Boolean) {
-        val maxX = maxOf(0, clearRight() - params.width)
-        params.x = x.coerceIn(minOf(navLeft, maxX), maxX)
+        val spot = ScreenBars.drag(x, y, params.width, params.height, screenWidth(), screenHeight(), bars, moveY)
+        params.x = spot.x
         if (currentTool != Tool.LIGHT_BOX && currentTool != Tool.PUZZLE_BOX) windowX = params.x  // others share one position
         shownWantX = params.x
         if (moveY) {
-            val maxY = maxOf(0, clearBottom() - params.height)
-            params.y = y.coerceIn(minOf(statusBarTop, maxY), maxY)
+            params.y = spot.y
             windowY = params.y
             shownWantY = params.y
         }
@@ -1252,8 +1212,10 @@ class BubbleService : Service() {
                     val dy = (e.rawY - downY).toInt()
                     if (abs(dx) > dp(3) || abs(dy) > dp(3)) moved = true
                     if (moved) {
-                        params.width = (startW + dx).coerceIn(minWindowWidth, maxOf(minWindowWidth, clearRight() - params.x))
-                        params.height = (startH + dy).coerceIn(minWindowHeight, maxOf(minWindowHeight, clearBottom() - params.y))
+                        val size = ScreenBars.resize(startW + dx, startH + dy, params.x, params.y, minWindowWidth, minWindowHeight,
+                            screenWidth(), screenHeight(), bars)
+                        params.width = size.w
+                        params.height = size.h
                         shownWantW = params.width
                         shownWantH = params.height
                         shownWindow?.let { windowManager.updateViewLayout(it, params) }
