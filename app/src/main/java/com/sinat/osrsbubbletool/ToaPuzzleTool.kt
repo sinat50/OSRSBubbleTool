@@ -354,9 +354,9 @@ class ToaPuzzleTool(
         if (result == null) {
             lightNote = "Couldn't find the plates. Stand still with all eight on screen, then try again."
         } else {
-            lightLit = result.lit
+            lightLit = result
             lightEntered = true
-            val n = Integer.bitCount(result.lit)
+            val n = Integer.bitCount(result)
             lightNote = "Read $n lit plate${if (n == 1) "" else "s"}. Wrong? Tap a plate to fix it."
             // the answer goes to the bottom of the screen
             if (onScreen) refreshMapOverlay() else showOnScreen()
@@ -795,7 +795,7 @@ class ToaPuzzleTool(
         matchNote = "Watching. Walk the tiles."
         lastBoards = null
         quickLooks = 0
-        memory.startWatch()
+        memory.startWatch(SystemClock.uptimeMillis())
         watchStarted = SystemClock.uptimeMillis()
         show()
         handler.postDelayed(matchTick, MATCH_INTERVAL_MS)
@@ -890,7 +890,11 @@ class ToaPuzzleTool(
     // One background thread for Watch's looks, kept while watching (rather than a new one for each of the
     // ~1,000 looks in a 5-minute Watch), and ended when watching stops
     private var watcher: java.util.concurrent.ExecutorService? = null
-    private fun watchWorker() = watcher ?: java.util.concurrent.Executors.newSingleThreadExecutor().also { watcher = it }
+    // (Normal priority, not background like the garden's savers: a look must be read before the player steps off the
+    // tile, so it mustn't wait behind the game. It never keeps the app alive on its own.)
+    private fun watchWorker() = watcher ?: java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "ToaWatch").apply { isDaemon = true }
+    }.also { watcher = it }
     private fun endWatchWorker() { watcher?.shutdown(); watcher = null }   // (a look still running finishes first)
 
 

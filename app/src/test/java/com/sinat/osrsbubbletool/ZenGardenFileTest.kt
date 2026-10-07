@@ -94,4 +94,15 @@ class ZenGardenFileTest {
         assertNull(ZenGardenFile.read(ByteArrayInputStream("not a garden".toByteArray())))
         assertNull(ZenGardenFile.read(oldFile { writeInt(9) }))   // a version this app doesn't know
     }
+
+    @Test
+    fun aDamagedFileWithAnImpossibleSizeGivesNothingInsteadOfCrashing() {
+        // a 30000 × 30000 garden would need 900 MB: no garden is ever that big, so the file must be damaged
+        assertNull(ZenGardenFile.read(oldFile { writeInt(4); writeFloat(1.5f); writeInt(30000); writeInt(30000) }))
+        assertNull(ZenGardenFile.read(oldFile { writeInt(4); writeFloat(1.5f); writeInt(-5); writeInt(10) }))
+        // a sand fineness of 0 would stretch it without end
+        assertNull(ZenGardenFile.read(oldFile { writeInt(4); writeFloat(0f); writeInt(10); writeInt(10) }))
+        // two billion placed things
+        assertNull(ZenGardenFile.read(oldFile { writeInt(4); writeFloat(1.5f); writeInt(1); writeInt(1); write(byteArrayOf(127)); writeInt(2_000_000_000) }))
+    }
 }

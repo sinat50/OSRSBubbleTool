@@ -520,11 +520,12 @@ class SandRenderer(glow: Float, steps: FloatArray, res: Float, flyReach: Float, 
         if (lamp.stale) {
             lamp.stale = false
             lamp.tileStale.fill(true)
-            // moved: let go of the tiles its light no longer reaches (each keeps a picture on the graphics chip)
+            // moved: the tiles its light no longer reaches let go of their pictures on the graphics chip. (The tile
+            // itself is kept, so dragging a lantern back and forth reuses them instead of making new ones every step.)
             for (k in lamp.tiles.indices) {
-                if (lamp.tiles[k] == null || (k % tilesX in tx0..tx1 && k / tilesX in ty0..ty1)) continue
-                lamp.tiles[k]?.discardDisplayList()
-                lamp.tiles[k] = null
+                val node = lamp.tiles[k] ?: continue
+                if (k % tilesX in tx0..tx1 && k / tilesX in ty0..ty1) continue
+                if (node.hasDisplayList()) node.discardDisplayList()
             }
         }
         var ready = false                         // the program has been set up for this lantern

@@ -226,18 +226,29 @@ class ScreenCapturer(
                 }
             }
             val shot = createBitmap(w, h)
-            if (w == iw && rowStride == rowBytes && src.remaining() >= rowBytes * ih) {
-                shot.copyPixelsFromBuffer(src)   // the usual case: the rows are already back to back
+            // the usual case: the picture is the whole screen (or the game fills it) and its rows are back to back.
+            // (Both sizes must match: a game as wide as the screen but shorter is placed at its own height below.)
+            if (w == iw && h == ih && rowStride == rowBytes && src.remaining() >= rowBytes * ih) {
+                shot.copyPixelsFromBuffer(src)
                 return shot
             }
             // Otherwise the rows are copied one by one into a buffer kept for this (so each look makes one picture,
             // not three): skipping the padding some phones put at the end of each row, and placing the game.
             // (Made once and reused: the picture is copied out of it, so nothing keeps hold of it.)
             val size = w * h * 4
-            val out = packed?.takeIf { it.capacity() >= size }
-                ?: java.nio.ByteBuffer.allocateDirect(size).also { packed = it }
+            var out = packed?.takeIf { it.capacity() >= size }
+            if (out == null) {
+                out = java.nio.ByteBuffer.allocateDirect(size)
+                packed = out
+                packedLayout.fill(-1)   // (a new buffer: nothing in it yet)
+            }
             out.clear()
-            if (w != iw || h != ih) {
+            // the black around the game only needs painting when the buffer is new or the game moved or changed size:
+            // otherwise it's still there from the last picture (the game's own rows are written over every time)
+            val layout = intArrayOf(w, h, ox, oy, iw, ih)
+            if (w == iw && h == ih) packedLayout.fill(-1)   // (a whole-screen picture covers it all: no black left)
+            else if (!layout.contentEquals(packedLayout)) {
+                layout.copyInto(packedLayout)
                 // black everywhere first (red, green, blue 0, fully opaque)
                 val black = ByteArray(w * 4)
                 for (i in 3 until black.size step 4) black[i] = 0xFF.toByte()
@@ -259,8 +270,10 @@ class ScreenCapturer(
         }
     }
 
-    // Holds one picture's rows while they're put in order (see grab), let go when capture pauses
+    // Holds one picture's rows while they're put in order (see grab), let go when capture pauses; and the layout
+    // (screen and game size, and where the game sits) its black surround was painted for
     private var packed: java.nio.ByteBuffer? = null
+    private val packedLayout = IntArray(6) { -1 }
 
     // The newest screen image, read straight from the capture without making a picture.
     // Much quicker when only a few pixels are needed. Null if nothing changed.

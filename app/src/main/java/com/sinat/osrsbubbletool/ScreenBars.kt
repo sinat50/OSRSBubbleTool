@@ -7,15 +7,14 @@ package com.sinat.osrsbubbletool
 // screen pixels (no Android parts), so it's tested on the PC (ScreenBarsTest); BubbleService does the moving.
 
 // How far each bar reaches in from its edge, in pixels (0 = not there)
-class Bars(val top: Int = 0, val bottom: Int = 0, val left: Int = 0, val right: Int = 0) {
+data class Bars(val top: Int = 0, val bottom: Int = 0, val left: Int = 0, val right: Int = 0) {
     fun clearRight(screenW: Int) = screenW - right      // the right edge of the part of the screen you can touch
     fun clearBottom(screenH: Int) = screenH - bottom    // and its bottom edge
-    fun sameAs(o: Bars) = top == o.top && bottom == o.bottom && left == o.left && right == o.right
 }
 
 // A place on the screen, and a window's place and size (a size of 0 or less: as big as what's in it)
-class Spot(val x: Int, val y: Int)
-class Box(val x: Int, val y: Int, val w: Int, val h: Int)
+data class Spot(val x: Int, val y: Int)
+data class Box(val x: Int, val y: Int, val w: Int, val h: Int)
 
 object ScreenBars {
 
@@ -29,9 +28,9 @@ object ScreenBars {
         val left = acrossLeft
         val right = screenW - acrossLeft - acrossWidth
         if (bottom < 0 || right < 0) return null
-        val b = bottom.coerceAtLeast(0); val l = left.coerceAtLeast(0); val r = right.coerceAtLeast(0)
-        if (b > screenH / 3 || l > screenW / 3 || r > screenW / 3) return null
-        return Bars(top, b, l, r)
+        val l = left.coerceAtLeast(0)
+        if (bottom > screenH / 3 || l > screenW / 3 || right > screenW / 3) return null
+        return Bars(top, bottom, l, right)
     }
 
     // Where a window you put at `want` goes while `bars` show: moved out from under them, and if it's then too big to

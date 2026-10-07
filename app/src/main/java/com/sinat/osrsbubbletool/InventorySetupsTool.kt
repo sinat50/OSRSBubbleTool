@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
-import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
@@ -365,16 +364,14 @@ class InventorySetupsTool(
                         Section.RUNE_POUCH -> PanelFinder.runePouch(pixels)
                     }
                     val area = found ?: saved
-                    val r = area?.let { Rect(it) }
+                    val pic = cutArea(shot, area, 2, 2)
                     message = when {
                         area == null -> if (section == Section.RUNE_POUCH)
                             "Couldn't find the rune pouch. Open it in the game (the window with Pouch and Inventory), then tap Capture."
                             else "Couldn't find your side panel on screen. Make sure it's showing, then try again, " +
                                 "or tap Set area to mark it by hand."
-                        r == null || !r.intersect(0, 0, shot.width, shot.height) || r.width() < 2 || r.height() < 2 ->
-                            "The ${section.label.lowercase()} area is off the screen. Tap Set area to move it."
+                        pic == null -> "The ${section.label.lowercase()} area is off the screen. Tap Set area to move it."
                         else -> {
-                            val pic = Bitmap.createBitmap(shot, r.left, r.top, r.width(), r.height())
                             picture = pic
                             val file = sectionFile(setup, section)
                             file.parentFile?.mkdirs()
@@ -389,8 +386,10 @@ class InventorySetupsTool(
                 }
                 val pic = picture
                 handler.post {
-                    // the setup was deleted while this saved: delete the picture too, so it isn't left in the backup
-                    if (setup !in setups) { File(folder, setup.id).deleteRecursively(); return@post }
+                    // the setup was deleted while this saved: delete the picture too, so it isn't left in the backup.
+                    // (Checked against the saved list, not this copy's: the tool may have been rebuilt meanwhile,
+                    // for dark mode or text size, and the setup deleted in the new copy.)
+                    if (loadSetups().none { it.id == setup.id }) { File(folder, setup.id).deleteRecursively(); return@post }
                     if (current !== setup) return@post
                     if (pic != null && message.endsWith("saved.")) showPicture(section, pic)
                     status?.text = message

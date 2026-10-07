@@ -132,7 +132,7 @@ object PuzzleSolver {
         val move: Int
     )
 
-    private data class Key(val a: Long, val b: Long)
+    private data class Key(val a: Long, val c: Long)   // (the same two halves as Node's a and c)
 
     // Packs a board into two numbers so visited boards can be remembered cheaply
     private fun key(b: IntArray): Key {
@@ -155,18 +155,21 @@ object PuzzleSolver {
     }
 
     private fun weightedAStar(start: IntArray, weight: Double): List<Int>? {
-        val open = PriorityQueue<Node>(compareBy { it.f })
+        // (compared as plain numbers: compareBy would make two throwaway objects for every one of the millions of
+        // comparisons in a hard search)
+        val open = PriorityQueue<Node> { x, y -> x.f.compareTo(y.f) }
         val visited = HashSet<Key>()
         val startKey = key(start)
-        open.add(Node(startKey.a, startKey.b, start.indexOf(EMPTY), 0, weight * heuristic(start), null, -1))
+        val goal = key(IntArray(SIZE) { it })   // the solved board, packed
+        open.add(Node(startKey.a, startKey.c, start.indexOf(EMPTY), 0, weight * heuristic(start), null, -1))
         var expanded = 0
         val board = IntArray(SIZE)   // the board being looked at, unpacked
         val nb = IntArray(SIZE)
 
         while (open.isNotEmpty()) {
             val node = open.poll() ?: break
-            unpack(node, board)
-            if (heuristic(board) == 0) {
+            // solved? (checked on the packed board: no need to unpack it and work out its estimate for that)
+            if (node.a == goal.a && node.c == goal.c) {
                 val moves = ArrayList<Int>()
                 var n: Node = node
                 while (true) {
@@ -177,8 +180,9 @@ object PuzzleSolver {
                 moves.reverse()
                 return moves
             }
-            if (!visited.add(Key(node.a, node.c))) continue
+            if (!visited.add(Key(node.a, node.c))) continue   // (a board queued twice: only looked at once)
             if (++expanded > ASTAR_LIMIT) return null
+            unpack(node, board)
 
             for (next in neighbours[node.blank]) {
                 if (node.parent != null && next == node.parent.blank) continue
@@ -188,7 +192,7 @@ object PuzzleSolver {
                 val k = key(nb)
                 if (k in visited) continue
                 val g = node.g + 1
-                open.add(Node(k.a, k.b, next, g, g + weight * heuristic(nb), node, next))
+                open.add(Node(k.a, k.c, next, g, g + weight * heuristic(nb), node, next))
             }
         }
         return null

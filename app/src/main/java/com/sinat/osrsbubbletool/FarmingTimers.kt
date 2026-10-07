@@ -127,9 +127,12 @@ object FarmingTimers {
 
     // Some accounts have their growth ticks shifted by a few minutes. RuneLite measures this;
     // here the player can set it by hand if timers are always early or late.
-    fun tickOffset(context: Context) = prefs(context).getInt("tick_offset", 0)
+    // (Saved as "tick_offset_later" since v1.0.9, when the offset was turned round to make timers later, as the
+    // Timers page says: a value saved before then meant the opposite, so it isn't used. The release notes ask
+    // anyone who had set one to set it again.)
+    fun tickOffset(context: Context) = prefs(context).getInt("tick_offset_later", 0)
     fun setTickOffset(context: Context, minutes: Int) =
-        prefs(context).edit { putInt("tick_offset", minutes) }
+        prefs(context).edit { putInt("tick_offset_later", minutes).remove("tick_offset") }
 
     // ---------------- Growth math ----------------
 

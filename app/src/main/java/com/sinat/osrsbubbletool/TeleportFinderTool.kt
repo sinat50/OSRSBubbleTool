@@ -174,6 +174,9 @@ class TeleportFinderTool(private val context: Context, private val openWikiSync:
     // ---------------- Searching the wiki ----------------
 
     private fun suggest(q: String) {
+        // a search was started (Search pressed, or a row tapped) before this waiting lookup came round: leave it be,
+        // or it would cancel that search and leave "Finding…" on the screen for good
+        if (page != null) return
         val text = q.trim()
         val id = ++searchId
         if (text.length < 2) { suggestions = emptyList(); refresh(); return }

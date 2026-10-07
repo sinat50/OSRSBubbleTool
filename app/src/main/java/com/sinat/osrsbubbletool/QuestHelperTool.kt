@@ -401,12 +401,13 @@ class QuestHelperTool(
         val term = search.trim()
         val matches = QuestBook.quests.filter { term.isEmpty() || it.name.contains(term, ignoreCase = true) }
         // where you stand with each quest, worked out once per list (it checks every requirement)
-        val statusOf = matches.associateWith { QuestBook.status(it, data) }
+        val standing = matches.associateWith { QuestBook.standing(it, data) }   // (status, how many missing)
+        val statusOf = standing.mapValues { it.value.first }
 
         fun group(title: String, quests: List<QuestBook.QuestInfo>) {
             if (quests.isEmpty()) return
             list.addView(label("$title (${quests.size})", 13f, bold = true), full(10))
-            quests.forEach { list.addView(questRow(it, data, statusOf.getValue(it)), full(3)) }
+            quests.forEach { q -> standing.getValue(q).let { (status, missing) -> list.addView(questRow(q, status, missing), full(3)) } }
         }
 
         if (data == null) {
@@ -423,7 +424,7 @@ class QuestHelperTool(
         if (list.isEmpty()) list.addView(label("No quests match \"$term\".", 12f), full(8))
     }
 
-    private fun questRow(q: QuestBook.QuestInfo, data: WikiSync.Data?, status: Status): View {
+    private fun questRow(q: QuestBook.QuestInfo, status: Status, missing: Int): View {
         val (mark, color) = when (status) {
             Status.DONE -> "✓" to GO_GREEN
             Status.STARTED -> "◐" to ORANGE
@@ -432,7 +433,7 @@ class QuestHelperTool(
             Status.UNKNOWN -> "•" to DARK_BROWN
         }
         val note = when {
-            status == Status.MISSING -> "${QuestBook.missing(q.requirements, data).size} missing"
+            status == Status.MISSING -> "$missing missing"
             q.miniquest -> "Miniquest"
             else -> ""
         }
@@ -996,6 +997,8 @@ class QuestHelperTool(
             data == null -> (if (sync.username.isEmpty()) "Enable WikiSync to check your requirements."
                              else "No WikiSync data yet.") to DARK_BROWN
             state == WikiSync.FINISHED -> "You've already finished this quest ✓" to GO_GREEN
+            // a quest WikiSync doesn't list yet (a new one): you may have done it already
+            state == null -> "WikiSync doesn't know this quest yet, so it can't tell if you've done it." to DARK_BROWN
             else -> {
                 val missing = QuestBook.missing(requirements, data).map { QuestBook.check(it, data).text.substringBefore(" (") }
                 if (missing.isEmpty()) "You meet every requirement ✓" +

@@ -54,7 +54,8 @@ class LightBoxTool(
     private var candidateSeen = 0
     private var solution: List<Int>? = null
     private var expecting = 0                    // button we asked you to press while learning
-    private var strays = 0                       // presses in a row that did what an already-learned button does
+    private var strays = 0                       // presses in a row that did what the same learned button does
+    private var strayButton = -1                 // (which button that was)
 
     private val captureStopped: () -> Unit = {
         if (!destroyed && tracking) stop("Screen capture is off. Tap Solve light box to turn it back on.")
@@ -151,6 +152,7 @@ class LightBoxTool(
         state = reading
         effects.fill(null)
         strays = 0
+        strayButton = -1
         candidate = -1
         misses = 0
         finished = false
@@ -222,16 +224,20 @@ class LightBoxTool(
         var note = ""
         if (solution == null && known == -1 && effects[expecting] == null) {
             effects[expecting] = flipped   // learned what this button does
-            strays = 0
+            strays = 0; strayButton = -1
         } else if (solution == null && known != -1 && known != expecting) {
-            // The app only sees the lights change, not which button was pressed. Twice in a row "that was A"
-            // while asking for B most likely means B was pressed earlier when A was asked for, so what was
-            // learned as A is really B: swap it, and ask for A again.
-            if (++strays >= 2) {
+            // The app only sees the lights change, not which button was pressed. If B was pressed earlier when A was
+            // asked for, what was learned as A is really B, and pressing B now looks like "that was A". Pressing A by
+            // mistake and again to undo it looks exactly the same, though, so it's only taken as a mix-up after the
+            // same press three times in a row (the window says so after the second): then it's swapped, and A is
+            // asked for again.
+            if (known == strayButton) strays++ else { strayButton = known; strays = 1 }
+            if (strays >= 3) {
                 effects[expecting] = flipped
                 effects[known] = null
-                strays = 0
-            } else note = "That was ${LETTERS[known]}. "
+                strays = 0; strayButton = -1
+            } else note = if (strays == 2) "That was ${LETTERS[known]} again. Pressing ${LETTERS[expecting]}? Press it once more to fix the mix-up. "
+                          else "That was ${LETTERS[known]}. "
         }
         update(note)
     }

@@ -48,12 +48,13 @@ object UpdateChecker {
                 c.readTimeout = 15_000
                 try {
                     if (c.responseCode == 200) {
-                        prefs(app).edit { putLong("checked_at", System.currentTimeMillis()) }
                         val j = JSONObject(c.inputStream.bufferedReader().use { it.readText() })
                         val tag = j.optString("tag_name")
                         if (tag.isNotEmpty() && !j.optBoolean("draft") && !j.optBoolean("prerelease")) {
                             prefs(app).edit { putString("latest", tag) }
                         }
+                        // (only once the answer was read: a reply cut off halfway is tried again next time)
+                        prefs(app).edit { putLong("checked_at", System.currentTimeMillis()) }
                     }
                 } finally { c.disconnect() }
             } catch (e: Exception) { }

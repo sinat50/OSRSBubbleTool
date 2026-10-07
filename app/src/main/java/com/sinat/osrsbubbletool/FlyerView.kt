@@ -83,6 +83,8 @@ class FlyerView(context: Context, private val best: () -> Int, private val onSco
         pillarW = max(r * 2.8f, w * 0.14f)
         sky = LinearGradient(0f, 0f, 0f, ground, SKY_TOP, SKY_BOTTOM, Shader.TileMode.CLAMP)
         // the window was resized: start over, since the pillars and the waiting bird were placed for the old size
+        // (a run cut short this way still counts, so a new best isn't lost)
+        if (state == State.PLAYING && ow != 0) onScore(score, true)
         reset()
     }
 

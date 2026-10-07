@@ -491,10 +491,12 @@ class GearRecognizer(private val context: Context) {
         var bestS = s0.roundToInt()
         var bestX = x0.roundToInt()
         var bestY = y0.roundToInt()
-        // Every size and place is tried. On a very big area (one set by hand over most of the screen) that would take
-        // minutes, since the work grows with the width cubed: there it's tried every `step` pixels first, then
-        // pixel by pixel around the best. (Normal equipment panels are under 700 pixels wide: searched as always.)
-        val step = if (w > 700) (w + 499) / 500 else 1
+        // Every size and place is tried. On an area far bigger than any equipment panel (one set by hand over most of
+        // the screen) that would take minutes, since the work grows with the width cubed: there it's tried every
+        // `step` pixels first, then pixel by pixel around the best. (Real panels, tablets' too, are under 1200
+        // pixels wide: searched exactly, as always. An area that big is mostly not the panel, so its slots are
+        // seldom found anyway: this only stops Import freezing for minutes over it.)
+        val step = if (w > 1200) (w + 499) / 500 else 1
         val sizes = (s0 * (1 - SIZE_RANGE)).toInt()..(s0 * (1 + SIZE_RANGE)).toInt()
         val xs = (x0.toInt() - range)..(x0.toInt() + range)
         val ys = (y0.toInt() - range)..(y0.toInt() + range)

@@ -184,19 +184,17 @@ object ToaReader {
 
     // ---------------- Light puzzle ----------------
 
-    // What was read: the lit plates (as ToaPuzzles numbers them). The map is never turned: the plates are numbered
-    // from whichever corner needs the least turning, so they already match the screen.
-    class LightReading(val lit: Int)
-
     // Finds the ring of eight plates on screen and reads which are lit. Null if it can't be seen.
-    fun readLights(p: LightBoxReader.PixelSource): LightReading? {
+    // (The lit plates as ToaPuzzles numbers them, one bit each. The map is never turned: the plates are numbered from
+    // whichever corner needs the least turning, so they already match the screen.)
+    fun readLights(p: LightBoxReader.PixelSource): Int? {
         val square = findSquare(p, withMiddle = false) ?: return null
         var lit = 0
         for (cell in 0 until 9) {
             if (cell == 4 || square.plates[cell]?.lit != true) continue
             lit = lit or (1 shl (if (cell > 4) cell - 1 else cell))   // ToaPuzzles skips the middle
         }
-        return LightReading(lit)
+        return lit
     }
 
     // ---------------- Sequence puzzle ----------------
@@ -697,22 +695,33 @@ object ToaReader {
         val stepLen = hypot(prev.colX[0], prev.colY[0])
         val reach = stepLen * 1.2f   // as far as you can walk between two pictures, with room to spare
         val tol = stepLen * 0.3f
-        val tiles = (0 until 18).map { prev.tileX(it) to prev.tileY(it) }
+        // (as plain numbers: the loops below run tens of thousands of times a look, and pairs make an object each read)
+        val nm = marks.size
+        val mxs = FloatArray(nm) { marks[it].first }; val mys = FloatArray(nm) { marks[it].second }
+        val txs = FloatArray(18) { prev.tileX(it) }; val tys = FloatArray(18) { prev.tileY(it) }
         var bestDx = 0f; var bestDy = 0f; var bestCount = 0
-        for ((mx, my) in marks) for ((tx, ty) in tiles) {
-            val dx = mx - tx; val dy = my - ty
+        for (m in 0 until nm) for (t in 0 until 18) {
+            val dx = mxs[m] - txs[t]; val dy = mys[m] - tys[t]
             if (hypot(dx, dy) > reach) continue
             // how many marks sit on a tile if everything slid by (dx, dy)
             var count = 0
-            for ((ox, oy) in marks) if (tiles.any { (ax, ay) -> hypot(ox - ax - dx, oy - ay - dy) < tol }) count++
+            for (o in 0 until nm) {
+                for (a in 0 until 18) if (hypot(mxs[o] - txs[a] - dx, mys[o] - tys[a] - dy) < tol) { count++; break }
+            }
             if (count > bestCount) { bestCount = count; bestDx = dx; bestDy = dy }
         }
         if (bestCount < 5) return null
         // average the agreeing marks for a steadier slide
         var sx = 0f; var sy = 0f; var n = 0
-        for ((ox, oy) in marks) {
-            val near = tiles.minByOrNull { (ax, ay) -> hypot(ox - ax - bestDx, oy - ay - bestDy) } ?: continue
-            if (hypot(ox - near.first - bestDx, oy - near.second - bestDy) < tol) { sx += ox - near.first; sy += oy - near.second; n++ }
+        for (o in 0 until nm) {
+            // the nearest tile (the first, if two are as near)
+            var near = -1; var nearD = Float.MAX_VALUE
+            for (a in 0 until 18) {
+                val d = hypot(mxs[o] - txs[a] - bestDx, mys[o] - tys[a] - bestDy)
+                if (d < nearD) { nearD = d; near = a }
+            }
+            if (near < 0) continue
+            if (nearD < tol) { sx += mxs[o] - txs[near]; sy += mys[o] - tys[near]; n++ }
         }
         val dx = sx / n; val dy = sy / n
         return MatchBoards(
@@ -838,6 +847,7 @@ object ToaReader {
 
     private const val MATCH_GLOW_MS = 800L     // a tile must glow this long to count as matched
     private const val LONE_GLOW_MS = 4_000L    // …or this long if its partner can't be seen
+    private const val NEW_RAID_MS = 10 * 60_000L   // Watch started this long after the last picture: a new raid
     // The symbols that can turn up in a solo raid (the other four pairs start matched)
     private val SOLO_SYMBOLS = listOf(ToaPuzzles.Symbol.DIAMOND, ToaPuzzles.Symbol.KNIVES, ToaPuzzles.Symbol.STAR,
         ToaPuzzles.Symbol.WIGGLE, ToaPuzzles.Symbol.FOOT)
@@ -852,6 +862,8 @@ object ToaReader {
         private val glowSince = HashMap<Int, Long>()       // per tile: when it started glowing (it must keep glowing to count)
         private val glowNearUi = HashSet<Int>()            // glowing tiles seen near the game's buttons (orbs, minimap, inventory)
         private var soloRaid: Boolean? = null              // four pairs already matched on each board when watching began
+        private var lastShowing = emptyList<Int>()         // the tiles showing a symbol in the last picture
+        private var lastLook = 0L                          // when the last picture was added (0 = never)
         // the last picture showed a symbol not settled yet: Watch looks again straight away, before you step off it
         var unsure = false
             private set
@@ -859,30 +871,40 @@ object ToaReader {
         // The symbols a tile could show: in a solo raid, only the five that start unmatched
         val allowed: List<ToaPuzzles.Symbol> get() = if (soloRaid == true) SOLO_SYMBOLS else ToaPuzzles.MATCHING_SYMBOLS
 
-        // Watch is starting: glows have to be seen afresh. Solo or not is decided again only if nothing is known yet:
-        // Watch started again partway through a group raid would see four or more pairs matched and think it solo.
-        fun startWatch() {
-            glowSince.clear(); glowNearUi.clear()
+        // Watch is starting (`now`: the time, as for merge). Glows have to be seen afresh. Solo or not is decided again
+        // only if nothing is known yet: Watch started again partway through a group raid would see four or more pairs
+        // matched and think it solo. More than 10 minutes since the last picture is a new raid (Clear wasn't tapped):
+        // a matching room never takes that long, so what's remembered is from the last one and is forgotten.
+        fun startWatch(now: Long = 0L) {
+            if (lastLook > 0L && now - lastLook > NEW_RAID_MS) { symbols.clear(); done.clear(); votes.clear(); active = null }
+            glowSince.clear(); glowNearUi.clear(); lastShowing = emptyList()
             if (symbols.isEmpty() && done.isEmpty()) soloRaid = null
         }
 
         // Forget everything
-        fun clear() { symbols.clear(); done.clear(); votes.clear(); active = null; soloRaid = null; startWatch() }
+        fun clear() { symbols.clear(); done.clear(); votes.clear(); active = null; lastLook = 0L; startWatch() }
 
         // Adds what one picture showed. `screenW` is the screen's width, to tell where the game's buttons are.
         // True if anything changed.
         fun merge(tiles: List<MatchTile>, boards: MatchBoards, screenW: Int, now: Long): Boolean {
             // decided from the first clear look: solo raids start with four pairs matched
-            if (soloRaid == null) soloRaid = (0 until 18).count { tiles[it].state == TILE_MATCHED } >= 7
+            // (exactly four pairs, 8 tiles, start matched; 7 if one is hidden. More can only be a group raid well on.)
+            if (soloRaid == null) soloRaid = (0 until 18).count { tiles[it].state == TILE_MATCHED } in 7..8
+            lastLook = now
             // The game's buttons down the right of the screen (orbs, minimap, inventory) and down the left can look
             // like a glowing tile; a glow seen there needs a partner to count
             fun nearUi(t: Int) = boards.tileX(t) !in (screenW * 0.1f)..(screenW * 0.72f)
             var changed = false
             unsure = false
             // the tile you've just flipped (it shows its symbol while you stand on it). If two show one (another
-            // player's, or the last one not faded yet), the one already marked stays marked, so it doesn't flicker.
+            // player's, or the last one not faded yet), one that has just appeared is the one flipped; otherwise the
+            // one already marked stays marked, so it doesn't flicker.
             val showing = (0 until 18).filter { tiles[it].state == TILE_SYMBOL }
-            if (showing.isNotEmpty() && active !in showing) { active = showing.first(); changed = true }
+            val appeared = showing.filter { it !in lastShowing }
+            val pick = if (appeared.isNotEmpty()) (if (active in appeared) active else appeared.first())
+                       else if (active in showing) active else showing.firstOrNull()
+            if (pick != null && pick != active) { active = pick; changed = true }
+            lastShowing = showing
             for (t in 0 until 18) {
                 val tile = tiles[t]
                 when (tile.state) {
@@ -903,7 +925,9 @@ object ToaReader {
                         v[k]++
                         // the symbol most pictures agreed on, once at least two did (or one was very clear)
                         val best = v.indices.maxBy { v[it] }
-                        if (v[best] < 2 && tile.sure < 0.8f) { unsure = true; continue }
+                        // (one very clear look is enough, but only for the symbol it actually saw: on a tie, the
+                        // list's first symbol would otherwise be taken on another symbol's clear look)
+                        if (v[best] < 2 && !(best == k && tile.sure >= 0.8f)) { unsure = true; continue }
                         val chosen = ToaPuzzles.MATCHING_SYMBOLS[best]
                         if (symbols[t] == chosen) continue
                         // each board has each symbol once: keep whichever tile it was seen on more

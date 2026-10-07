@@ -18,6 +18,10 @@ import kotlin.random.Random
 object ZenGardenFile {
 
     private const val VERSION = 4
+    // (sizes no real garden reaches: a file saying more is damaged, and is read as "nothing saved" rather than
+    // running out of memory, which would crash the garden every time it opened)
+    private const val MAX_SIDE = 8000
+    private const val MAX_THINGS = 1000
 
     // One placed thing, as saved
     class Thing(val kind: Int, val x: Float, val y: Float, val r: Float, val aspect: Float, val angle: Float,
@@ -56,11 +60,15 @@ object ZenGardenFile {
             val version = inp.readInt()
             if (version !in 1..VERSION) return null
             val fileRes = if (version >= 4) inp.readFloat() else 1f
+            if (!(fileRes in 0.25f..16f)) return null
             val k = SandGardenView.RES / fileRes   // how much bigger everything is in today's squares
             val w = inp.readInt(); val h = inp.readInt()
+            if (w !in 1..MAX_SIDE || h !in 1..MAX_SIDE) return null
             val bytes = ByteArray(w * h)
             inp.readFully(bytes)
-            val things = List(inp.readInt()) {
+            val count = inp.readInt()
+            if (count !in 0..MAX_THINGS) return null
+            val things = List(count) {
                 val kind = if (version == 1) SandGardenView.STONE else inp.readInt()
                 val x = inp.readFloat() * k; val y = inp.readFloat() * k; val r = inp.readFloat() * k
                 val aspect = inp.readFloat(); val angle = inp.readFloat(); val color = inp.readInt()

@@ -1288,8 +1288,10 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     }
 
     // A placed thing's look, worked out the first time it's needed (see ZenThings.look)
-    private fun lookOf(s: Item): ZenThings.Look =
-        s.look ?: ZenThings.look(s.kind, s.r, s.angle, s.color, s.seed).also { s.look = it }
+    private fun lookOf(s: Item): ZenThings.Look = s.look ?: run {
+        makeLooks(s)   // (a flower clump's blossoms: worked out once, and handed over)
+        ZenThings.look(s.kind, s.r, s.angle, s.color, s.seed, if (s.kind == FLOWERS) s.blobs else null).also { s.look = it }
+    }
 
     // A flower clump's blossom colour
     private fun petalColour(it: Item) = ZenThings.petalColour(it.color, it.seed)
@@ -1367,10 +1369,14 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         lampR = FloatArray(lamps.size) { lamps[it].r }
         lampTurn = FloatArray(lamps.size) { Math.toRadians(lamps[it].angle.toDouble()).toFloat() }
         // each lantern's light picture (kept and reused, as this runs on every move while something is dragged)
-        while (lampLights.size > lamps.size) lampLights.removeAt(lampLights.size - 1)
+        // (a lantern taken away lets go of its smooth light's pictures on the graphics chip straight away)
+        while (lampLights.size > lamps.size) dropLight(lampLights.removeAt(lampLights.size - 1))
         for (k in lamps.indices) {
             if (k >= lampLights.size || lampLights[k].seed != lamps[k].seed) {
-                if (k < lampLights.size) lampLights[k] = LampLight(lamps[k].seed) else lampLights.add(LampLight(lamps[k].seed))
+                if (k < lampLights.size) {
+                    dropLight(lampLights[k])
+                    lampLights[k] = LampLight(lamps[k].seed)
+                } else lampLights.add(LampLight(lamps[k].seed))
             }
             val layer = lampLights[k]
             val nx = lamps[k].x.toInt() - LAMP_SIZE / 2
@@ -1383,7 +1389,6 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         // the lanterns' light in the smooth drawing: one for each lantern, with its flame where the lantern is
         val gpu = smooth
         if (gpu != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val before = gpu.lamps.toList()
             gpu.lamps.clear()
             for (k in lamps.indices) {
                 val layer = lampLights[k]
@@ -1391,8 +1396,12 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                 s.set(lamps[k].x, lamps[k].y, lamps[k].r, lampTurn[k])
                 gpu.lamps.add(s)
             }
-            for (old in before) if (old !in gpu.lamps) gpu.drop(old)   // lanterns taken away
         }
+    }
+
+    // A lantern's light taken away: its smooth drawing's pictures go from the graphics chip straight away
+    private fun dropLight(light: LampLight) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) light.smooth?.let { smooth?.drop(it) }
     }
 
     // Draws again the squares around a placed thing (where it was or is)
@@ -1508,8 +1517,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     // A short burst of the current tool's sound (while the volume or tone slider is moved, to hear it)
     fun soundSample() {
         if (!soundOn) return
-        sound.voice = if (tool == STICK) SandSound.STICK else SandSound.RAKE
-        sound.level(0.5f * if (tool == STICK) 0.6f else 1f)
+        sound.play(0.5f * if (tool == STICK) 0.6f else 1f, if (tool == STICK) SandSound.STICK else SandSound.RAKE)
         removeCallbacks(hush)
         postDelayed(hush, 350)
     }
@@ -1518,8 +1526,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
     private fun makeSound(speed: Float) {
         if (!soundOn) return
         heard += (speed - heard) * 0.15f
-        sound.voice = if (tool == STICK) SandSound.STICK else SandSound.RAKE
-        sound.level(heard * when (tool) { RAKE -> 1f; STICK -> 0.6f; else -> 0.45f })
+        sound.play(heard * when (tool) { RAKE -> 1f; STICK -> 0.6f; else -> 0.45f }, if (tool == STICK) SandSound.STICK else SandSound.RAKE)
         removeCallbacks(hush)
         postDelayed(hush, 120)
     }
@@ -1713,8 +1720,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         hand.end = r * sweep                 // (all the way round: it lifts out smoothly over its own start)
         var done = 0f
         if (soundOn) {
-            sound.voice = if (tool == STICK) SandSound.STICK else SandSound.RAKE   // (Automatic may have changed it)
-            sound.level(0.55f * if (tool == RAKE) 1f else 0.6f)
+            sound.play(0.55f * if (tool == RAKE) 1f else 0.6f, if (tool == STICK) SandSound.STICK else SandSound.RAKE)
         }
         anim = ValueAnimator.ofFloat(0f, sweep).apply {
             duration = (500 + r / RES * 8).toLong().coerceAtMost(1800)
@@ -1747,7 +1753,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         wave = FloatArray(4) { Random.nextFloat() * 6.28f }
         items.forEach { it.rings = 0 }
         smoothedTo = 0
-        if (soundOn) { sound.voice = SandSound.RAKE; sound.level(0.5f) }
+        if (soundOn) sound.play(0.5f, SandSound.RAKE)
         anim = ValueAnimator.ofInt(0, gw).apply {
             duration = 450
             interpolator = LinearInterpolator()
@@ -2353,7 +2359,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
                 val to = if (autoClock >= SMOOTH_SECONDS) gw else (gw * autoClock / SMOOTH_SECONDS).toInt()
                 smoothRange(autoSmoothedTo, to)
                 autoSmoothedTo = max(autoSmoothedTo, to)
-                if (soundOn) { sound.voice = SandSound.RAKE; sound.level(0.2f) }
+                if (soundOn) sound.play(0.2f, SandSound.RAKE)
                 if (autoClock >= SMOOTH_SECONDS) nextAutoStage()
             }
             1, 2 -> walkAutoStroke(dt)
@@ -2374,8 +2380,7 @@ class SandGardenView(context: Context, private val saveFile: File, var tool: Int
         val level = walkHand(autoHand, dt)
         // (the sound of the stroke's own tool, not the one you picked: a stick's strokes sound like a stick)
         if (soundOn) {
-            if (level > 0f) sound.voice = handVoice
-            sound.level(level)
+            if (level > 0f) sound.play(level, handVoice) else sound.level(0f)
         }
         if (autoHand.gone) nextAutoStage()
     }

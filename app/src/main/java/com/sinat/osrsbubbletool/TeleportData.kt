@@ -200,6 +200,19 @@ object TeleportData {
         "event", "holiday", "christmas", "halloween", "hallowe'en", "easter", "birthday", "april fools",
         "tutorial", "fight caves wave", "echo", "mirror", "clone", "illusion", "npc contact")
     private val NOT_A_PLACE_RE = NOT_A_PLACE.map { Regex("""\b""" + Regex.escape(it) + """s?\b""") }
+    // (the patterns read from wiki pages, made once rather than on every call)
+    private val BRACKET_RE = Regex("""\(([^)]*)\)\s*$""")
+    private val COMBAT_RE = Regex("""\|\s*combat(\d*)\s*=\s*([^\n|}]+)""")
+    private val VERSION_RE = Regex("""\|\s*version(\d+)\s*=\s*([^\n|}]+)""")
+    private val LOCATION_RE = Regex("""\|\s*location(\d*)\s*=\s*([^\n]+)""")
+    private val MAP_KEY_RE = Regex("""\|\s*map(\d*)\s*=\s*$""", RegexOption.IGNORE_CASE)
+    private val XY_RE = Regex("""^\s*(\d+)\s*,\s*(\d+)""")
+    private val COORDS_RE = Regex("""x:(\d+),y:(\d+)""")
+    private val NUMBER_RE = Regex("""\d+""")
+    private val LINK_RE = Regex("""\[\[(?:[^\]|]*\|)?([^\]]*)\]\]""")
+    private val TEMPLATE_RE = Regex("""\{\{[^}]*\}\}""")
+    private val TAG_RE = Regex("<[^>]*>")
+    private val SPACES_RE = Regex("\\s+")
     private val SKILL_REQ = Regex("""^(\d+)\s+([A-Za-z]+)$""")   // "70 Agility" (made once: checked very often)
     private val YEAR = Regex("""\b(19|20)\d\d\b""")   // "Santa (2019)": a holiday event from that year
 
@@ -209,7 +222,7 @@ object TeleportData {
     fun usefulSuggestions(titles: List<String>, count: Int): List<String> {
         val kept = titles.filter { t ->
             if ('/' in t) return@filter false
-            val bracket = Regex("""\(([^)]*)\)\s*$""").find(t)?.groupValues?.get(1)?.lowercase() ?: return@filter true
+            val bracket = BRACKET_RE.find(t)?.groupValues?.get(1)?.lowercase() ?: return@filter true
             NOT_A_PLACE_RE.none { it.containsMatchIn(bracket) } && !YEAR.containsMatchIn(bracket)
         }.distinctBy { it.lowercase() }
         val bases = kept.filter { '(' !in it }.map { it.lowercase().trim() }.toSet()
@@ -228,25 +241,25 @@ object TeleportData {
         val versions = HashMap<String, String>()
         // combat level for each version ("|combat2 = 227"), or one for the whole page ("|combat = 227")
         val combat = HashMap<String, String>()
-        Regex("""\|\s*combat(\d*)\s*=\s*([^\n|}]+)""").findAll(wikitext).forEach {
+        COMBAT_RE.findAll(wikitext).forEach {
             val v = clean(it.groupValues[2])
             if (v.isNotEmpty() && it.groupValues[1] !in combat) combat[it.groupValues[1]] = v
         }
-        Regex("""\|\s*version(\d+)\s*=\s*([^\n|}]+)""").findAll(wikitext).forEach {
+        VERSION_RE.findAll(wikitext).forEach {
             val v = clean(it.groupValues[2])
             if (v.isNotEmpty() && it.groupValues[1] !in versions) versions[it.groupValues[1]] = v   // the first real name
         }
 
         // where it is, for each version ("|location2 = [[God Wars Dungeon]]") or for the whole page
         val where = HashMap<String, String>()
-        Regex("""\|\s*location(\d*)\s*=\s*([^\n]+)""").findAll(wikitext).forEach {
+        LOCATION_RE.findAll(wikitext).forEach {
             val v = clean(it.groupValues[2].substringBefore("|}}").trimEnd('|', '}', ' '))
             if (v.isNotEmpty() && it.groupValues[1] !in where) where[it.groupValues[1]] = v
         }
 
         // {{Map|x=3210|y=3448|plane=1}} or {{Map|3203,3434}}, often as "|map2 = {{Map…}}"
         for ((start, body) in templates(wikitext, "Map")) {
-            val mapKey = Regex("""\|\s*map(\d*)\s*=\s*$""", RegexOption.IGNORE_CASE).find(wikitext.substring(maxOf(0, start - 20), start))
+            val mapKey = MAP_KEY_RE.find(wikitext.substring(maxOf(0, start - 20), start))
             var x: Int? = null; var y: Int? = null; var plane = 0
             for (part in topLevelParts(body)) {
                 val eq = part.indexOf('=')
@@ -255,7 +268,7 @@ object TeleportData {
                     val v = part.substring(eq + 1).trim()
                     when (k) { "x" -> x = v.toIntOrNull(); "y" -> y = v.toIntOrNull(); "plane" -> plane = v.toIntOrNull() ?: 0 }
                 } else if (x == null) {
-                    Regex("""^\s*(\d+)\s*,\s*(\d+)""").find(part)?.let { x = it.groupValues[1].toIntOrNull(); y = it.groupValues[2].toIntOrNull() }
+                    XY_RE.find(part)?.let { x = it.groupValues[1].toIntOrNull(); y = it.groupValues[2].toIntOrNull() }
                 }
             }
             val vx = x; val vy = y
@@ -273,7 +286,7 @@ object TeleportData {
 
         // {{LocLine|location=[[Slayer Tower]]|…|x:3437,y:9964|x:…}}: monsters, one spot per area
         for ((_, body) in templates(wikitext, "LocLine")) {
-            val coords = Regex("""x:(\d+),y:(\d+)""").findAll(body).mapNotNull { m ->
+            val coords = COORDS_RE.findAll(body).mapNotNull { m ->
                 val cx = m.groupValues[1].toIntOrNull(); val cy = m.groupValues[2].toIntOrNull()
                 if (cx != null && cy != null) cx to cy else null
             }.toList()
@@ -304,7 +317,7 @@ object TeleportData {
 
     // "227" → "Level 227"; "90, 100" or "90-100" → "Levels 90–100"; anything that isn't a level → ""
     private fun levelText(raw: String?): String {
-        val nums = Regex("""\d+""").findAll(raw ?: return "").mapNotNull { it.value.toIntOrNull() }.filter { it in 1..2000 }.toList()
+        val nums = NUMBER_RE.findAll(raw ?: return "").mapNotNull { it.value.toIntOrNull() }.filter { it in 1..2000 }.toList()
         if (nums.isEmpty()) return ""
         val lo = nums.min(); val hi = nums.max()
         return if (lo == hi) "Level $lo" else "Levels $lo–$hi"
@@ -350,8 +363,8 @@ object TeleportData {
     }
 
     // "[[Slayer Tower]]" → "Slayer Tower", "[[Kalphite Lair|the lair]]" → "the lair"
-    private fun clean(s: String) = s.replace(Regex("""\[\[(?:[^\]|]*\|)?([^\]]*)\]\]"""), "$1")
-        .replace("[[", "").replace("]]", "").replace(Regex("""\{\{[^}]*\}\}"""), "").replace(Regex("<[^>]*>"), "").replace("()", "").replace(Regex("\\s+"), " ").trim()
+    private fun clean(s: String) = s.replace(LINK_RE, "$1")
+        .replace("[[", "").replace("]]", "").replace(TEMPLATE_RE, "").replace(TAG_RE, "").replace("()", "").replace(SPACES_RE, " ").trim()
 
     // "~40 tiles, 12 s run"
     fun describe(tiles: Int): String = when {

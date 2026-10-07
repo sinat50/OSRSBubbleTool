@@ -28,24 +28,32 @@ class PuzzleReferences(context: Context) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val assets = context.applicationContext.assets
     private var loaded: List<Puzzle>? = null
+    private var waiting: MutableList<(List<Puzzle>?, String?) -> Unit>? = null   // asked while the pictures are being read
 
     // Reads all the solved pictures (the first time, in the background).
-    // Calls onDone on the main thread with the puzzles, or with an error message.
+    // Calls onDone on the main thread with the puzzles, or with an error message. (Asked again while they're still
+    // being read, it waits for that same reading instead of starting another.)
     fun load(onDone: (List<Puzzle>?, String?) -> Unit) {
         loaded?.let { onDone(it, null); return }
+        waiting?.let { it.add(onDone); return }
+        val callers = mutableListOf(onDone)
+        waiting = callers
         Thread {
+            var puzzles: List<Puzzle>? = null
+            var error: String? = null
             try {
-                val puzzles = PUZZLES.map { (name, fileName) ->
+                puzzles = PUZZLES.map { (name, fileName) ->
                     val image = assets.open("puzzles/$fileName").use { BitmapFactory.decodeStream(it) }
                         ?: throw IllegalStateException("the $name picture couldn't be read")
                     Puzzle(name, image)
                 }
-                mainHandler.post {
-                    loaded = puzzles
-                    onDone(puzzles, null)
-                }
             } catch (e: Exception) {
-                mainHandler.post { onDone(null, e.message ?: "a picture is missing") }
+                error = e.message ?: "a picture is missing"
+            }
+            mainHandler.post {
+                loaded = puzzles
+                waiting = null
+                callers.forEach { it(puzzles, error) }
             }
         }.start()
     }

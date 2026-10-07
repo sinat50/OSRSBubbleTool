@@ -80,19 +80,25 @@ class MainActivity : Activity() {
     // switched in the bubble's Settings window meanwhile)
     override fun onResume() {
         super.onResume()
+        Palette.dark = AppSettings.isDark(this)   // (this screen's colours while it's in front, see show)
         if (screen == Screen.PERMISSIONS || AppSettings.isDark(this) != shownDark) show(screen)
         // look for a newer version on GitHub each time the app is opened (unless that's switched off in Settings)
         if (AppSettings.checksUpdates(this)) UpdateChecker.check(this) { if (!isDestroyed) styleUpdateButton() }
+    }
+
+    // Gone to the background: the shared colours go back to the bubble's (its windows were built in those)
+    override fun onPause() {
+        super.onPause()
+        if (BubbleService.isRunning) Palette.dark = BubbleService.builtDark
     }
 
     private var shownDark = false   // whether this screen was last drawn in the dark colours
 
     private fun show(s: Screen) {
         screen = s
-        // The colours are shared with the bubble. If it's holding off a dark mode switch (the phone changed while a
-        // tool was in use), the bubble's windows keep their colours: this screen is built in the new ones, then
-        // the bubble's colours are put back.
-        val bubbleColours = Palette.dark
+        // The colours are shared with the bubble. While this screen is in front it uses its own (they can differ when
+        // the bubble is holding off a dark mode switch, the phone's having changed while a tool was in use); the
+        // bubble's are put back when it goes to the background (onPause).
         Palette.dark = AppSettings.isDark(this)
         val dark = Palette.dark
         shownDark = dark
@@ -102,7 +108,6 @@ class MainActivity : Activity() {
             Screen.PERMISSIONS -> permissionsScreen()
             Screen.LEGAL -> legalScreen()
         }
-        if (BubbleService.isRunning) Palette.dark = bubbleColours
         setContentView(content)
         // the clock and icons along the top (and bottom) of the screen: dark on the light page, light on the dark one
         WindowCompat.getInsetsController(window, window.decorView).apply {

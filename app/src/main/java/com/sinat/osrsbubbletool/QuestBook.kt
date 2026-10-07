@@ -91,8 +91,16 @@ object QuestBook {
 
     class Check(val met: Met, val text: String)
 
-    fun questPoints(data: WikiSync.Data): Int =
-        quests.filter { data.questState(it.name) == WikiSync.FINISHED }.sumOf { it.questPoints }
+    // Your quest points (added up once for each set of WikiSync data: every "N quest points" requirement asks)
+    fun questPoints(data: WikiSync.Data): Int {
+        if (data !== pointsFor) {
+            pointsFor = data
+            points = quests.filter { data.questState(it.name) == WikiSync.FINISHED }.sumOf { it.questPoints }
+        }
+        return points
+    }
+    private var pointsFor: WikiSync.Data? = null
+    private var points = 0
 
     fun combatLevel(data: WikiSync.Data): Int? {
         fun l(s: String) = data.level(s)
@@ -148,13 +156,16 @@ object QuestBook {
     enum class Status { DONE, STARTED, READY, MISSING, UNKNOWN }
 
     // Where you stand with a quest: finished, can start it, or missing something
-    fun status(quest: QuestInfo, data: WikiSync.Data?): Status {
-        if (data == null) return Status.UNKNOWN
+    fun status(quest: QuestInfo, data: WikiSync.Data?): Status = standing(quest, data).first
+
+    // The same, with how many requirements are missing (worked out together, for the list of quests)
+    fun standing(quest: QuestInfo, data: WikiSync.Data?): Pair<Status, Int> {
+        if (data == null) return Status.UNKNOWN to 0
         return when (data.questState(quest.name)) {
-            WikiSync.FINISHED -> Status.DONE
-            WikiSync.IN_PROGRESS -> Status.STARTED
-            null -> Status.UNKNOWN   // WikiSync doesn't list this quest yet (a new one): it may already be done
-            else -> if (missing(quest.requirements, data).isEmpty()) Status.READY else Status.MISSING
+            WikiSync.FINISHED -> Status.DONE to 0
+            WikiSync.IN_PROGRESS -> Status.STARTED to 0
+            null -> Status.UNKNOWN to 0   // WikiSync doesn't list this quest yet (a new one): it may already be done
+            else -> missing(quest.requirements, data).size.let { if (it == 0) Status.READY to 0 else Status.MISSING to it }
         }
     }
 

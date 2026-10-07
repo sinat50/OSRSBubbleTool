@@ -50,6 +50,7 @@ class PuzzleSolverTest {
             assertNotNull("no solution for scramble $i", moves)
             assertTrue("scramble $i not solved", play(board, moves!!).contentEquals(IntArray(25) { it }))
             total += moves.size
+            println("MOVES $i: ${moves.joinToString(",")}")
         }
         println("20 puzzles solved, ${total / 20} moves on average, ${System.currentTimeMillis() - started} ms")
     }

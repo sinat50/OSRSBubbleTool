@@ -43,8 +43,9 @@ Code: `app/src/main/java/com/sinat/osrsbubbletool/` (one file per tool, roughly)
 | `BubbleService.kt`, `ScreenBars.kt` | The bubble, its long-press menu, tool windows (move/resize), the `Tool` list (its order is the menu order) and `makeParts()` (the one place each tool is set up). `ScreenBars` = the maths for keeping the bubble and windows clear of the status and navigation bars (see below) |
 | `MainActivity.kt` | Main screen, Permissions, Legal (all credits and licence notices) |
 | `CaptureManager.kt`, `ScreenCapturer.kt`, `CapturePermissionActivity.kt` | Screen capture: asked once per bubble session; Android 14+ can share just the game |
-| `PuzzleBoxTool.kt`, `PuzzleFinder.kt`, `GridFinder.kt`, `TileMatcher.kt`, `PuzzleSolver.kt`, `MoveGuideOverlay.kt`, `PuzzleReferences.kt` | Puzzle Box Solver (`MoveGuideOverlay.kt` also holds the guide-window helpers the Light Box shares) |
-| `LightBoxTool.kt`, `LightBoxReader.kt`, `LightBoxGuideOverlay.kt` | Light Box Solver (`LightBoxReader.forEachPatch` is shared with the Puzzle Box) |
+| `PuzzleBoxTool.kt`, `PuzzleFinder.kt`, `GridFinder.kt`, `TileMatcher.kt`, `PuzzleSolver.kt`, `MoveGuideOverlay.kt`, `PuzzleReferences.kt` | Puzzle Box Solver |
+| `LightBoxTool.kt`, `LightBoxReader.kt`, `LightBoxGuideOverlay.kt` | Light Box Solver |
+| `GuideWindow.kt`, `ScreenPictures.kt` | Shared: the see-through guide windows both solvers draw in; and working with screen pictures (`forEachPatch`, `cutArea`, `savePictureToPhone`) |
 | `ToaPuzzleTool.kt`, `ToaPuzzles.kt`, `ToaReader.kt` | ToA Puzzle Helper (Beta): the five Path of Scabaras puzzles. **Read `docs/toa-helper.md` before changing these.** |
 | `DpsTool.kt`, `GearRecognizer.kt`, `GearIcons.kt`, `PanelFinder.kt` | DPS Calculator (wiki web page) and Import my gear |
 | `InventorySetupsTool.kt`, `RegionOverlay.kt`, `PuzzleAreaOverlay.kt` | Inventory Setups, and the "set area by hand" frames |
@@ -145,7 +146,9 @@ trailer and the ToA demo video; how to update them is in `trailer/README.md`), `
 ## Code style
 
 - Colours: `"#3E2C12".toColorInt()`; saved settings: `prefs.edit { putInt(...) }`; web addresses:
-  `"...".toUri()` (androidx core-ktx). Android's check (lint) flags the older forms.
+  `"...".toUri()` (androidx core-ktx). Android's check (lint) flags the older forms. The exception: code meant to
+  run on the PC (no Android parts, like `ZenThings`) uses the plain-arithmetic `colour("#...")`, `rgb`, `blend` and
+  `tone` from `ZenThings.kt`, which give exactly what Android's would.
 - Code run for every pixel uses a `fun interface` (see `ToaReader.Skip`), never a Kotlin function type like
   `(Int, Int) -> Boolean`: on Android every call boxes its arguments (a million objects per look, 500 ms instead
   of 85).

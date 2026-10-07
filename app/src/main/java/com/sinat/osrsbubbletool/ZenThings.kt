@@ -79,15 +79,15 @@ object ZenThings {
     fun flowerKind(seed: Int) = ((seed ushr 4) and 0xFFFF) % 3
 
     // A placed thing, as far as its look goes
-    private class Thing(val kind: Int, val r: Float, val angle: Float, val color: Int, val seed: Int) {
-        val blobs: FloatArray = if (kind == SandGardenView.FLOWERS) blossoms(seed, r) else FloatArray(0)
+    private class Thing(val kind: Int, val r: Float, val angle: Float, val color: Int, val seed: Int, given: FloatArray?) {
+        val blobs: FloatArray = given ?: if (kind == SandGardenView.FLOWERS) blossoms(seed, r) else FloatArray(0)
     }
 
     // A placed thing's look, from its kind, size (in squares), turn (degrees), colour and seed (see makeBonsai,
     // makeStone, makeLantern and makeFlowers). The same every time for the same values.
-    @Synchronized   // (stones share rockAt's two answers)
-    fun look(kind: Int, r: Float, angle: Float, color: Int, seed: Int): Look {
-        val s = Thing(kind, r, angle, color, seed)
+    // (`blossoms`: a flower clump's blossoms if already worked out, see blossoms, so they aren't worked out twice)
+    fun look(kind: Int, r: Float, angle: Float, color: Int, seed: Int, blossoms: FloatArray? = null): Look {
+        val s = Thing(kind, r, angle, color, seed, blossoms)
         return when (kind) {
             SandGardenView.BONSAI -> makeBonsai(s)
             SandGardenView.LANTERN -> makeLantern(s)
@@ -494,21 +494,20 @@ object ZenThings {
         return Rock(ox, oy, r, kind, top, soft, px, py, faces, steepest)
     }
 
-    private var rockH = 0f                   // (rockAt's answers: how tall the stone stands there, and how far
-    private var rockIn = 0f                  // inside its outline the point is)
-    // A stone's height at (x, y) (from its middle, in squares): under every face, the edges where they meet rounded
-    private fun rockAt(rk: Rock, x: Float, y: Float) {
+    // A stone's height at (x, y) (from its middle, in squares): under every face, the edges where they meet rounded.
+    // (How far inside its outline the point is goes into inside[0].)
+    private fun rockAt(rk: Rock, x: Float, y: Float, inside: FloatArray): Float {
         val f = rk.faces
         var h = 0f
-        var inside = Float.MAX_VALUE
+        var inn = Float.MAX_VALUE
         for (k in 0 until f.size / 4) {
             val v = f[4 * k + 3] - f[4 * k + 2] * (f[4 * k] * x + f[4 * k + 1] * y)
             h = if (k == 0) v else softMin(h, v, rk.soft)
-            inside = min(inside, v / f[4 * k + 2])
+            inn = min(inn, v / f[4 * k + 2])
         }
         if (rk.kind == CRAG) h = softMin(h, rk.top * 1.6f - 0.9f * hypot(x - rk.px, y - rk.py), rk.soft)
-        rockH = softMin(h, rk.top, rk.soft * 0.6f + 0.5f)
-        rockIn = inside
+        inside[0] = inn
+        return softMin(h, rk.top, rk.soft * 0.6f + 0.5f)
     }
 
     // The lower of two heights, rounded off where they meet (over a width of k)
@@ -559,6 +558,7 @@ object ZenThings {
         val seed = s.seed
         val look = Look(ceil(1.45f * r).toInt())
         val half = look.half
+        val insideOut = FloatArray(1)   // (rockAt's second answer)
         for (gy in -half..half) for (gx in -half..half) {
             val dx = gx + 0.5f
             val dy = gy + 0.5f
@@ -575,9 +575,8 @@ object ZenThings {
             var near = -Float.MAX_VALUE              // how far inside the nearest stone (for the moss)
             for (k in rocks.indices) {
                 val rk = rocks[k]
-                rockAt(rk, wu - rk.ox, wv - rk.oy)
-                val h = rockH
-                val inside = rockIn
+                val h = rockAt(rk, wu - rk.ox, wv - rk.oy, insideOut)
+                val inside = insideOut[0]
                 near = max(near, inside / rk.r * r)
                 if (inside <= 0 || h <= 0) continue
                 // weathering: bumps (in dp, × RES), and fine cracks: thin grooves

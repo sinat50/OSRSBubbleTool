@@ -29,8 +29,8 @@ class ToaReaderTest {
         dir!!.listFiles { f -> f.name.endsWith(".png") }!!.sortedBy { it.name }.forEach { f ->
             val reading = ToaReader.readLights(Shot(f))
             val text = reading?.let { r ->
-                val lit = (0 until 8).filter { r.lit shr it and 1 == 1 }
-                val steps = ToaPuzzles.solveLights(r.lit).let { s -> (0 until 8).filter { s shr it and 1 == 1 } }
+                val lit = (0 until 8).filter { r shr it and 1 == 1 }
+                val steps = ToaPuzzles.solveLights(r).let { s -> (0 until 8).filter { s shr it and 1 == 1 } }
                 "lit $lit, step on $steps"
             } ?: "no light puzzle"
             val number = ToaReader.readAdditionNumber(Shot(f))?.let { ", addition number $it" } ?: ""
@@ -102,7 +102,7 @@ class ToaReaderTest {
             val remembered = (0 until 18).joinToString("") { t ->
                 (if (t == 9) "|" else "") + (memory.symbols[t]?.label?.take(2) ?: "..") + (if (t in memory.done) "*" else " ")
             }
-            println("MEMORY %3d: %s".format(n, remembered))
+            println("MEMORY %3d: %s active=%s".format(n, remembered, memory.active))
             println("REPLAY %3d: L(%4.0f,%4.0f) R(%4.0f,%4.0f) col(%4.0f,%4.0f) %s | %s".format(n,
                 boards.cx[0], boards.cy[0], boards.cx[1], boards.cy[1], boards.colX[0], boards.colY[0],
                 tiles.take(9).joinToString(" ") { it.padEnd(2) }, tiles.drop(9).joinToString(" ") { it.padEnd(2) }))

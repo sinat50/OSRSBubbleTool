@@ -1,6 +1,5 @@
 package com.sinat.osrsbubbletool
 
-import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -9,11 +8,8 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.os.Build
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
-import android.provider.MediaStore
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -66,7 +62,8 @@ class DpsTool(
                 });
                 if (!state || !state.loadouts) { alert('Open the calculator once, then try again.'); return; }
                 var ix = state.selectedLoadout || 0;
-                var loadout = state.loadouts[ix] || state.loadouts[0];
+                var loadout = state.loadouts[ix];
+                if (!loadout) { ix = 0; state.selectedLoadout = 0; loadout = state.loadouts[0]; }   // (shows the one filled in)
                 if (!loadout) { alert('Open the calculator once, then try again.'); return; }
                 if (!loadout.equipment) loadout.equipment = {};
                 for (var slot in gear) {
@@ -113,6 +110,12 @@ class DpsTool(
         webView.webChromeClient = object : WebChromeClient() {
             override fun onJsAlert(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
                 showStatus(message)
+                result?.confirm()
+                return true
+            }
+            // ("leave this page?": always yes, as before this client was set, or the reload that shows the
+            // imported gear could be cancelled)
+            override fun onJsBeforeUnload(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
                 result?.confirm()
                 return true
             }
@@ -174,7 +177,7 @@ class DpsTool(
 
     // Lets go of the captured picture once the window is closed. Any guesses you're checking stay,
     // so you can still load them into the calculator. Without guesses there's nothing left to show.
-    private fun forgetPicture() {
+    private fun forgetPicture(keepMessage: Boolean = false) {
         if (lastCapture == null && previewView == null) return
         lastCapture = null
         previewView?.setImageDrawable(null)
@@ -182,7 +185,7 @@ class DpsTool(
         previewView = null
         saveButton?.visibility = View.GONE
         saveButton = null
-        if (choices.isEmpty() && resultsPanel?.visibility == View.VISIBLE) closeResults()
+        if (choices.isEmpty() && resultsPanel?.visibility == View.VISIBLE) closeResults(keepMessage)
     }
 
     fun onRotated() {
@@ -270,10 +273,10 @@ class DpsTool(
                     // found by itself has no equipment slots in it (it found some other window)
                     val found = PanelFinder.find(LightBoxReader.Pixels(shot))
                     val saved = equipmentArea.savedArea(shot.width, shot.height)
-                    var tab = cut(shot, found ?: saved)
+                    var tab = cutArea(shot, found ?: saved, 40, 60)
                     var result = tab?.let { t -> try { recognizer.recognize(t, preferred) } catch (e: Exception) { null } }
                     if ((result == null || result.slots.isEmpty()) && found != null && saved != null && saved != found) {
-                        val other = cut(shot, saved)
+                        val other = cutArea(shot, saved, 40, 60)
                         val second = other?.let { t -> try { recognizer.recognize(t, preferred) } catch (e: Exception) { null } }
                         if (other != null && second != null && second.slots.isNotEmpty()) {
                             if (tab != null && tab !== shot) tab.recycle()
@@ -296,7 +299,7 @@ class DpsTool(
                         lastCapture = picture
                         showRecognition(reading, picture)
                         // the window was closed while this worked: let go of the pictures now (the guesses stay)
-                        if (resultsPanel?.isShown != true) forgetPicture()
+                        if (resultsPanel?.isShown != true) forgetPicture(keepMessage = true)
                     }
                 } catch (t: Throwable) {
                     // e.g. out of memory on an older phone: say so, and let Import be tapped again
@@ -306,12 +309,6 @@ class DpsTool(
         }, CAPTURE_DELAY_MS)
     }
 
-    // The part of the screenshot inside area, or null if there's no area or it's too small or off the screen
-    private fun cut(shot: Bitmap, area: Rect?): Bitmap? {
-        val r = area?.let { Rect(it) } ?: return null
-        if (!r.intersect(0, 0, shot.width, shot.height) || r.width() < 40 || r.height() < 60) return null
-        return Bitmap.createBitmap(shot, r.left, r.top, r.width(), r.height())
-    }
 
     // The captured window with each found slot outlined in gold
     private fun drawSlots(tab: Bitmap, rects: Map<String, Rect>): Bitmap {
@@ -452,36 +449,22 @@ class DpsTool(
         }
     }
 
-    private fun closeResults() {
+    // (keepMessage: the window was closed while an import that failed was worked on: its message stays for when
+    // the window opens again)
+    private fun closeResults(keepMessage: Boolean = false) {
         resultsPanel?.visibility = View.GONE
         resultsPanel?.removeAllViews()
         lastCapture = null   // only "Save picture" (on the panel just closed) used it
         previewView = null
         saveButton = null
-        showStatus(null)
+        if (!keepMessage) showStatus(null)
     }
 
     // Saves the last capture as an uncompressed PNG in Pictures/OSRS Bubble Tool
     private fun saveCapture() {
         val picture = lastCapture ?: return
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            showStatus("Saving pictures needs Android 10 or newer.")
-            return
-        }
-        try {
-            val values = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, "equipment-${System.currentTimeMillis()}.png")
-                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/OSRS Bubble Tool")
-            }
-            val resolver = context.contentResolver
-            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                ?: throw IllegalStateException("couldn't create the file")
-            resolver.openOutputStream(uri)?.use { picture.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            showStatus("Saved to Pictures/OSRS Bubble Tool.")
-        } catch (e: Exception) {
-            showStatus("Couldn't save the picture: ${e.message}")
-        }
+        // (the picture stays: the results panel still shows it)
+        savePictureToPhone(context, picture, "equipment", recycle = false) { showStatus(it) }
     }
 
     private fun loadIntoCalculator() {
@@ -491,10 +474,11 @@ class DpsTool(
                 val index = picked[slot] ?: 0
                 val item = options[index].item
                 gear.put(slot, item?.id ?: JSONObject.NULL)
-                // you switched this slot to another guess: remember it for next time; you kept a different
-                // item than the one remembered (or nothing): forget it, so it isn't put first again
+                // you switched this slot to another guess: remember it for next time; you kept a different item
+                // than the one remembered: forget it, so it isn't put first again. (An empty slot says nothing about
+                // which look-alike you prefer, so the remembered one stays.)
                 if (index != 0 && item != null) putInt(slot, item.id)
-                else if (picksPrefs.contains(slot) && picksPrefs.getInt(slot, 0) != item?.id) remove(slot)
+                else if (item != null && picksPrefs.contains(slot) && picksPrefs.getInt(slot, 0) != item.id) remove(slot)
             }
         }
         closeResults()

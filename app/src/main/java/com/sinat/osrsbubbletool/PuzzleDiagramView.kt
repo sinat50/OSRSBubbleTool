@@ -30,6 +30,34 @@ class PuzzleDiagramView(context: Context, private val diagram: QuestPuzzles.Diag
         private val TREE = "#4E7A34".toColorInt()
         private val STUMP = "#8B5A2B".toColorInt()
         private val MARK = "#3E7A2E".toColorInt()
+        // the other colours used while drawing, read once here rather than on every draw
+        private val C_2B2B30 = "#2B2B30".toColorInt()
+        private val C_3667E0 = "#3667E0".toColorInt()
+        private val C_3B2622 = "#3B2622".toColorInt()
+        private val C_3C3D44 = "#3C3D44".toColorInt()
+        private val C_3CD6E0 = "#3CD6E0".toColorInt()
+        private val C_3DBB4A = "#3DBB4A".toColorInt()
+        private val C_55555C = "#55555C".toColorInt()
+        private val C_5A2E0C = "#5A2E0C".toColorInt()
+        private val C_6E6E76 = "#6E6E76".toColorInt()
+        private val C_9A9AA3 = "#9A9AA3".toColorInt()
+        private val C_B03A2E = "#B03A2E".toColorInt()
+        private val C_B8862E = "#B8862E".toColorInt()
+        private val C_B89A63 = "#B89A63".toColorInt()
+        private val C_C8C8D0 = "#C8C8D0".toColorInt()
+        private val C_C9A04A = "#C9A04A".toColorInt()
+        private val C_C9A233 = "#C9A233".toColorInt()
+        private val C_C9C9D6 = "#C9C9D6".toColorInt()
+        private val C_D0201A = "#D0201A".toColorInt()
+        private val C_D845C8 = "#D845C8".toColorInt()
+        private val C_DCC99C = "#DCC99C".toColorInt()
+        private val C_E03A2F = "#E03A2F".toColorInt()
+        private val C_E0A43A = "#E0A43A".toColorInt()
+        private val C_E4E4EA = "#E4E4EA".toColorInt()
+        private val C_E8D24A = "#E8D24A".toColorInt()
+        private val C_E9DAB5 = "#E9DAB5".toColorInt()
+        private val C_F2D23A = "#F2D23A".toColorInt()
+        private val C_F4EEDD = "#F4EEDD".toColorInt()
     }
 
     private val density = resources.displayMetrics.density
@@ -95,12 +123,12 @@ class PuzzleDiagramView(context: Context, private val diagram: QuestPuzzles.Diag
         QuestPuzzles.SOTE_LANDMARKS.firstOrNull { it.label == target }?.let { seal ->
             val label = if (seal.floor == floor) target
                 else "Seal: " + when (seal.floor) { 0 -> "bottom floor"; 1 -> "middle floor"; else -> "top floor" }
-            text.textSize = 10 * density; text.textAlign = Paint.Align.RIGHT; text.color = "#B03A2E".toColorInt()
+            text.textSize = 10 * density; text.textAlign = Paint.Align.RIGHT; text.color = C_B03A2E
             val tx = width - 28 * density
             canvas.drawText(label, tx, 15 * density, text)
             text.textAlign = Paint.Align.CENTER; text.color = INK
             if (seal.floor == floor) {
-                line.color = "#B03A2E".toColorInt(); line.strokeWidth = 2f * density
+                line.color = C_B03A2E; line.strokeWidth = 2f * density
                 canvas.drawCircle(tx - text.measureText(label) - 9 * density, 11 * density, 5 * density, line)
             }
         }
@@ -166,11 +194,11 @@ class PuzzleDiagramView(context: Context, private val diagram: QuestPuzzles.Diag
                 for (k in 0..2) canvas.drawLine(x - r + (k + 1) * r * 0.66f, y + r - k * r * 0.66f, x - r + (k + 1) * r * 0.66f, y + r - (k + 1) * r * 0.66f, line)
             }
             "dispenser", "exit", "handhold" -> {
-                fill.color = "#B89A63".toColorInt()
+                fill.color = C_B89A63
                 canvas.drawRect(x - r, y - r * 0.7f, x + r, y + r * 0.7f, fill)
             }
             "seal" -> {
-                line.color = if (target) "#B03A2E".toColorInt() else FADED
+                line.color = if (target) C_B03A2E else FADED
                 line.strokeWidth = (if (target) 3f else 1.5f) * density
                 canvas.drawCircle(x, y, r * if (target) 1.3f else 1f, line)
             }
@@ -192,7 +220,7 @@ class PuzzleDiagramView(context: Context, private val diagram: QuestPuzzles.Diag
             canvas.drawCircle(x, y, r * 1.25f, fill)
         }
         if (s.item == "mirror") {
-            fill.color = if (current) Color.WHITE else "#F4EEDD".toColorInt()
+            fill.color = if (current) Color.WHITE else C_F4EEDD
             canvas.drawRect(x - r * 0.75f, y - r * 0.75f, x + r * 0.75f, y + r * 0.75f, fill)
             line.color = INK; line.strokeWidth = 1.2f * density
             canvas.drawRect(x - r * 0.75f, y - r * 0.75f, x + r * 0.75f, y + r * 0.75f, line)
@@ -228,13 +256,13 @@ class PuzzleDiagramView(context: Context, private val diagram: QuestPuzzles.Diag
     }
 
     private fun crystalColour(item: String): Int = when {
-        item.startsWith("red") -> "#E03A2F".toColorInt()
-        item.startsWith("green") -> "#3DBB4A".toColorInt()
-        item.startsWith("blue") -> "#3667E0".toColorInt()
-        item.startsWith("yellow") -> "#F2D23A".toColorInt()
-        item.startsWith("cyan") -> "#3CD6E0".toColorInt()
-        item.startsWith("magenta") -> "#D845C8".toColorInt()
-        else -> "#C9C9D6".toColorInt()   // fractured / clear
+        item.startsWith("red") -> C_E03A2F
+        item.startsWith("green") -> C_3DBB4A
+        item.startsWith("blue") -> C_3667E0
+        item.startsWith("yellow") -> C_F2D23A
+        item.startsWith("cyan") -> C_3CD6E0
+        item.startsWith("magenta") -> C_D845C8
+        else -> C_C9C9D6   // fractured / clear
     }
 
     // ---------------- Rubble and trees: which tile, and which side to stand on ----------------
@@ -302,12 +330,12 @@ class PuzzleDiagramView(context: Context, private val diagram: QuestPuzzles.Diag
         val cell = size / n
         val left = (width - cell * n) / 2f
         val top = (height - cell * n) / 2f
-        fill.color = "#2B2B30".toColorInt()
+        fill.color = C_2B2B30
         canvas.drawRect(left - 4 * density, top - 4 * density, left + cell * n + 4 * density, top + cell * n + 4 * density, fill)
-        val gold = "#C9A04A".toColorInt()
+        val gold = C_C9A04A
         for (r in 0 until n) for (c in 0 until n) {
             val x = left + c * cell; val y = top + r * cell
-            fill.color = "#3C3D44".toColorInt()
+            fill.color = C_3C3D44
             canvas.drawRect(x + 1.5f * density, y + 1.5f * density, x + cell - 1.5f * density, y + cell - 1.5f * density, fill)
             val t = d.rows[r][c]
             val cx = x + cell / 2; val cy = y + cell / 2
@@ -332,13 +360,13 @@ class PuzzleDiagramView(context: Context, private val diagram: QuestPuzzles.Diag
         val ox = (width - 350 * s) / 2f; val oy = (height - 383 * s) / 2f
         fun px(v: Float) = ox + (v - 225f) * s
         fun py(v: Float) = oy + (v - 33f) * s
-        fill.color = "#6E6E76".toColorInt()
+        fill.color = C_6E6E76
         canvas.drawRoundRect(RectF(px(245f), py(40f), px(555f), py(330f)), 10 * s, 10 * s, fill)
-        fill.color = "#55555C".toColorInt()
+        fill.color = C_55555C
         canvas.drawRect(px(262f), py(58f), px(540f), py(320f), fill)
 
-        val pipe = "#E4E4EA".toColorInt()
-        val edge = "#9A9AA3".toColorInt()
+        val pipe = C_E4E4EA
+        val edge = C_9A9AA3
         fun run(width: Float, colour: Int, vararg pts: Float) {
             val p = Path()
             p.moveTo(px(pts[0]), py(pts[1]))
@@ -369,7 +397,7 @@ class PuzzleDiagramView(context: Context, private val diagram: QuestPuzzles.Diag
         pipes(30f, edge)
         pipes(24f, pipe)
         // the four outlets and the inlet
-        fill.color = "#C8C8D0".toColorInt()
+        fill.color = C_C8C8D0
         for (x in listOf(297f, 365f, 432f, 502f)) canvas.drawRoundRect(RectF(px(x - 26f), py(58f), px(x + 26f), py(76f)), 4 * s, 4 * s, fill)
         canvas.drawRoundRect(RectF(px(373f), py(298f), px(427f), py(322f)), 4 * s, 4 * s, fill)
     }
@@ -381,17 +409,17 @@ class PuzzleDiagramView(context: Context, private val diagram: QuestPuzzles.Diag
         val cell = size / max(d.cols, d.rows)
         val left = (width - cell * d.cols) / 2f
         val top = (height - cell * d.rows) / 2f
-        fill.color = "#C9A233".toColorInt()
+        fill.color = C_C9A233
         canvas.drawRect(left - 5 * density, top - 5 * density, left + cell * d.cols + 5 * density, top + cell * d.rows + 5 * density, fill)
         for (r in 0 until d.rows) for (c in 0 until d.cols) {
             val i = r * d.cols + c
             val x = left + c * cell; val y = top + r * cell
-            fill.color = if (i in d.lit) "#E8D24A".toColorInt() else "#5A2E0C".toColorInt()
+            fill.color = if (i in d.lit) C_E8D24A else C_5A2E0C
             canvas.drawRect(x + 2 * density, y + 2 * density, x + cell - 2 * density, y + cell - 2 * density, fill)
             d.clicks[i]?.let { n ->
                 fill.color = Color.WHITE
                 canvas.drawCircle(x + cell / 2, y + cell / 2, cell * 0.3f, fill)
-                text.textSize = cell * 0.4f; text.typeface = Typeface.DEFAULT_BOLD; text.color = "#D0201A".toColorInt()
+                text.textSize = cell * 0.4f; text.typeface = Typeface.DEFAULT_BOLD; text.color = C_D0201A
                 canvas.drawText("$n", x + cell / 2, y + cell / 2 + cell * 0.14f, text)
                 text.color = INK
             }
@@ -400,11 +428,13 @@ class PuzzleDiagramView(context: Context, private val diagram: QuestPuzzles.Diag
 
     // ---------------- The Blood Moon Rises bookcase symbols ----------------
 
+    private var parsedGlyphs: List<Pair<Int, List<Long>>>? = null
+
     private fun drawGlyphs(canvas: Canvas, d: QuestPuzzles.Diagram.Glyphs) {
-        val glyphs = d.data.split("|").map { part ->
+        val glyphs = parsedGlyphs ?: d.data.split("|").map { part ->
             val (w, rows) = part.split(":")
             w.toInt() to rows.split(",").map { it.toLong(36) }
-        }
+        }.also { parsedGlyphs = it }   // (read once: the diagram never changes)
         val n = glyphs.size
         val gap = 4 * density
         val bookW = (width - 16 * density - gap * (n - 1)) / n
@@ -414,17 +444,17 @@ class PuzzleDiagramView(context: Context, private val diagram: QuestPuzzles.Diag
         for ((k, g) in glyphs.withIndex()) {
             val (w, rows) = g
             val bx = 8 * density + k * (bookW + gap); val by = 8 * density
-            fill.color = "#3B2622".toColorInt()
+            fill.color = C_3B2622
             canvas.drawRoundRect(RectF(bx, by, bx + bookW, by + bookH), 3 * density, 3 * density, fill)
-            fill.color = "#B8862E".toColorInt()
+            fill.color = C_B8862E
             canvas.drawRect(bx, by + bookH * 0.06f, bx + bookW, by + bookH * 0.1f, fill)
             canvas.drawRect(bx, by + bookH * 0.9f, bx + bookW, by + bookH * 0.94f, fill)
             val gx = bx + (bookW - w * px) / 2f; val gy = by + (bookH - rows.size * px) / 2f
-            fill.color = "#E0A43A".toColorInt()
+            fill.color = C_E0A43A
             for ((y, bits) in rows.withIndex()) for (x in 0 until w) {
                 if ((bits shr x) and 1L == 1L) canvas.drawRect(gx + x * px, gy + y * px, gx + (x + 1) * px + 0.5f, gy + (y + 1) * px + 0.5f, fill)
             }
-            text.textSize = 10 * density; text.typeface = Typeface.DEFAULT_BOLD; text.color = "#E9DAB5".toColorInt()
+            text.textSize = 10 * density; text.typeface = Typeface.DEFAULT_BOLD; text.color = C_E9DAB5
             canvas.drawText("${k + 1}", bx + bookW / 2, by + bookH - 2 * density, text)
             text.color = INK
         }
@@ -438,7 +468,7 @@ class PuzzleDiagramView(context: Context, private val diagram: QuestPuzzles.Diag
         val left = (width - cell * d.cols) / 2f
         val top = (height - cell * d.rows) / 2f
         for (r in 0 until d.rows) for (c in 0 until d.cols) {
-            fill.color = if ((r + c) % 2 == 0) "#DCC99C".toColorInt() else "#E9DAB5".toColorInt()
+            fill.color = if ((r + c) % 2 == 0) C_DCC99C else C_E9DAB5
             canvas.drawRect(left + c * cell, top + r * cell, left + (c + 1) * cell, top + (r + 1) * cell, fill)
             if (r * d.cols + c in d.marked) {
                 fill.color = MARK

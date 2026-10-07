@@ -71,6 +71,9 @@ class BubbleService : Service() {
 
         // True while the bubble is on (so you're most likely playing)
         @Volatile var isRunning = false
+        // whether the bubble's tool windows were built dark (the app's main screen puts the shared colours back to
+        // this when it goes to the background, see MainActivity.onPause)
+        @Volatile var builtDark = false
             private set
         const val EXTRA_RESULT_CODE = "resultCode"
         const val EXTRA_RESULT_DATA = "resultData"
@@ -544,10 +547,12 @@ class BubbleService : Service() {
         val menuHeight = minOf(list.measuredHeight + dp(2), limit)
         scroll.isScrollbarFadingEnabled = list.measuredHeight + dp(2) <= menuHeight  // fade if nothing to scroll
 
-        // place the menu beside the bubble, flipping to the left side if there's no room
+        // place the menu beside the bubble, flipping to the left side if there's no room (a navigation bar down the
+        // right side counts as no room: it would sit under it. Top and bottom use the insets above, which also keep
+        // clear of the camera cutout, which the bars don't track.)
         val gap = dp(6)
         var x = bubbleParams.x + bubbleSize() + gap
-        if (x + menuWidth > screenWidth()) x = bubbleParams.x - menuWidth - gap
+        if (x + menuWidth > bars.clearRight(screenWidth())) x = maxOf(bars.left, bubbleParams.x - menuWidth - gap)
 
         val params = WindowManager.LayoutParams(
             menuWidth,
@@ -633,6 +638,8 @@ class BubbleService : Service() {
     private fun showToolWindow() {
         // the phone's dark mode changed while a window was open (still waits if a puzzle guide is on screen)
         if (darkModeWaiting) applyDarkMode(fromPhone = true)
+        // the tool text size changed while a guide was running: done now, unless one still is
+        if (textSizeWaiting) rebuildForTextSize.run()
         val window = toolWindows.getOrPut(currentTool) { buildToolWindow(currentTool) }
         if (currentTool == Tool.GAMES) applyFrameless(window)
         val params = makeWindowParams()
@@ -757,6 +764,12 @@ class BubbleService : Service() {
     private var compactSaved: IntArray? = null   // x, y, width, height, and the wanted x, y, width, height before shrinking
     private var compactPlace = COMPACT_OFF       // which corner it's shrunk into (to put it back there when the phone turns)
 
+    // A shrunk window's saved place and size (compactSaved) become `fresh`: where it goes when it's done shrinking
+    private fun backToSize(saved: IntArray, fresh: WindowManager.LayoutParams) {
+        saved[0] = fresh.x; saved[1] = fresh.y; saved[2] = fresh.width; saved[3] = fresh.height
+        saved[4] = fresh.x; saved[5] = fresh.y; saved[6] = fresh.width; saved[7] = fresh.height
+    }
+
     private fun setWindowCompact(place: Int) {
         val on = place != COMPACT_OFF
         val params = shownParams ?: return
@@ -841,7 +854,8 @@ class BubbleService : Service() {
 
     private fun clampBubble() {
         // (never under the status bar or the navigation bar while they're showing, where it couldn't be touched)
-        val spot = ScreenBars.keepBubble(bubbleParams.x, bubbleParams.y, bubbleSize(), screenWidth(), screenHeight(), bars)
+        val (sw, sh) = fullScreenSize(windowManager)   // (both at once: asking for each works it all out twice)
+        val spot = ScreenBars.keepBubble(bubbleParams.x, bubbleParams.y, bubbleSize(), sw, sh, bars)
         bubbleParams.x = spot.x
         bubbleParams.y = spot.y
     }
@@ -918,14 +932,15 @@ class BubbleService : Service() {
         across.getLocationOnScreen(loc)
         // (null: read while the phone turns, against the old screen size: the layout that follows, or the check after
         // the turn, reads them again)
-        val now = ScreenBars.fromStrips(downTop, down.height, loc[0], across.width, screenWidth(), screenHeight())
+        val (sw, sh) = fullScreenSize(windowManager)
+        val now = ScreenBars.fromStrips(downTop, down.height, loc[0], across.width, sw, sh)
             ?: return@Runnable
         onBarsChanged(now)
     }
 
     // How far the bars reach in, read from the strips: if a bar appeared or hid, everything moves
     private fun onBarsChanged(now: Bars) {
-        if (now.sameAs(bars)) return
+        if (now == bars) return
         bars = now
         // move things just after this, not while Android is in the middle of laying out windows
         bubble.post {
@@ -935,6 +950,9 @@ class BubbleService : Service() {
             clampBubble()
             windowManager.updateViewLayout(bubble, bubbleParams)
             val params = shownParams ?: return@post
+            // a shrunk window (a ToA answer) goes back into its corner, against the bars as they are now (after the
+            // phone turns, the new bars are only read a moment after it was put there)
+            if (compactSaved != null) { setWindowCompact(compactPlace); return@post }
             placeClearOfBars(params)
             shownWindow?.let { windowManager.updateViewLayout(it, params) }
         }
@@ -945,8 +963,9 @@ class BubbleService : Service() {
     // size when they hide again.
     private fun placeClearOfBars(params: WindowManager.LayoutParams) {
         // (a window as big as what's in it, like a shrunk one, is kept clear once its size is known)
+        val (sw, sh) = fullScreenSize(windowManager)
         val b = ScreenBars.place(Box(shownWantX, shownWantY, shownWantW, shownWantH), shownWindow?.width ?: 0,
-            shownWindow?.height ?: 0, screenWidth(), screenHeight(), bars)
+            shownWindow?.height ?: 0, sw, sh, bars)
         params.x = b.x
         params.y = b.y
         if (shownWantW > 0) params.width = b.w
@@ -1112,7 +1131,8 @@ class BubbleService : Service() {
     // Moves the open window while it's dragged (by its top bar or its move symbol), up and down too if moveY. Not under
     // the status bar or the navigation bar while they're showing (you couldn't grab it there).
     private fun moveWindowTo(params: WindowManager.LayoutParams, x: Int, y: Int, moveY: Boolean) {
-        val spot = ScreenBars.drag(x, y, params.width, params.height, screenWidth(), screenHeight(), bars, moveY)
+        val (sw, sh) = fullScreenSize(windowManager)   // (once per finger movement, both at once)
+        val spot = ScreenBars.drag(x, y, params.width, params.height, sw, sh, bars, moveY)
         params.x = spot.x
         if (currentTool != Tool.LIGHT_BOX && currentTool != Tool.PUZZLE_BOX) windowX = params.x  // others share one position
         shownWantX = params.x
@@ -1212,8 +1232,9 @@ class BubbleService : Service() {
                     val dy = (e.rawY - downY).toInt()
                     if (abs(dx) > dp(3) || abs(dy) > dp(3)) moved = true
                     if (moved) {
+                        val (sw, sh) = fullScreenSize(windowManager)
                         val size = ScreenBars.resize(startW + dx, startH + dy, params.x, params.y, minWindowWidth, minWindowHeight,
-                            screenWidth(), screenHeight(), bars)
+                            sw, sh, bars)
                         params.width = size.w
                         params.height = size.h
                         shownWantW = params.width
@@ -1385,7 +1406,6 @@ class BubbleService : Service() {
     // ---------------- Settings ----------------
 
     // A setting was changed (in the Settings window, or on the app's screen)
-    private var builtDark = false   // whether the tool windows were built dark
     private val settingsChanged = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (destroyed) return@OnSharedPreferenceChangeListener
         when (key) {
@@ -1419,9 +1439,14 @@ class BubbleService : Service() {
 
     private val rebuildForTextSize = Runnable {
         if (destroyed) return@Runnable
+        // a puzzle guide is on screen with its window closed: building the tools again would stop it, so that waits
+        // until a window is next opened with no guide running (see showToolWindow)
+        textSizeWaiting = toolParts.values.any { it.isBusy() }
+        if (textSizeWaiting) return@Runnable
         updateToolTextSize()
         rebuildToolWindows()
     }
+    private var textSizeWaiting = false
 
     // The open window goes to its normal place and size again (after a Settings change to those)
     private fun resetShownWindow() {
@@ -1430,8 +1455,7 @@ class BubbleService : Service() {
         val fresh = makeWindowParams()
         compactSaved?.let { saved ->
             // a shrunk window stays shrunk, but when it's done it goes back to the new normal size and place
-            saved[0] = fresh.x; saved[1] = fresh.y; saved[2] = fresh.width; saved[3] = fresh.height
-            saved[4] = fresh.x; saved[5] = fresh.y; saved[6] = fresh.width; saved[7] = fresh.height
+            backToSize(saved, fresh)
             return
         }
         rememberWanted(fresh)
@@ -1517,8 +1541,7 @@ class BubbleService : Service() {
             // a shrunk window (a ToA answer) stays shrunk in its corner; when it's done it goes back to its
             // normal size and place for the new way round, not the old one's
             val fresh = makeWindowParams()
-            shrunk[0] = fresh.x; shrunk[1] = fresh.y; shrunk[2] = fresh.width; shrunk[3] = fresh.height
-            shrunk[4] = fresh.x; shrunk[5] = fresh.y; shrunk[6] = fresh.width; shrunk[7] = fresh.height
+            backToSize(shrunk, fresh)
             setWindowCompact(compactPlace)
         } else if (shownWindow != null) {
             val params = makeWindowParams()

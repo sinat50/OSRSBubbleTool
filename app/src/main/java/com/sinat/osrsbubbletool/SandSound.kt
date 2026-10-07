@@ -81,7 +81,8 @@ class SandSound {
 
     @Volatile private var target = 0f       // how loud it should be, 0 to 1
     @Volatile var volume = 1f               // the player's volume setting (1 = normal)
-    @Volatile var voice = RAKE              // which tool it's the sound of: RAKE (also the brush) or STICK
+    @Volatile var voice = RAKE              // which tool it's the sound of: RAKE (also the brush) or STICK (set by play)
+        private set
     @Volatile var tone = 0.5f               // the Tone slider: 0 soft, 0.5 the usual, 1 sharp
 
     // The sound's settings for the voice and tone it was last set up for (worked out again when either changes)
@@ -109,6 +110,13 @@ class SandSound {
     @Volatile private var running = false
     @Volatile private var stopNow = false
 
+    // Plays the sound of `voice` (RAKE or STICK) `v` loud. (The two always come together, so no caller can start a
+    // sound in whichever voice was used last.)
+    fun play(v: Float, voice: Int) {
+        this.voice = voice
+        level(v)
+    }
+
     // How loud to play: 0 = quiet (the sound then stops by itself)
     fun level(v: Float) {
         target = v
@@ -133,6 +141,7 @@ class SandSound {
 
     private fun play() {
         var track: AudioTrack? = null
+        var failed = false
         try {
             val minBuffer = AudioTrack.getMinBufferSize(RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
             track = AudioTrack.Builder()
@@ -193,12 +202,14 @@ class SandSound {
                 if (goal == 0f && loud < 0.003f) { if (++quiet > 40) break } else quiet = 0
             }
         } catch (e: Exception) {
+            failed = true   // (the phone couldn't play it: the next level() tries again)
         } finally {
             try { track?.stop() } catch (e: Exception) { }
             track?.release()
             synchronized(this) { running = false }
-            // asked to play again just as this one was finishing: start again, rather than drop it
-            if (target > 0f && !stopNow) startIfStopped()
+            // asked to play again just as this one was finishing: start again, rather than drop it. (Not after a
+            // failure: starting straight away again would fail again, over and over, for nothing.)
+            if (!failed && target > 0f && !stopNow) startIfStopped()
         }
     }
 }

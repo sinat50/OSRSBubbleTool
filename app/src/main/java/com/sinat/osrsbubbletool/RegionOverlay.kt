@@ -36,6 +36,7 @@ class RegionOverlay(
     private var params: WindowManager.LayoutParams? = null
 
     val isShowing: Boolean get() = frame != null
+    private val minSize = (60 * density).toInt()   // the frame's smallest size
 
     // The saved area in screen pixels, or null if it hasn't been set for this screen size
     fun savedArea(screenWidth: Int, screenHeight: Int): Rect? {
@@ -102,10 +103,11 @@ class RegionOverlay(
         params = null
     }
 
-    // Keeps the whole frame on the screen, so it can always be grabbed again (it's saved where you leave it)
+    // Keeps the whole frame on the screen, and no smaller than its smallest size, so it can always be seen and
+    // grabbed again (it's saved where you leave it; one saved at no size at all would be invisible)
     private fun keepOnScreen(p: WindowManager.LayoutParams, screen: Point) {
-        p.width = p.width.coerceAtMost(screen.x)
-        p.height = p.height.coerceAtMost(screen.y)
+        p.width = p.width.coerceIn(minOf(minSize, screen.x), screen.x)
+        p.height = p.height.coerceIn(minOf(minSize, screen.y), screen.y)
         p.x = p.x.coerceIn(0, screen.x - p.width)
         p.y = p.y.coerceIn(0, screen.y - p.height)
     }
@@ -144,7 +146,6 @@ class RegionOverlay(
         }
         private val handleSize = 32 * density
         private val corner = Path()   // the resize triangle, reused on every redraw
-        private val minSize = (60 * density).toInt()
 
         private var downX = 0f
         private var downY = 0f

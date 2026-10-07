@@ -1,6 +1,5 @@
 package com.sinat.osrsbubbletool
 
-import android.content.ContentValues
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -8,8 +7,6 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -563,43 +560,11 @@ class GameRoomTool(
 
     // Saves the garden as a PNG in Pictures/OSRS Bubble Tool (like the DPS tool's "Save picture")
     private fun saveGardenPicture(garden: SandGardenView) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            Toast.makeText(context, "Saving pictures needs Android 10 or newer.", Toast.LENGTH_SHORT).show()
-            return
-        }
         val picture = garden.picture() ?: return
-        val resolver = context.contentResolver
         val app = context.applicationContext
-        val main = android.os.Handler(android.os.Looper.getMainLooper())
-        fun say(text: String, long: Boolean = false) =
-            main.post { Toast.makeText(app, text, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show() }
-        // Squeezing a big garden into a PNG and writing it takes a moment: done in the background, so the window
-        // doesn't freeze meanwhile
-        Thread {
-            var uri: android.net.Uri? = null
-            try {
-                val values = ContentValues().apply {
-                    put(MediaStore.Images.Media.DISPLAY_NAME, "zen-garden-${System.currentTimeMillis()}.png")
-                    put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-                    put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/OSRS Bubble Tool")
-                    put(MediaStore.Images.Media.IS_PENDING, 1)   // hidden from the gallery until it's fully written
-                }
-                uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                    ?: throw IllegalStateException("couldn't create the file")
-                val stream = resolver.openOutputStream(uri) ?: throw IllegalStateException("couldn't open the file")
-                stream.use {
-                    if (!picture.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)) throw IllegalStateException("couldn't write the picture")
-                }
-                resolver.update(uri, ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }, null, null)
-                say("Saved to Pictures/OSRS Bubble Tool.")
-            } catch (e: Exception) {
-                // don't leave an empty picture behind in the gallery
-                uri?.let { try { resolver.delete(it, null, null) } catch (e2: Exception) { } }
-                say("Couldn't save the picture: ${e.message}", long = true)
-            } finally {
-                picture.recycle()
-            }
-        }.start()
+        savePictureToPhone(app, picture, "zen-garden", recycle = true) { message ->
+            Toast.makeText(app, message, if (message.startsWith("Saved")) Toast.LENGTH_SHORT else Toast.LENGTH_LONG).show()
+        }
     }
 
     // ---------------- Small building blocks ----------------

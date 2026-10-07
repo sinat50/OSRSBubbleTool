@@ -184,42 +184,6 @@ object LightBoxReader {
         return blobs
     }
 
-    // One patch of touching marked squares: how many, their total position (for the middle) and the box around them
-    class Patch {
-        var count = 0; var sumX = 0L; var sumY = 0L
-        var minX = 0; var maxX = 0; var minY = 0; var maxY = 0
-    }
-
-    // Finds each patch of touching squares marked in `mask` (w by h, cleared as it goes) and hands it to `onPatch`,
-    // which says whether to carry on. Shared by the Light Box and the Puzzle Box. (onPatch runs once per patch,
-    // not per pixel, so it's fine as a function type here.)
-    fun forEachPatch(mask: BooleanArray, w: Int, h: Int, onPatch: (Patch) -> Boolean) {
-        val stack = IntArray(w * h)
-        val patch = Patch()
-        for (start in mask.indices) {
-            if (!mask[start]) continue
-            var top = 0
-            stack[top++] = start
-            mask[start] = false
-            var count = 0; var sumX = 0L; var sumY = 0L
-            var minX = w; var maxX = 0; var minY = h; var maxY = 0
-            while (top > 0) {
-                val i = stack[--top]
-                val x = i % w
-                val y = i / w
-                count++; sumX += x; sumY += y
-                if (x < minX) minX = x; if (x > maxX) maxX = x
-                if (y < minY) minY = y; if (y > maxY) maxY = y
-                if (x > 0 && mask[i - 1]) { mask[i - 1] = false; stack[top++] = i - 1 }
-                if (x < w - 1 && mask[i + 1]) { mask[i + 1] = false; stack[top++] = i + 1 }
-                if (y > 0 && mask[i - w]) { mask[i - w] = false; stack[top++] = i - w }
-                if (y < h - 1 && mask[i + w]) { mask[i + w] = false; stack[top++] = i + w }
-            }
-            patch.count = count; patch.sumX = sumX; patch.sumY = sumY
-            patch.minX = minX; patch.maxX = maxX; patch.minY = minY; patch.maxY = maxY
-            if (!onPatch(patch)) return
-        }
-    }
 
     // ---------------- Solving ----------------
 

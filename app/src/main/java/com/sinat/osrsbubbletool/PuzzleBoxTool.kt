@@ -74,6 +74,7 @@ class PuzzleBoxTool(
     private var lastSeen = 0L
     private var tracking = false
     private var solving = false
+    private var scanning = false               // from tapping Scan until the tiles are read (or the scan fails)
     private var misses = 0                     // looks in a row where the puzzle's frame wasn't there
     private var finished = false               // solved, showing "Solved!" for a moment
     private var replanAt = 0L                  // when to re-read the tiles, or 0 if not needed
@@ -206,6 +207,7 @@ class PuzzleBoxTool(
         }
 
         status?.text = "Looking for the puzzle..."
+        scanning = true
         val id = planId   // changes if you stop, rotate or set the area meanwhile: then this scan is dropped
         capture.matchScreenSize()
         setOverlaysVisible(false)
@@ -217,6 +219,7 @@ class PuzzleBoxTool(
             hiddenForPicture = false
             if (id != planId) return@postDelayed
             if (shot == null) {
+                scanning = false
                 status?.text = "Couldn't capture the screen. Try again."
                 return@postDelayed
             }
@@ -259,6 +262,7 @@ class PuzzleBoxTool(
 
     private fun showResult(scan: Scan, id: Int) {
         if (scan.rough == null) {
+            scanning = false
             lastFullView = null
             lastPuzzleView = null
             image?.setImageBitmap(scan.shot)
@@ -269,6 +273,7 @@ class PuzzleBoxTool(
         val area = scan.area
         val puzzle = scan.puzzle
         if (area == null || puzzle == null) {
+            scanning = false
             status?.text = "The puzzle area is off the screen. Scan again."
             return
         }
@@ -291,12 +296,14 @@ class PuzzleBoxTool(
         references.load { puzzles, error ->
             if (destroyed || id != planId) return@load   // stopped while the pictures were downloading
             if (puzzles == null) {
+                scanning = false
                 status?.text = "Couldn't read the solved puzzle pictures: $error."
                 return@load
             }
             identify(puzzle, puzzles) { match ->
                 if (id != planId) return@identify   // stopped meanwhile
                 if (match == null) {
+                    scanning = false
                     status?.text = "Couldn't read the tiles. Try scanning again."
                     return@identify
                 }
@@ -313,6 +320,7 @@ class PuzzleBoxTool(
     }
 
     private fun showMatch(match: TileMatcher.Result, lined: Boolean) {
+        scanning = false   // (solving takes over from here)
         // (the picture is gone if the window was closed mid-scan: carry on without it)
         lastPuzzleView?.let { puzzleView ->
             lastPuzzleView = drawLabels(puzzleView, match.board, match.correctedPositions)
@@ -383,6 +391,7 @@ class PuzzleBoxTool(
 
     // Stops guiding. message = what to show in the window, or null to leave it as it is.
     private fun stopGuide(message: String?) {
+        scanning = false
         finished = false
         misses = 0
         tracking = false
@@ -497,6 +506,11 @@ class PuzzleBoxTool(
 
     private fun replanNow(area: Rect) {
         val shot = capture.grab() ?: return   // wait for a fresh picture
+        // the puzzle closed just after the move: there's nothing to read (the tiles would be read from the game)
+        if (!PuzzleFinder.frameVisible(LightBoxReader.Pixels(shot), area)) {
+            stopGuide("The puzzle was closed. Tap Scan puzzle to start again.")
+            return
+        }
         val puzzle = crop(shot, area) ?: return
         replanAt = 0L
         solving = true
@@ -662,7 +676,7 @@ class PuzzleBoxTool(
     }
 
     // Scanning, solving or guiding (the bubble waits for this before rebuilding the tools for dark mode)
-    fun isGuiding() = solving || tracking || guide.isShowing
+    fun isGuiding() = scanning || solving || tracking || guide.isShowing
 
     fun destroy() {
         destroyed = true

@@ -5,11 +5,8 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.RectF
-import android.os.Build
-import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import androidx.core.graphics.toColorInt
@@ -26,7 +23,7 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
             "#3DDC5A".toColorInt(),  // move 1: green
             "#FFD60A".toColorInt(),  // move 2: yellow
             "#FF9500".toColorInt(),  // move 3: orange
-            "#FF3B30".toColorInt()   // move 4: redcal
+            "#FF3B30".toColorInt()   // move 4: red
         )
 
         // Outline thickness for move 1, 2, 3, 4, as a fraction of a tile's width.
@@ -179,41 +176,5 @@ class MoveGuideOverlay(private val context: Context, private val windowManager: 
                 canvas.drawText(message, b.centerX(), y, text)
             }
         }
-    }
-}
-
-// ---------------- Shared by the Puzzle Box and Light Box guides ----------------
-
-// A see-through window over `area` of the screen that taps pass straight through, allowed beside the camera cutout
-fun guideWindowParams(area: Rect) = WindowManager.LayoutParams(
-    area.width(), area.height(),
-    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-    PixelFormat.TRANSLUCENT
-).apply {
-    gravity = Gravity.TOP or Gravity.START
-    x = area.left
-    y = area.top
-    alpha = 0.8f   // Android only lets taps pass through overlays that are a little see-through
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
-        fitInsetsTypes = 0
-    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-        layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-    }
-}
-
-// The overlay may land a little away from where it was asked to be (status bar, camera cutout). Called once it's
-// drawn: measures where it really is, and moves it to line up with `area`.
-fun lineUpGuide(view: View, params: WindowManager.LayoutParams, area: Rect, windowManager: WindowManager) {
-    val loc = IntArray(2)
-    view.getLocationOnScreen(loc)
-    if (loc[0] != area.left || loc[1] != area.top) {
-        params.x += area.left - loc[0]
-        params.y += area.top - loc[1]
-        windowManager.updateViewLayout(view, params)
     }
 }

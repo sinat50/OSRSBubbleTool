@@ -206,7 +206,11 @@ class CalculatorTool(private val context: Context) {
     }
 
     // The answer as it should be typed back in (no commas)
+    // (A whole number is kept exactly, however long: big GP totals. Anything else is rounded to 15 digits, so a
+    // third doesn't carry on as 0.333... to 34 places.)
     private fun plain(v: BigDecimal): String {
+        val whole = v.stripTrailingZeros()
+        if (whole.scale() <= 0) return whole.toBigInteger().toString()
         val r = v.round(MathContext(15)).stripTrailingZeros()
         return if (r.scale() <= 0) r.toBigInteger().toString() else r.toPlainString()
     }

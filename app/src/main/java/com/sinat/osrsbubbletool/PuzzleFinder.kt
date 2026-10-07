@@ -28,7 +28,7 @@ object PuzzleFinder {
 
         // 2. Roughly-square patches: one of them is the frame (with the lines between tiles)
         val patches = ArrayList<Rect>()
-        LightBoxReader.forEachPatch(mask, w, h) { patch ->
+        forEachPatch(mask, w, h) { patch ->
             val bw = (patch.maxX - patch.minX + 1) * 2
             val bh = (patch.maxY - patch.minY + 1) * 2
             if (bw >= 100 && bh >= 0.85f * bw && bh <= 1.15f * bw) {

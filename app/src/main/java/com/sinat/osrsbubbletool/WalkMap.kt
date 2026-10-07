@@ -171,6 +171,9 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
     // left out. Null to use everything.
     fun from(x0: Int, y0: Int, z0: Int, stopAt: Set<Int> = emptySet(), want: Int = Int.MAX_VALUE, maxCost: Int = MAX_COST,
              hint: String = "", rescue: Boolean = true, locked: BooleanArray? = null): Field {
+        // (the landing tiles as a sorted list of plain numbers: looked up for every tile reached, so no Integer
+        // objects are made for the lookups)
+        val stops = stopAt.toIntArray().also { it.sort() }
         val cost = arrayOfNulls<ShortArray>(256 * 256 * 4)
         val via = arrayOfNulls<ShortArray>(256 * 256 * 4)
         val guess = arrayOfNulls<BooleanArray>(256 * 256 * 4)
@@ -212,8 +215,8 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
         var visited = 0
         var found = 0
         val skipped = HashSet<Int>()   // requirements of ways left out because you can't use them yet
-        val settledBelow = ArrayList<Int>()   // underground tiles reached, in case this turns out to be a cave with no mapped way out
-        val settled = ArrayList<Int>()        // every tile reached, while there are few (a closed-off area)
+        val settledBelow = IntList()   // underground tiles reached, in case this turns out to be a cave with no mapped way out
+        val settled = IntList()        // every tile reached, while there are few (a closed-off area)
         var leaky = false                     // allowed to squeeze through walls (last resort)
         val step = BooleanArray(8)
         val dxs = intArrayOf(-1, 1, 0, 0, -1, 1, -1, 1)
@@ -232,7 +235,7 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
                     if (!done[k]!![ix]) {   // the first time here (a later pass can reach it again, more cheaply)
                         done[k]!![ix] = true
                         if (++visited > MAX_TILES) return false
-                        if (p in stopAt) found++
+                        if (stops.isNotEmpty() && java.util.Arrays.binarySearch(stops, p) >= 0) found++
                         if (y >= 6400 && settledBelow.size < 300_000) settledBelow.add(p)
                         if (settled.size < 200_000) settled.add(p)
                     }
@@ -296,7 +299,7 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
         if (shutIn) {
             fun costOf(p: Int) = cost[slot(px(p), py(p), pz(p))]!![idx(px(p), py(p))].toInt()
             var minX = Int.MAX_VALUE; var maxX = 0; var minY = Int.MAX_VALUE; var maxY = 0
-            for (p in settledBelow) { minX = minOf(minX, px(p)); maxX = max(maxX, px(p)); minY = minOf(minY, py(p) - 6400); maxY = max(maxY, py(p) - 6400) }
+            settledBelow.forEach { p -> minX = minOf(minX, px(p)); maxX = max(maxX, px(p)); minY = minOf(minY, py(p) - 6400); maxY = max(maxY, py(p) - 6400) }
             fun above(d: Dungeon) = settledBelow.isNotEmpty() &&
                 d.x in minX - ENTRANCE_REACH..maxX + ENTRANCE_REACH && d.y in minY - ENTRANCE_REACH..maxY + ENTRANCE_REACH
             // for an entrance above the cave: from the cave tile closest to straight below it, which is
@@ -304,7 +307,7 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
             fun entryCost(d: Dungeon): Int {
                 if (!above(d)) return NAMED_COST
                 var best = Int.MAX_VALUE
-                for (p in settledBelow) best = minOf(best, costOf(p) + max(abs(px(p) - d.x), abs(py(p) - 6400 - d.y)))
+                settledBelow.forEach { p -> best = minOf(best, costOf(p) + max(abs(px(p) - d.x), abs(py(p) - 6400 - d.y))) }
                 return best + GUESS_COST
             }
             var restart = Int.MAX_VALUE
@@ -322,7 +325,7 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
                     if (c <= maxCost) { seed(d.x, d.y, 0, c, d.name, true, always = true); restart = minOf(restart, c) }
                 }
             } else if (y0 >= 6400) {
-                for (p in settledBelow) {
+                settledBelow.forEach { p ->
                     val c = costOf(p) + GUESS_COST
                     if (c <= maxCost && !blocked(px(p), py(p) - 6400, 0)) { push(px(p), py(p) - 6400, 0, c, NO_WAY, true); restart = minOf(restart, c) }
                 }
@@ -334,7 +337,7 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
         if (pending == 0 && !cutOff && found < FEW && settled.isNotEmpty() && settled.size < 200_000) {
             leaky = true
             var low = Int.MAX_VALUE
-            for (p in settled) {
+            settled.forEach { p ->
                 val c = cost[slot(px(p), py(p), pz(p))]!![idx(px(p), py(p))].toInt()
                 var b = buckets[c]
                 if (b == null) { b = IntArray(64); buckets[c] = b }
@@ -356,3 +359,18 @@ private fun slot(x: Int, y: Int, z: Int): Int {
     return if (x < 0 || y < 0 || rx > 255 || ry > 255 || z !in 0..3) -1 else ((rx * 256 + ry) shl 2) or z
 }
 private fun idx(x: Int, y: Int) = (y and 63) * 64 + (x and 63)
+
+// A growable list of plain whole numbers (an ArrayList<Int> would wrap each one in an object: hundreds of thousands per
+// route search)
+private class IntList {
+    private var data = IntArray(1024)
+    var size = 0
+        private set
+    fun add(v: Int) {
+        if (size == data.size) data = data.copyOf(size * 2)
+        data[size++] = v
+    }
+    fun isNotEmpty() = size > 0
+    fun clear() { size = 0 }
+    inline fun forEach(action: (Int) -> Unit) { for (i in 0 until size) action(data[i]) }
+}

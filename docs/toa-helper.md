@@ -40,8 +40,13 @@ Hard-won rules, each found from a real failure:
   out of place, which put a wiggle on the wrong tile at close zoom).
 - A tile counts as matched only in pairs (`settlePairs`; the orbs by the minimap can look like a glow), or alone
   after glowing 4 s away from the right-hand buttons (a raid's starting pairs, whose partner may be hidden).
-- Solo or group raid is decided from the first look (7+ glowing tiles = solo, which limits the symbols to five),
-  and kept when Watch is restarted unless the memory is empty.
+- Solo or group raid is decided from the first look (7 or 8 glowing tiles = solo: a solo raid starts with exactly 4
+  pairs matched; that limits the symbols to five), and kept when Watch is restarted unless the memory is empty.
+  Watch started more than 10 minutes after the last look is a new raid: the memory is cleared (`NEW_RAID_MS`).
+- One very clear look is enough to take a symbol, but only for the symbol that look saw (a vote tie used to take the
+  list's first symbol on another symbol's clear look).
+- The highlighted tile (`active`) is the one that has just started showing a symbol; if none has, the one already
+  highlighted stays (another player's revealed tile doesn't take it over).
 - Revealed symbols vanish when the player steps on the next tile and are often half hidden by the player, so
   recognition compares only the visible points against 31 samples (`SYMBOL_SAMPLES`, from the matching and
   addition rooms).
