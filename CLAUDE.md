@@ -54,7 +54,7 @@ Code: `app/src/main/java/com/sinat/osrsbubbletool/` (one file per tool, roughly)
 | `HunterRumourTool.kt`, `HunterRumours.kt` | Hunter Rumours |
 | `ZulrahTool.kt` | Zulrah Helper |
 | `FarmingTool.kt`, `FarmingTimers.kt`, `FarmingTimerReceiver.kt` | Timers (one exact alarm per timer, no background work) |
-| `GameRoomTool.kt`, `Game2048View.kt`, `FlyerView.kt`, `GameData.kt`, `SandGardenView.kt`, `SandRenderer.kt`, `SandSound.kt`, `SandGardenLayout.kt` | Game Room: 2048, Wing It and the Zen Garden. **Read `docs/zen-garden.md` before changing the `Sand*` files.** |
+| `GameRoomTool.kt`, `Game2048View.kt`, `FlyerView.kt`, `GameData.kt`, `SandGardenView.kt`, `SandRenderer.kt`, `SandSound.kt`, `SandGardenLayout.kt`, `ZenGardenFile.kt`, `ZenThings.kt`, `ZenPatterns.kt` | Game Room: 2048, Wing It and the Zen Garden. **Read `docs/zen-garden.md` before changing the `Sand*` or `ZenGarden*` files.** |
 | `CalculatorTool.kt`, `NotesTool.kt`, `UpdateChecker.kt`, `WikiLinkActivity.kt` | Calculator, Notepad, GitHub update check (at most once an hour), wiki links opening in the bubble |
 | `SettingsTool.kt`, `Palette.kt` | Settings (`AppSettings`; the page is shared by the bubble's Settings window and the main screen; the bubble hears changes through `BubbleService.settingsChanged`) and the app's colours, light and dark |
 
@@ -156,7 +156,7 @@ trailer and the ToA demo video; how to update them is in `trailer/README.md`), `
   `app/build/reports/lint-results-debug.sarif`). Expected warnings: 95 "SetTextI18n" (text written in the code,
   see `.scratch/lint-text-warnings/`) and 2 "IconXmlAndPng" (the app icon).
 - PC tests: `./gradlew.bat testDebugUnitTest`, in `app/src/test/`: the Puzzle Box and Light Box solvers, the ToA
-  answers, farming growth times and quest requirement checks (expected answers worked out by hand or from the
+  answers, farming growth times, quest requirement checks, and the Zen Garden's save file, placed things and auto rake patterns (expected answers worked out by hand or from the
   game, never copied from the code); `ToaReaderTest` needs recordings (see `docs/toa-helper.md`). The real
   `org.json` is added for tests only (Android's own isn't on the PC). Code with Android parts gets a pure version
   to test (like `FarmingTimers.finishTime` taking the tick offset as a number). `TeleportData.kt` and `WalkMap.kt` have no Android parts, so routes are
