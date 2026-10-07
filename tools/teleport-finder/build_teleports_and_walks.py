@@ -81,6 +81,12 @@ for fn, cat, how in FILES:
         # your house can be in several places, so house teleports can't be ranked
         if 'Teleport to House' in name or 'Tele to POH' in name or 'Your house' in name or name == 'Fairy ring DIQ':
             continue
+        # the same for Respawn Teleport (it goes to whichever respawn point you chose)
+        if name == 'Respawn Teleport':
+            continue
+        # the Trinket of fairies only exists in Deadman Mode
+        if name.startswith('Trinket of fairies'):
+            continue
         if name in seen:
             continue
         seen.add(name)
