@@ -22,9 +22,9 @@ class ZenGardenFileTest {
     }
 
     // A file as an older version of the app wrote it (packed small, like every save)
-    private fun oldFile(write: DataOutputStream.() -> Unit): ByteArrayInputStream {
+    private fun oldFile(contents: DataOutputStream.() -> Unit): ByteArrayInputStream {
         val data = ByteArrayOutputStream()
-        DataOutputStream(GZIPOutputStream(data)).use { it.write() }
+        DataOutputStream(GZIPOutputStream(data)).use { it.contents() }
         return ByteArrayInputStream(data.toByteArray())
     }
 

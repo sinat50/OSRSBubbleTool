@@ -18,7 +18,7 @@ class WikiSync(context: Context) {
         private const val USER_AGENT = "OSRSBubbleTool/1.0 (personal Android app)"
         private const val REFRESH_AFTER_MS = 10 * 60_000L   // look again after 10 minutes
 
-        @Suppress("unused") const val NOT_STARTED = 0
+        const val NOT_STARTED = 0
         const val IN_PROGRESS = 1
         const val FINISHED = 2
     }

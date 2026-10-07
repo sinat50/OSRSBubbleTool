@@ -60,7 +60,7 @@ object ZenGardenFile {
             val version = inp.readInt()
             if (version !in 1..VERSION) return null
             val fileRes = if (version >= 4) inp.readFloat() else 1f
-            if (!(fileRes in 0.25f..16f)) return null
+            if (fileRes !in 0.25f..16f) return null   // (a damaged number, NaN included, is outside too)
             val k = SandGardenView.RES / fileRes   // how much bigger everything is in today's squares
             val w = inp.readInt(); val h = inp.readInt()
             if (w !in 1..MAX_SIDE || h !in 1..MAX_SIDE) return null

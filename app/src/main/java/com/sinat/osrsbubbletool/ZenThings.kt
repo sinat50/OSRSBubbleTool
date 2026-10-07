@@ -79,7 +79,7 @@ object ZenThings {
     fun flowerKind(seed: Int) = ((seed ushr 4) and 0xFFFF) % 3
 
     // A placed thing, as far as its look goes
-    private class Thing(val kind: Int, val r: Float, val angle: Float, val color: Int, val seed: Int, given: FloatArray?) {
+    private class Thing(kind: Int, val r: Float, val angle: Float, val color: Int, val seed: Int, given: FloatArray?) {
         val blobs: FloatArray = given ?: if (kind == SandGardenView.FLOWERS) blossoms(seed, r) else FloatArray(0)
     }
 
