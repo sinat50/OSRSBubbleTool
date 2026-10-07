@@ -133,14 +133,19 @@ object FarmingTimers {
 
     // ---------------- Growth math ----------------
 
-    // When a crop planted at `now` (ms) will be fully grown
-    fun finishTime(context: Context, kind: Kind, crop: Crop, now: Long): Long {
+    // When a crop planted at `now` (ms) will be fully grown, using the tick offset set in the app
+    fun finishTime(context: Context, kind: Kind, crop: Crop, now: Long): Long =
+        finishTime(kind, crop, now, tickOffset(context))
+
+    // The same, with the tick offset given (in minutes). No Android parts, so it's tested on the PC.
+    fun finishTime(kind: Kind, crop: Crop, now: Long, tickOffsetMinutes: Int): Long {
         if (kind.fixedMinutes > 0) return now + kind.fixedMinutes * 60_000L
         val rate = crop.stageMinutes * 60L
-        val offset = (tickOffset(context) % crop.stageMinutes) * 60L
-        val t = now / 1000 + offset
-        val tickStart = t - t % rate   // the growth tick the crop was planted in
-        return (tickStart + (crop.stages - 1) * rate - offset) * 1000
+        // the account's ticks come `offset` later than the clock's (so a timer that was early comes later)
+        val offset = (tickOffsetMinutes % crop.stageMinutes) * 60L
+        val t = now / 1000 - offset
+        val tickStart = t - t % rate   // the growth tick the crop was planted in (counted without the offset)
+        return (tickStart + (crop.stages - 1) * rate + offset) * 1000
     }
 
     // ---------------- Starting and stopping ----------------

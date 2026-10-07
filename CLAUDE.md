@@ -155,8 +155,11 @@ trailer and the ToA demo video; how to update them is in `trailer/README.md`), `
 - Build with `./gradlew.bat assembleDebug`, and run Android's checks with `./gradlew.bat lintDebug` (report in
   `app/build/reports/lint-results-debug.sarif`). Expected warnings: 95 "SetTextI18n" (text written in the code,
   see `.scratch/lint-text-warnings/`) and 2 "IconXmlAndPng" (the app icon).
-- PC tests: `./gradlew.bat testDebugUnitTest`. `PuzzleSolverTest` solves 20 scrambles; `ToaReaderTest` needs
-  recordings (see `docs/toa-helper.md`). `TeleportData.kt` and `WalkMap.kt` have no Android parts, so routes are
+- PC tests: `./gradlew.bat testDebugUnitTest`, in `app/src/test/`: the Puzzle Box and Light Box solvers, the ToA
+  answers, farming growth times and quest requirement checks (expected answers worked out by hand or from the
+  game, never copied from the code); `ToaReaderTest` needs recordings (see `docs/toa-helper.md`). The real
+  `org.json` is added for tests only (Android's own isn't on the PC). Code with Android parts gets a pure version
+  to test (like `FarmingTimers.finishTime` taking the tick offset as a number). `TeleportData.kt` and `WalkMap.kt` have no Android parts, so routes are
   tested with `tools/teleport-finder/test/` (see its README section).
 - Installing: `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe install -r app\build\outputs\apk\debug\app-debug.apk`
   (same as ▶; it closes the bubble, so the owner taps Start Bubble again). If the phone has a signed release
