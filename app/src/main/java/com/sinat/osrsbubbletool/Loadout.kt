@@ -62,6 +62,69 @@ class Loadout(val id: String, var name: String) {
             return l
         }
 
+        // ---- RuneLite's Inventory Setups format (its Export Setup and Mass Export Setups) ----
+        // One setup is {"setup": {...}, "layout": [...]}; a mass export file is a list of those. Inside "setup":
+        // "inv" (28 spaces), "eq" (the equipment, in RUNELITE_SLOTS order), "rp" rune pouch, "bp" bolt pouch,
+        // "qv" quiver (left out if you have none), "name", "notes", "sb" (spellbook: 0-3, 4 for none, left out
+        // for standard). Each item is {"id": 385, "q": 5}, "q" left out when it's 1; an empty space is null.
+        // Everything else (highlight colour, favourite, bank options, the bank tag "layout") isn't used here.
+        private const val RUNELITE_NO_SPELLBOOK = 4
+
+        // Every setup in pasted text or a file, one setup or a list of them. makeId gives each new loadout its id.
+        // Throws if the text isn't a RuneLite export at all.
+        fun fromRuneLite(text: String, makeId: (Int) -> String): List<Loadout> {
+            val t = text.trim()
+            val setups = if (t.startsWith("[")) JSONArray(t).let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) } }
+                else listOf(JSONObject(t))
+            val found = ArrayList<Loadout>()
+            for (s in setups) {
+                // older exports were the setup alone, without the {"setup": ...} around it
+                val setup = s.optJSONObject("setup") ?: s.takeIf { it.has("inv") || it.has("eq") } ?: continue
+                found.add(fromRuneLiteSetup(setup, makeId(found.size)))
+            }
+            if (found.isEmpty()) throw IllegalArgumentException("No RuneLite setups in this text")
+            return found
+        }
+
+        private fun fromRuneLiteSetup(s: JSONObject, id: String): Loadout {
+            val l = Loadout(id, s.optString("name").trim().ifEmpty { "RuneLite setup" })
+            l.notes = s.optString("notes")
+            l.spellbook = s.optInt("sb", 0).takeIf { it in SPELLBOOKS.indices }   // 4 (none) or anything odd: not set
+            s.optJSONArray("inv")?.let { a -> for (i in 0 until minOf(a.length(), INVENTORY_SIZE)) l.inventory[i] = runeLiteItem(a.opt(i)) }
+            s.optJSONArray("eq")?.let { a ->
+                for (i in 0 until minOf(a.length(), RUNELITE_SLOTS.size)) {
+                    val slot = RUNELITE_SLOTS[i] ?: continue
+                    runeLiteItem(a.opt(i))?.let { l.equipment[slot] = it }
+                }
+            }
+            l.runePouch = runeLiteList(s.optJSONArray("rp"))
+            l.boltPouch = runeLiteList(s.optJSONArray("bp"))
+            // the quiver is a list of one item (accepted on its own too)
+            l.quiver = when (val q = s.opt("qv")) {
+                is JSONArray -> (0 until q.length()).firstNotNullOfOrNull { runeLiteItem(q.opt(it)) }
+                else -> runeLiteItem(q)
+            }
+            return l
+        }
+
+        // {"id": 385, "q": 5}; null, or RuneLite's -1 for nothing, is an empty space
+        private fun runeLiteItem(v: Any?): Stack? {
+            val o = v as? JSONObject ?: return null
+            val id = o.optInt("id", -1)
+            return if (id < 0) null else Stack(id, o.optLong("q", 1).coerceIn(1, Int.MAX_VALUE.toLong()).toInt())
+        }
+
+        private fun runeLiteList(a: JSONArray?): MutableList<Stack?>? =
+            a?.let { MutableList(it.length()) { i -> runeLiteItem(it.opt(i)) } }
+
+        private fun runeLiteJson(s: Stack?): Any =
+            if (s == null) JSONObject.NULL else JSONObject().apply { put("id", s.id); if (s.amount != 1) put("q", s.amount) }
+
+        private fun runeLiteJson(list: List<Stack?>) = JSONArray().apply { list.forEach { put(runeLiteJson(it)) } }
+
+        // Several loadouts as one mass export file (RuneLite's Mass Import reads it)
+        fun toRuneLite(loadouts: List<Loadout>): JSONArray = JSONArray().apply { loadouts.forEach { put(it.toRuneLite()) } }
+
         // A stack is saved as [id, amount], or null for an empty place
         private fun stack(v: Any?): Stack? {
             val a = v as? JSONArray ?: return null
@@ -98,5 +161,20 @@ class Loadout(val id: String, var name: String) {
         runePouch?.let { put("rp", json(it)) }
         boltPouch?.let { put("bp", json(it)) }
         quiver?.let { put("qv", json(it)) }
+    }
+
+    // This loadout as RuneLite's Export Setup writes one (its Import Setup reads it)
+    fun toRuneLite(): JSONObject {
+        val setup = JSONObject().apply {
+            put("inv", runeLiteJson(inventory.toList()))
+            put("eq", runeLiteJson(RUNELITE_SLOTS.map { slot -> slot?.let { equipment[it] } }))
+            runePouch?.let { put("rp", runeLiteJson(it)) }
+            boltPouch?.let { put("bp", runeLiteJson(it)) }
+            quiver?.let { put("qv", runeLiteJson(listOf(it))) }
+            put("name", name)
+            put("notes", notes)
+            put("sb", spellbook ?: RUNELITE_NO_SPELLBOOK)
+        }
+        return JSONObject().put("setup", setup)
     }
 }

@@ -35,7 +35,7 @@ class MainActivity : Activity() {
     companion object {
         private const val REQUEST_NOTIFICATIONS = 1
 
-        // The BSD 2-Clause licence conditions and disclaimer (used by the Zulrah, ToA Puzzle Helper, RuneLite, Teleport Finder and Quest Helper credits)
+        // The BSD 2-Clause licence conditions and disclaimer (used by the Zulrah, ToA Puzzle Helper, RuneLite, Teleport Finder, Quest Helper and Gear Loadouts credits)
         private const val BSD_TERMS =
             "Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n" +
                 "1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.\n\n" +
@@ -449,6 +449,12 @@ class MainActivity : Activity() {
         section("Quest Helper",
             "Quest guides, quest requirements and achievement diary tasks adapted from the Quest Helper RuneLite plugin (github.com/Zoinkwiz/quest-helper).\n\n" +
             QuestGuides.COPYRIGHTS.joinToString("\n") + "\nAll rights reserved.\n\n" +
+            BSD_TERMS, size = 11f)
+
+        section("Gear Loadouts",
+            "The loadout layout follows the Inventory Setups RuneLite plugin's setup screen, and import and export use its " +
+            "setup format, so setups move between the plugin and the app (github.com/dillydill123/inventory-setups).\n\n" +
+            "Copyright (c) 2019, dillydill123\nAll rights reserved.\n\n" +
             BSD_TERMS, size = 11f)
 
         section("Zen Garden: wood",

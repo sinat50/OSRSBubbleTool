@@ -91,4 +91,75 @@ class LoadoutTest {
         assertNull(l.equipment["head"])
         assertEquals(Stack(4151, 1), l.equipment["weapon"])
     }
+
+    // ---- RuneLite's Inventory Setups exports ----
+
+    // One setup as the plugin's Export Setup writes it (written out by hand from its format): helm of Neitiznot
+    // (10828) on the head, a whip (4151) in the weapon slot (RuneLite's slot 3), 5,000 coins and a rune pouch
+    // in the inventory, the pouch holding 1,000 death runes (560), Lunar spellbook, plus things the app doesn't use
+    private val exported = """{"setup":{"inv":[{"id":995,"q":5000},{"id":12791},null,null,null,null,null,null,null,null,
+        null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,{"id":385}],
+        "eq":[{"id":10828},null,null,{"id":4151},null,null,null,null,null,null,null,null,null,{"id":-1}],
+        "rp":[{"id":560,"q":1000},null,null],"qv":[{"id":11212,"q":200}],
+        "name":"Slayer","notes":"Bring a cannon","hc":{"value":-1},"fv":true,"sb":2},"layout":[1,2,3]}"""
+
+    private fun ids() = generateSequence(1) { it + 1 }.map { "id$it" }.iterator().let { n -> { _: Int -> n.next() } }
+
+    @Test
+    fun aRuneLiteSetupIsReadIntoALoadout() {
+        val l = Loadout.fromRuneLite(exported, ids()).single()
+        assertEquals("Slayer", l.name)
+        assertEquals("Bring a cannon", l.notes)
+        assertEquals(2, l.spellbook)                                    // Lunar
+        assertEquals(Stack(995, 5000), l.inventory[0])
+        assertEquals(Stack(12791, 1), l.inventory[1])                   // no "q" means 1
+        assertNull(l.inventory[2])
+        assertEquals(Stack(385, 1), l.inventory[27])
+        assertEquals(Stack(10828, 1), l.equipment["head"])
+        assertEquals(Stack(4151, 1), l.equipment["weapon"])
+        assertNull(l.equipment["ammo"])                                 // -1 is nothing
+        assertEquals(listOf(Stack(560, 1000), null, null), l.runePouch)
+        assertNull(l.boltPouch)                                         // left out: no bolt pouch
+        assertEquals(Stack(11212, 200), l.quiver)
+    }
+
+    @Test
+    fun aMassExportFileGivesEverySetup() {
+        val file = """[$exported, {"setup":{"name":"Empty one","inv":[],"eq":[]},"layout":[]}, {"sb":0}]"""
+        val all = Loadout.fromRuneLite(file, ids())
+        assertEquals(listOf("Slayer", "Empty one"), all.map { it.name })   // the last isn't a setup at all
+        assertEquals(listOf("id1", "id2"), all.map { it.id })
+        assertEquals(0, all[1].spellbook)                                     // "sb" left out is the standard spellbook
+    }
+
+    @Test
+    fun noSpellbookAndNonsenseAreHandled() {
+        assertNull(Loadout.fromRuneLite("""{"setup":{"name":"x","inv":[],"sb":4}}""", ids()).single().spellbook)
+        for (bad in listOf("hello", "", "{}", "[]", """{"name":"not a setup"}""")) {
+            try {
+                Loadout.fromRuneLite(bad, ids())
+                throw AssertionError("should not be read: $bad")
+            } catch (_: org.json.JSONException) {
+            } catch (_: IllegalArgumentException) {
+            }
+        }
+    }
+
+    @Test
+    fun exportingAndImportingAgainGivesTheSameLoadout() {
+        val l = Loadout.fromRuneLite(exported, ids()).single()
+        val again = Loadout.fromRuneLite(l.toRuneLite().toString(), ids()).single()
+        assertEquals(l.toJson().put("id", "x").toString(), again.toJson().put("id", "x").toString())
+        // in RuneLite's own layout: 28 inventory spaces, 14 equipment numbers, "q" only above 1, the quiver as a list
+        val setup = l.toRuneLite().getJSONObject("setup")
+        assertEquals(28, setup.getJSONArray("inv").length())
+        assertEquals(14, setup.getJSONArray("eq").length())
+        assertEquals(4151, setup.getJSONArray("eq").getJSONObject(3).getInt("id"))
+        assertFalse(setup.getJSONArray("inv").getJSONObject(1).has("q"))
+        assertEquals(200, setup.getJSONArray("qv").getJSONObject(0).getInt("q"))
+        // a loadout without a spellbook says "none" (4)
+        assertEquals(4, Loadout("a", "b").toRuneLite().getJSONObject("setup").getInt("sb"))
+        // several: a list, like the mass export file
+        assertEquals(2, Loadout.toRuneLite(listOf(l, again)).length())
+    }
 }

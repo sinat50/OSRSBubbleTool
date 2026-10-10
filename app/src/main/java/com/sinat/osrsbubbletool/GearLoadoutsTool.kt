@@ -1,6 +1,9 @@
 package com.sinat.osrsbubbletool
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -23,6 +26,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.edit
+import androidx.core.view.isNotEmpty
 import com.sinat.osrsbubbletool.Loadout.Stack
 import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
 import com.sinat.osrsbubbletool.Palette.DARK_BROWN
@@ -34,13 +38,17 @@ import java.io.File
 import org.json.JSONArray
 
 // Gear Loadouts: your inventory, equipment, rune pouch, bolt pouch, quiver and spellbook for a trip, saved
-// under a name and shown like RuneLite's Inventory Setups plugin. Tap a square to put an item in it.
+// under a name and shown like RuneLite's Inventory Setups plugin. Tap a square to put an item in it. Setups
+// exported from that plugin can be imported, and loadouts exported back to it.
 // (It replaced Inventory Setups, which saved pictures of the screen; those pictures are still shown.)
-class GearLoadoutsTool(private val context: Context) {
+// hideWindow and showWindow close and reopen this tool's window, so Android's file chooser and share menu
+// (which open under the floating windows) can be seen.
+class GearLoadoutsTool(private val context: Context, private val hideWindow: () -> Unit, private val showWindow: () -> Unit) {
 
     companion object {
         private const val SEARCH_WAIT_MS = 150L   // search after typing stops for this long
         private const val MAX_RESULTS = 40
+        private const val EXPORT_FILE_NAME = "inventory_setups_gear_loadouts.json"
         private val SLOT_LABELS = mapOf("head" to "Head", "cape" to "Cape", "neck" to "Neck", "ammo" to "Ammo",
             "weapon" to "Weapon", "body" to "Body", "shield" to "Shield", "legs" to "Legs", "hands" to "Hands",
             "feet" to "Feet", "ring" to "Ring")
@@ -74,6 +82,8 @@ class GearLoadoutsTool(private val context: Context) {
     private var root: FrameLayout? = null
     private var current: Loadout? = null      // the loadout being viewed, or null for the list
     private var picking: Place? = null        // the square an item is being picked for
+    private var importing = false             // showing the RuneLite import page
+    private var listMessage: String? = null   // shown once at the top of the list (after an import or a save)
     private var deleteArmed = false
     private var nameField: EditText? = null
     private var notesField: EditText? = null
@@ -98,6 +108,7 @@ class GearLoadoutsTool(private val context: Context) {
             val l = current
             val p = picking
             when {
+                importing -> {}
                 l == null -> showList()
                 p == null -> showLoadout(l)
                 else -> showPicker(l, p)
@@ -106,8 +117,9 @@ class GearLoadoutsTool(private val context: Context) {
         return r
     }
 
-    // The ◀ button: from picking an item, back to the loadout; from a loadout, back to the list
+    // The ◀ button: from picking an item, back to the loadout; from a loadout or the import page, back to the list
     fun goBack() {
+        if (importing) { showList(); return }
         val l = current ?: return
         if (picking != null) showLoadout(l)
         else {
@@ -193,11 +205,21 @@ class GearLoadoutsTool(private val context: Context) {
     private fun showList() {
         current = null
         picking = null
+        importing = false
         nameField = null
         notesField = null
 
         val list = column().apply { setPadding(dp(10), dp(10), dp(10), dp(10)) }
-        list.addView(button("+ New loadout") { createLoadout() }, fullWidth())
+        listMessage?.let { list.addView(label(it, bold = true), fullWidth()) }
+        listMessage = null
+        list.addView(button("+ New loadout") { createLoadout() }, fullWidth(if (list.isNotEmpty()) 8 else 0))
+        val runeLite = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+        runeLite.addView(button("Import from RuneLite") { showImport() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        if (loadouts.any { it.hasItems }) {
+            runeLite.addView(button("Save all as a file") { saveAllToFile() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { leftMargin = dp(6) })
+        }
+        list.addView(runeLite, fullWidth(6))
         if (loadouts.isEmpty()) {
             list.addView(label("No loadouts yet. Tap New loadout, then tap a square to put an item in it."), fullWidth(10))
         }
@@ -234,6 +256,7 @@ class GearLoadoutsTool(private val context: Context) {
     private fun showLoadout(l: Loadout) {
         current = l
         picking = null
+        importing = false
         deleteArmed = false
         pendingSearch?.let { handler.removeCallbacks(it) }
 
@@ -348,6 +371,23 @@ class GearLoadoutsTool(private val context: Context) {
                 deleteLoadout(l)
             }
         }
+        // Back to RuneLite: its Inventory Setups panel imports a setup from the computer's clipboard
+        if (l.hasItems) {
+            page.addView(label("To RuneLite", 14f, bold = true), fullWidth(14))
+            val sendRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+            val sendNote = label("")
+            sendRow.addView(button("Copy") {
+                saveTyping()
+                copyToClipboard(l.name, l.toRuneLite().toString())
+                sendNote.text = "Copied. Get it to your computer (a message to yourself works), copy it there, then " +
+                    "click the import button in RuneLite's Inventory Setups panel."
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            sendRow.addView(button("Share") { saveTyping(); share(l) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { leftMargin = dp(6) })
+            page.addView(sendRow, fullWidth(4))
+            page.addView(sendNote, fullWidth(4))
+        }
+
         page.addView(deleteButton, fullWidth(20))
 
         setContent(ScrollView(context).apply { addView(page) })
@@ -532,6 +572,101 @@ class GearLoadoutsTool(private val context: Context) {
         })
 
         setContent(ScrollView(context).apply { addView(page) })
+    }
+
+    // ---------------- RuneLite: import and export ----------------
+
+    private fun showImport() {
+        importing = true
+        current = null
+        picking = null
+
+        val page = column().apply { setPadding(dp(10), dp(10), dp(10), dp(10)) }
+        page.addView(label("Import from RuneLite", 15f, bold = true))
+        page.addView(label("One setup: in RuneLite's Inventory Setups panel, right-click the setup and choose Export " +
+            "Setup. Send the copied text to your phone (a message to yourself works), then paste it here.\n\n" +
+            "Every setup: right-click the panel's import button, choose Mass Export Setups, put the file on your phone " +
+            "and pick it with Pick a file."), fullWidth(6))
+
+        val status = label("", bold = true)
+        val box = textBox("Paste the exported setup here").apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            minLines = 3
+            maxLines = 6
+            gravity = Gravity.TOP or Gravity.START
+        }
+        page.addView(box, fullWidth(10))
+
+        val buttons = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+        fun add(b: View) = buttons.addView(b, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            .apply { if (buttons.isNotEmpty()) leftMargin = dp(6) })
+        add(button("Paste") {
+            val text = context.getSystemService(ClipboardManager::class.java).primaryClip
+                ?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
+            if (text.isNullOrBlank()) status.text = "Nothing to paste (or Android didn't allow it): long-press the box and choose Paste."
+            else { box.setText(text); status.text = "" }
+        })
+        add(button("Import") {
+            hideKeyboard(box)
+            if (!importText(box.text.toString())) status.text = "That isn't a setup exported from RuneLite's Inventory Setups."
+        })
+        page.addView(buttons, fullWidth(6))
+        page.addView(button("Pick a file") { pickFile(status) }, fullWidth(6))
+        page.addView(status, fullWidth(8))
+
+        setContent(ScrollView(context).apply { addView(page) })
+    }
+
+    // Adds every setup in the text; false if there were none. One setup opens; several go to the list.
+    private fun importText(text: String): Boolean {
+        val stamp = System.currentTimeMillis()
+        val found = try { Loadout.fromRuneLite(text) { i -> "$stamp-$i" } } catch (_: Exception) { return false }
+        loadouts.addAll(found)
+        saveLoadouts()
+        if (found.size == 1) showLoadout(found[0])
+        else {
+            listMessage = "Imported ${found.size} setups from RuneLite."
+            showList()
+        }
+        return true
+    }
+
+    private fun pickFile(status: TextView) {
+        hideWindow()
+        LoadoutFileActivity.open(context) { text ->
+            showWindow()
+            if (text != null && !importText(text) && importing) status.text = "That file isn't a RuneLite Inventory Setups export."
+        }
+    }
+
+    // Every loadout with items in it, as one file RuneLite's Inventory Setups can import (right-click its
+    // import button, Mass Import Setups)
+    private fun saveAllToFile() {
+        val chosen = loadouts.filter { it.hasItems }
+        hideWindow()
+        LoadoutFileActivity.save(context, EXPORT_FILE_NAME, Loadout.toRuneLite(chosen).toString()) { saved ->
+            if (saved) listMessage = "Saved ${chosen.size} loadouts. On your computer, right-click the import button in " +
+                "RuneLite's Inventory Setups panel and choose Mass Import Setups."
+            if (current == null && !importing) showList()
+            showWindow()
+        }
+    }
+
+    private fun copyToClipboard(label: String, text: String) {
+        context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText(label, text))
+    }
+
+    // Android's share menu (a message, an email, a cloud drive...), to get the setup to your computer
+    private fun share(l: Loadout) {
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+            .putExtra(Intent.EXTRA_SUBJECT, "${l.name} (Inventory Setups)")
+            .putExtra(Intent.EXTRA_TEXT, l.toRuneLite().toString())
+        hideWindow()
+        try {
+            context.startActivity(Intent.createChooser(send, "Send ${l.name}").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: Exception) {
+            showWindow()
+        }
     }
 
     // ---------------- Inventory Setups' old pictures ----------------

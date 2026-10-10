@@ -163,7 +163,7 @@ trailer and the ToA demo video; how to update them is in `trailer/README.md`), `
 ## Checking your work
 
 - Build with `./gradlew.bat assembleDebug`, and run Android's checks with `./gradlew.bat lintDebug` (report in
-  `app/build/reports/lint-results-debug.sarif`). Expected warnings: 83 "SetTextI18n" (text written in the code,
+  `app/build/reports/lint-results-debug.sarif`). Expected warnings: 89 "SetTextI18n" (text written in the code,
   see `.scratch/lint-text-warnings/`) and 2 "IconXmlAndPng" (the app icon).
 - PC tests: `./gradlew.bat testDebugUnitTest`, in `app/src/test/`: the Puzzle Box and Light Box solvers, the ToA
   answers, farming growth times, quest requirement checks, the Zen Garden's save file, placed things and auto rake patterns, and keeping windows clear of the bars (expected answers worked out by hand or from the

@@ -1006,7 +1006,8 @@ class BubbleService : Service() {
         Tool.LIGHT_BOX -> LightBoxTool(toolContext, windowManager, capture, ::setOverlaysVisible) { hideToolWindow() }.let { t ->
             ToolParts(t::buildView, onBack = null, onRotated = t::onRotated, onDestroy = t::destroy, isBusy = t::isGuiding)
         }
-        Tool.INVENTORY_SETUPS -> GearLoadoutsTool(toolContext).let { t ->
+        Tool.INVENTORY_SETUPS -> GearLoadoutsTool(toolContext, hideWindow = { hideToolWindow() },
+            showWindow = { if (shownWindow == null) openTool(Tool.INVENTORY_SETUPS) }).let { t ->
             ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed, onDestroy = t::destroy)
         }
         Tool.ZULRAH -> ZulrahTool(toolContext).let { t -> ToolParts(t::buildView, t::goBack) }
