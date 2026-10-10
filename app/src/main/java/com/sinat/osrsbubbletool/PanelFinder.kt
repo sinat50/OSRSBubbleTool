@@ -4,35 +4,47 @@ import android.graphics.Rect
 import kotlin.math.abs
 
 // Finds parts of the game screen by the thin black line the game draws around its windows:
-// the side panel (inventory, equipment...), the spellbook tab, and an open rune pouch.
+// the side panel (inventory, equipment...), the spellbook tab button, and an open rune pouch.
 // They're always the same shape, so the tools can find them instead of you marking them by hand.
+// The finding itself has no Android parts (Box, not Rect), so it can be tested on a computer.
 object PanelFinder {
+
+    // An area of the screen; right and bottom are just outside it, as with Android's Rect
+    data class Box(val left: Int, val top: Int, val right: Int, val bottom: Int) {
+        val width get() = right - left
+        val height get() = bottom - top
+        fun toRect() = Rect(left, top, right, bottom)
+    }
 
     private class Line(val at: Int, val start: Int, val length: Int)
 
     // The side panel (inventory, equipment, spellbook...): a bit taller than wide
-    fun find(p: LightBoxReader.PixelSource): Rect? = biggestOutline(p, 1.15f, 1.6f)
+    fun find(p: LightBoxReader.PixelSource): Rect? = findPanel(p)?.toRect()
 
-    // The spellbook tab button. Its picture shows which spellbook you're on.
-    // It's in the column of tab buttons right of the panel: left column, 4th row down.
-    fun spellbookTab(panel: Rect): Rect {
-        val left = panel.right + panel.width() * 0.012f
-        val colW = panel.width() * 0.198f
-        val rowH = panel.height() / 7f
-        return Rect(left.toInt(), (panel.top + 3 * rowH).toInt(), (left + colW).toInt(), (panel.top + 4 * rowH).toInt())
+    fun findPanel(p: LightBoxReader.PixelSource): Box? = biggestOutline(p, 1.15f, 1.6f)
+
+    // The spellbook tab button, whose picture shows which spellbook you're on. It's in the column of tab
+    // buttons right of the panel: left column, 4th row down (the panel and the 7 rows of buttons are as tall).
+    fun spellbookTab(panel: Box): Box {
+        val left = panel.right + panel.width * 0.012f
+        val colW = panel.width * 0.198f
+        val rowH = panel.height / 7f
+        return Box(left.toInt(), (panel.top + 3 * rowH).toInt(), (left + colW).toInt(), (panel.top + 4 * rowH).toInt())
     }
 
-    // The runes inside an open rune pouch: the "Pouch" box near the top of its window
-    fun runePouch(p: LightBoxReader.PixelSource): Rect? {
-        val window = biggestOutline(p, 0.85f, 1.0f) ?: return null
-        val w = window.width()
-        val h = window.height()
-        return Rect(window.left + (w * 0.196f).toInt(), window.top + (h * 0.124f).toInt(),
+    // An open rune pouch's window (it's almost square), or null if none is open
+    fun runePouchWindow(p: LightBoxReader.PixelSource): Box? = biggestOutline(p, 0.85f, 1.0f)
+
+    // The runes inside that window: the "Pouch" box near its top
+    fun runePouchBox(window: Box): Box {
+        val w = window.width
+        val h = window.height
+        return Box(window.left + (w * 0.196f).toInt(), window.top + (h * 0.124f).toInt(),
             window.left + (w * 0.802f).toInt(), window.top + (h * 0.306f).toInt())
     }
 
     // The biggest window outlined in black whose height / width is between minAspect and maxAspect
-    private fun biggestOutline(p: LightBoxReader.PixelSource, minAspect: Float, maxAspect: Float): Rect? {
+    private fun biggestOutline(p: LightBoxReader.PixelSource, minAspect: Float, maxAspect: Float): Box? {
         val w = p.width
         val h = p.height
         fun black(x: Int, y: Int): Boolean {
@@ -63,7 +75,7 @@ object PanelFinder {
         if (rows.size < 2 || cols.size < 2) return null
 
         // A top and bottom edge the same width, with a left and right edge joining them
-        var best: Rect? = null
+        var best: Box? = null
         for (i in rows.indices) for (j in i + 1 until rows.size) {
             val top = rows[i]; val bottom = rows[j]
             val height = bottom.at - top.at
@@ -91,8 +103,8 @@ object PanelFinder {
             val aspect = height / width.toFloat()
             if (aspect !in minAspect..maxAspect) continue
             // the inside of the black outline
-            val r = Rect(leftLine.at + 1, top.at + 1, rightLine.at, bottom.at)
-            if (best == null || r.width() * r.height() > best.width() * best.height()) best = r
+            val r = Box(leftLine.at + 1, top.at + 1, rightLine.at, bottom.at)
+            if (best == null || r.width * r.height > best.width * best.height) best = r
         }
         return best
     }

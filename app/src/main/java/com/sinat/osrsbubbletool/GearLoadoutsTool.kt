@@ -14,6 +14,7 @@ import android.os.Looper
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -41,14 +42,23 @@ import org.json.JSONArray
 // under a name and shown like RuneLite's Inventory Setups plugin. Tap a square to put an item in it. Setups
 // exported from that plugin can be imported, and loadouts exported back to it.
 // (It replaced Inventory Setups, which saved pictures of the screen; those pictures are still shown.)
+// Read screen fills in the spellbook and an open rune pouch from the game (LoadoutReader).
 // hideWindow and showWindow close and reopen this tool's window, so Android's file chooser and share menu
-// (which open under the floating windows) can be seen.
-class GearLoadoutsTool(private val context: Context, private val hideWindow: () -> Unit, private val showWindow: () -> Unit) {
+// (which open under the floating windows) can be seen; setOverlaysVisible hides the bubble and the window
+// for a moment while the screen is captured.
+class GearLoadoutsTool(
+    private val context: Context,
+    private val capture: CaptureManager,
+    private val setOverlaysVisible: (Boolean) -> Unit,
+    private val hideWindow: () -> Unit,
+    private val showWindow: () -> Unit
+) {
 
     companion object {
         private const val SEARCH_WAIT_MS = 150L   // search after typing stops for this long
         private const val MAX_RESULTS = 40
         private const val EXPORT_FILE_NAME = "inventory_setups_gear_loadouts.json"
+        private const val CAPTURE_DELAY_MS = 500L   // wait after hiding the bubble before the screenshot
         private val SLOT_LABELS = mapOf("head" to "Head", "cape" to "Cape", "neck" to "Neck", "ammo" to "Ammo",
             "weapon" to "Weapon", "body" to "Body", "shield" to "Shield", "legs" to "Legs", "hands" to "Hands",
             "feet" to "Feet", "ring" to "Ring")
@@ -88,6 +98,11 @@ class GearLoadoutsTool(private val context: Context, private val hideWindow: () 
     private var nameField: EditText? = null
     private var notesField: EditText? = null
     private var pendingSearch: Runnable? = null
+    private var reading = false                 // a screenshot is being read
+    private var readMessage: String? = null     // what the last Read screen found, shown on the loadout once
+    // The pictures the reader compares the screen with, loaded the first time Read screen is used
+    private var books: List<LoadoutReader.Picture>? = null
+    private var runes: List<Pair<Int, LoadoutReader.Picture>>? = null
 
     private fun dp(value: Int) = (value * context.resources.displayMetrics.density).toInt()
 
@@ -271,6 +286,19 @@ class GearLoadoutsTool(private val context: Context, private val hideWindow: () 
         page.addView(nameField, fullWidth())
 
         if (items == null) page.addView(label("Loading items…"), fullWidth(8))
+
+        // Read the spellbook and an open rune pouch from the game
+        val readRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val readStatus = label(readMessage ?: "Reads your spellbook, and the runes in your rune pouch if it's open.")
+        readMessage = null
+        readRow.addView(button("Read screen") { readScreen(l, readStatus) },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        readRow.addView(readStatus, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            .apply { leftMargin = dp(8) })
+        page.addView(readRow, fullWidth(8))
 
         // Left: inventory and pouches. Right: equipment and spellbook. Side by side if the window is wide enough.
         val left = column()
@@ -572,6 +600,94 @@ class GearLoadoutsTool(private val context: Context, private val hideWindow: () 
         })
 
         setContent(ScrollView(context).apply { addView(page) })
+    }
+
+    // ---------------- Reading the screen ----------------
+
+    private fun readScreen(l: Loadout, status: TextView) {
+        if (reading) return
+        val data = items
+        if (data == null) { status.text = "Still loading items, try again in a moment."; return }
+        if (!capture.isActive) {
+            status.text = "Waiting for screen-capture permission..."
+            capture.request { ok ->
+                if (ok) readScreen(l, status)
+                else status.text = "Couldn't turn on screen capture: ${capture.lastError}."
+            }
+            return
+        }
+        reading = true
+        status.text = "Reading..."
+        capture.matchScreenSize()
+        setOverlaysVisible(false)
+        handler.postDelayed({
+            val shot = capture.grab()
+            setOverlaysVisible(true)
+            if (shot == null) {
+                reading = false
+                status.text = "Couldn't capture the screen. Try again."
+                return@postDelayed
+            }
+            Thread {
+                val message = try {
+                    // how long each part takes, in the phone's log (adb logcat -s GearLoadouts)
+                    var t = System.nanoTime()
+                    fun lap(what: String) { Log.d("GearLoadouts", "$what: ${(System.nanoTime() - t) / 1_000_000} ms"); t = System.nanoTime() }
+                    val pixels = LightBoxReader.Pixels(shot)
+                    shot.recycle()   // the pixels are copied: the screenshot isn't needed any more
+                    lap("copy screenshot")
+                    val (bookPictures, runePictures) = readerPictures(data)
+                    lap("load pictures")
+                    val panel = PanelFinder.findPanel(pixels)
+                    lap("find side panel")
+                    val book = panel?.let { LoadoutReader.spellbook(pixels, it, bookPictures) }
+                    lap("spellbook")
+                    val window = PanelFinder.runePouchWindow(pixels)
+                    lap("find rune pouch")
+                    val pouch = window?.let { LoadoutReader.runePouch(pixels, it, runePictures) }
+                    lap("rune pouch")
+                    handler.post { applyReading(l, book, pouch) }
+                    null
+                } catch (t: Throwable) {
+                    "Couldn't read the screen. Try again."   // e.g. out of memory on an older phone
+                }
+                if (message != null) handler.post { reading = false; if (current == l) status.text = message }
+            }.start()
+        }, CAPTURE_DELAY_MS)
+    }
+
+    // The spellbook pictures and the pouch runes' pictures, read from the app's files once (in the background)
+    private fun readerPictures(data: ItemData): Pair<List<LoadoutReader.Picture>, List<Pair<Int, LoadoutReader.Picture>>> {
+        val b = books ?: (0..3).mapNotNull { assetPicture("items/spellbooks/$it.png") }.also { books = it }
+        val r = runes ?: LoadoutReader.POUCH_RUNES.mapNotNull { id ->
+            data[id]?.picture()?.let { assetPicture("items/icons/$it") }?.let { id to it }
+        }.also { runes = it }
+        return b to r
+    }
+
+    private fun assetPicture(path: String): LoadoutReader.Picture? = try {
+        context.assets.open(path).use { BitmapFactory.decodeStream(it) }?.let { bmp ->
+            val argb = IntArray(bmp.width * bmp.height)
+            bmp.getPixels(argb, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+            LoadoutReader.Picture(bmp.width, bmp.height, argb).also { bmp.recycle() }
+        }
+    } catch (_: Exception) { null }
+
+    private fun applyReading(l: Loadout, book: Int?, pouch: List<Stack>?) {
+        reading = false
+        if (book != null) l.spellbook = book
+        if (pouch != null) l.runePouch = pouch.toMutableList<Stack?>().also { while (it.size < 3) it.add(null) }
+        if (book != null || pouch != null) saveLoadouts()
+        val found = listOfNotNull(
+            book?.let { "${Loadout.SPELLBOOKS[it]} spellbook" },
+            pouch?.let { "rune pouch (${it.size} rune${if (it.size == 1) "" else "s"})" }
+        )
+        val missing = listOfNotNull(
+            if (book == null) "Couldn't see your spellbook button: keep the side panel open (any tab)." else null,
+            if (pouch == null) "No rune pouch seen: open it (tap the pouch, Open) to read its runes." else null
+        )
+        readMessage = (if (found.isEmpty()) "" else "Read: ${found.joinToString(" and ")}. ") + missing.joinToString(" ")
+        if (current == l && picking == null) showLoadout(l)
     }
 
     // ---------------- RuneLite: import and export ----------------
