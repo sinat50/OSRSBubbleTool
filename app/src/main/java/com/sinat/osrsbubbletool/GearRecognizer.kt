@@ -19,9 +19,19 @@ import org.json.JSONArray
 
 // Recognizes the gear in a picture of the equipment window, using the item pictures
 // that come with the app (see GearIcons). Slow work: call it from a background thread.
-class GearRecognizer(private val context: Context) {
+// The DPS Calculator and Gear Loadouts share one (shared()), so the item pictures are only loaded once.
+class GearRecognizer private constructor(private val context: Context) {
 
     companion object {
+        @Volatile private var sharedOne: GearRecognizer? = null
+
+        fun shared(context: Context): GearRecognizer = sharedOne ?: synchronized(this) {
+            sharedOne ?: GearRecognizer(context.applicationContext).also { sharedOne = it }
+        }
+
+        // The bubble closed: let go of the item pictures
+        fun releaseShared() { sharedOne = null }
+
         const val GRID = 32                          // a slot's inside is 32 x 32 game pixels
         private const val UNEXPLAINED_WEIGHT = 40f   // penalty for parts of the item an icon doesn't cover
         private const val OVERCLAIM_WEIGHT = 30f     // penalty for icon pixels sitting on plain slot stone
@@ -297,6 +307,12 @@ class GearRecognizer(private val context: Context) {
         if (w < 40 || h < 60) return null
         val px = IntArray(w * h)
         window.getPixels(px, 0, w, 0, 0, w, h)
+        return recognize(px, w, h, preferred)
+    }
+
+    // The same, from the window's pixels (w x h, as 0xAARRGGBB or 0xRRGGBB)
+    fun recognize(px: IntArray, w: Int, h: Int, preferred: Map<String, Int> = emptyMap()): Result? {
+        if (w < 40 || h < 60) return null
         val (slots, score) = findSlots(px, w, h)
         if (score < MIN_LAYOUT_SCORE) return Result(emptyMap(), score, slots)
 

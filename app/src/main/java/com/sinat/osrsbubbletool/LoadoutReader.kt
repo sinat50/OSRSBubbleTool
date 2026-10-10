@@ -220,6 +220,17 @@ object LoadoutReader {
 
     // ---------------- Amounts ----------------
 
+    // The amount written in yellow in an area (the top of an equipment slot, for ammunition), or null
+    fun amountIn(p: PixelSource, area: Box): Int? {
+        val left = area.left.coerceAtLeast(0)
+        val top = area.top.coerceAtLeast(0)
+        val w = area.right.coerceAtMost(p.width) - left
+        val h = area.bottom.coerceAtMost(p.height) - top
+        if (w <= 0 || h <= 0) return null
+        val yellow = FloatArray(w * h) { yellowness(p.rgb(left + it % w, top + it / w)) }
+        return Digits.read(yellow, w, h)?.toIntOrNull()
+    }
+
     // The amount written over a rune: yellow digits in the game's small font, 8 game pixels tall, starting at
     // the rune's top-left. Null if there's none or it can't be read.
     private fun readAmount(p: PixelSource, spot: Spot, stone: Scaled, s: Float): Int? {

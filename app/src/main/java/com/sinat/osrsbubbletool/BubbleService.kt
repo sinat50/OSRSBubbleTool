@@ -1563,6 +1563,7 @@ class BubbleService : Service() {
         toolParts.values.forEach { it.onDestroy() }
         AppSettings.prefs(this).unregisterOnSharedPreferenceChangeListener(settingsChanged)
         capture.shutdown()
+        GearRecognizer.releaseShared()
         windowManager.removeView(bubble)
         barProbes.forEach { windowManager.removeView(it) }
         webViews.forEach { (it.parent as? ViewGroup)?.removeView(it); it.destroy() }

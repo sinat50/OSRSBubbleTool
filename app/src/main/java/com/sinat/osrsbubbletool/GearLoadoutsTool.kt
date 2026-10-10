@@ -42,7 +42,8 @@ import org.json.JSONArray
 // under a name and shown like RuneLite's Inventory Setups plugin. Tap a square to put an item in it. Setups
 // exported from that plugin can be imported, and loadouts exported back to it.
 // (It replaced Inventory Setups, which saved pictures of the screen; those pictures are still shown.)
-// Read screen fills in the spellbook and an open rune pouch from the game (LoadoutReader).
+// Read screen fills in the spellbook and an open rune pouch (LoadoutReader), and the equipment when its tab is
+// open (GearRecognizer, shared with the DPS Calculator), from the game.
 // hideWindow and showWindow close and reopen this tool's window, so Android's file chooser and share menu
 // (which open under the floating windows) can be seen; setOverlaysVisible hides the bubble and the window
 // for a moment while the screen is captured.
@@ -103,6 +104,10 @@ class GearLoadoutsTool(
     // The pictures the reader compares the screen with, loaded the first time Read screen is used
     private var books: List<LoadoutReader.Picture>? = null
     private var runes: List<Pair<Int, LoadoutReader.Picture>>? = null
+    // The recogniser's other guesses for each equipment slot after Read screen (slot to item IDs, best first),
+    // offered first when you tap that slot. Only for the loadout read, and only until the bubble closes.
+    private var guessesFor: String? = null
+    private var guesses: Map<String, List<Int>> = emptyMap()
 
     private fun dp(value: Int) = (value * context.resources.displayMetrics.density).toInt()
 
@@ -292,7 +297,7 @@ class GearLoadoutsTool(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        val readStatus = label(readMessage ?: "Reads your spellbook, and the runes in your rune pouch if it's open.")
+        val readStatus = label(readMessage ?: "Reads your spellbook, your equipment if its tab is open, and your rune pouch if it's open.")
         readMessage = null
         readRow.addView(button("Read screen") { readScreen(l, readStatus) },
             LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -561,32 +566,28 @@ class GearLoadoutsTool(
             val found = data.search(text, filter, MAX_RESULTS)
             if (found.isEmpty()) results.addView(label("No items found."))
             for (item in found) {
-                val row = LinearLayout(context).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(4), dp(2), dp(8), dp(2))
-                    background = GradientDrawable().apply {
-                        setColor(ROW_BROWN)
-                        cornerRadius = dp(6).toFloat()
-                    }
-                    setOnClickListener {
-                        hideKeyboard(search)
-                        put(l, p, Stack(item.id, typedAmount()))
-                        showLoadout(l)
-                    }
-                }
-                row.addView(ItemSlotView(context).apply {
-                    picture = icons.picture(item)
-                    square = Color.TRANSPARENT
-                }, LinearLayout.LayoutParams(dp(36), dp(36)))
-                val names = column()
-                names.addView(label(item.name, 14f))
-                // a copy from a minigame or quest says which ("Last Man Standing")
-                item.variant?.let { names.addView(label(it, 11f).apply { setTextColor(Palette.FADED) }) }
-                row.addView(names, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                    .apply { leftMargin = dp(8) })
-                results.addView(row, fullWidth(4))
+                results.addView(itemRow(item) {
+                    hideKeyboard(search)
+                    put(l, p, Stack(item.id, typedAmount()))
+                    showLoadout(l)
+                }, fullWidth(4))
             }
+        }
+        // After Read screen, the recogniser's other guesses for this slot (tap one if it guessed wrong)
+        val others = if (p is Place.Worn && guessesFor == l.id) guesses[p.slot].orEmpty() else emptyList()
+        val data = items
+        if (others.isNotEmpty() && data != null) {
+            val guessed = column()
+            guessed.addView(label("Other guesses from the screen", 13f, bold = true))
+            for (id in others) {
+                val item = data[id] ?: continue
+                if (item.id == now?.id) continue
+                guessed.addView(itemRow(item) {
+                    put(l, p, Stack(item.id, typedAmount()))
+                    showLoadout(l)
+                }, fullWidth(4))
+            }
+            page.addView(guessed, page.indexOfChild(search), fullWidth(8))
         }
         showResults("")
         search.addTextChangedListener(object : TextWatcher {
@@ -646,7 +647,11 @@ class GearLoadoutsTool(
                     lap("find rune pouch")
                     val pouch = window?.let { LoadoutReader.runePouch(pixels, it, runePictures) }
                     lap("rune pouch")
-                    handler.post { applyReading(l, book, pouch) }
+                    // The equipment, if the side panel shows the equipment tab (otherwise no slots are found)
+                    if (panel != null) handler.post { if (current == l) status.text = "Reading your equipment..." }
+                    val gear = panel?.let { readEquipment(pixels, it) }
+                    lap("equipment")
+                    handler.post { applyReading(l, book, pouch, gear) }
                     null
                 } catch (t: Throwable) {
                     "Couldn't read the screen. Try again."   // e.g. out of memory on an older phone
@@ -673,17 +678,52 @@ class GearLoadoutsTool(
         }
     } catch (_: Exception) { null }
 
-    private fun applyReading(l: Loadout, book: Int?, pouch: List<Stack>?) {
+    // What the equipment tab shows: each slot's guesses (item IDs, best first; an empty list for an empty slot)
+    // and the ammunition's amount. Null if the side panel isn't showing the equipment tab.
+    private class GearReading(val slots: Map<String, List<Int>>, val ammoAmount: Int?)
+
+    private fun readEquipment(pixels: LightBoxReader.Pixels, panel: PanelFinder.Box): GearReading? {
+        val w = panel.width
+        val h = panel.height
+        if (w <= 0 || h <= 0 || panel.right > pixels.width || panel.bottom > pixels.height) return null
+        val px = IntArray(w * h)
+        for (y in 0 until h) System.arraycopy(pixels.data, (panel.top + y) * pixels.width + panel.left, px, y * w, w)
+        val result = GearRecognizer.shared(context).recognize(px, w, h) ?: return null
+        Log.d("GearLoadouts", "panel $panel, slot layout fit ${result.layoutScore}, brightness ${result.gamma}")
+        for ((slot, choices) in result.slots) Log.d("GearLoadouts", "  $slot at ${result.slotRects[slot]}: " +
+            choices.take(3).joinToString { "${it.item?.label ?: "empty"} (${it.item?.id}) %.1f".format(it.cost) })
+        if (result.slots.isEmpty()) return null
+        val slots = result.slots.mapValues { (_, choices) -> choices.mapNotNull { it.item?.id } }
+        // the ammunition's amount is written in yellow over the top of its slot
+        val ammo = result.slotRects["ammo"]?.takeIf { slots["ammo"].orEmpty().isNotEmpty() }?.let { r ->
+            LoadoutReader.amountIn(pixels, PanelFinder.Box(panel.left + r.left - r.width() / 8, panel.top + r.top - r.height() / 6,
+                panel.left + r.right, panel.top + r.top + r.height() / 2))
+        }
+        return GearReading(slots, ammo)
+    }
+
+    private fun applyReading(l: Loadout, book: Int?, pouch: List<Stack>?, gear: GearReading?) {
         reading = false
         if (book != null) l.spellbook = book
         if (pouch != null) l.runePouch = pouch.toMutableList<Stack?>().also { while (it.size < 3) it.add(null) }
-        if (book != null || pouch != null) saveLoadouts()
+        if (gear != null) {
+            for ((slot, ids) in gear.slots) {
+                val id = ids.firstOrNull()
+                if (id == null) l.equipment.remove(slot)
+                else l.equipment[slot] = Stack(id, if (slot == "ammo") gear.ammoAmount ?: 1 else 1)
+            }
+            guessesFor = l.id
+            guesses = gear.slots.filterValues { it.size > 1 }
+        }
+        if (book != null || pouch != null || gear != null) saveLoadouts()
         val found = listOfNotNull(
             book?.let { "${Loadout.SPELLBOOKS[it]} spellbook" },
+            gear?.let { "equipment" },
             pouch?.let { "rune pouch (${it.size} rune${if (it.size == 1) "" else "s"})" }
         )
         val missing = listOfNotNull(
             if (book == null) "Couldn't see your spellbook button: keep the side panel open (any tab)." else null,
+            if (gear == null) "Open the equipment tab to read your gear." else null,
             if (pouch == null) "No rune pouch seen: open it (tap the pouch, Open) to read its runes." else null
         )
         readMessage = (if (found.isEmpty()) "" else "Read: ${found.joinToString(" and ")}. ") + missing.joinToString(" ")
@@ -783,6 +823,27 @@ class GearLoadoutsTool(
         } catch (_: Exception) {
             showWindow()
         }
+    }
+
+    // One item to pick: its picture and name
+    private fun itemRow(item: ItemData.Item, onClick: () -> Unit) = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(4), dp(2), dp(8), dp(2))
+        background = GradientDrawable().apply {
+            setColor(ROW_BROWN)
+            cornerRadius = dp(6).toFloat()
+        }
+        setOnClickListener { onClick() }
+        addView(ItemSlotView(context).apply {
+            picture = icons.picture(item)
+            square = Color.TRANSPARENT
+        }, LinearLayout.LayoutParams(dp(36), dp(36)))
+        val names = column()
+        names.addView(label(item.name, 14f))
+        // a copy from a minigame or quest says which ("Last Man Standing")
+        item.variant?.let { names.addView(label(it, 11f).apply { setTextColor(Palette.FADED) }) }
+        addView(names, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(8) })
     }
 
     // ---------------- Inventory Setups' old pictures ----------------
