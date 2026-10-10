@@ -7,10 +7,15 @@ package com.sinat.osrsbubbletool
 //
 // Each line of the file: ID, name, slot (empty if it isn't worn), picture file(s). Items drawn differently
 // by stack size (coins, arrows...) list several pictures, separated by "|"; the number at the end of each
-// name ("Coins 250.png") is the smallest stack that picture is for.
+// name ("Coins 250.png") is the smallest stack that picture is for. Last, the item's wiki page if it isn't
+// its name: copies of an item from a minigame or quest have their own page ("Rune pouch (Last Man Standing)").
 class ItemData(tsv: String) {
 
-    class Item(val id: Int, val name: String, val slot: String?, val pictures: List<String>) {
+    class Item(val id: Int, val name: String, val slot: String?, val pictures: List<String>, page: String = "") {
+        // Which copy this is ("Last Man Standing"), or null for the item itself
+        val variant: String? = page.takeIf { it.length > name.length && it.startsWith(name) }
+            ?.substring(name.length)?.trim()?.removePrefix("(")?.removeSuffix(")")?.takeIf { it.isNotEmpty() }
+
         // The smallest stack each picture is for, or null if this item has one picture for every stack size
         private val stackFrom: IntArray? = run {
             val sizes = pictures.map { STACK.find(it)?.groupValues?.get(1)?.toIntOrNull() }
@@ -43,7 +48,7 @@ class ItemData(tsv: String) {
             if (parts.size < 4) continue
             val id = parts[0].toIntOrNull() ?: continue
             val slot = parts[2].takeIf { it in SLOTS }
-            val item = Item(id, parts[1], slot, parts[3].split('|').filter { it.isNotEmpty() })
+            val item = Item(id, parts[1], slot, parts[3].split('|').filter { it.isNotEmpty() }, parts.getOrElse(4) { "" })
             if (byId.putIfAbsent(id, item) == null) list.add(item)
         }
         all = list
@@ -52,8 +57,9 @@ class ItemData(tsv: String) {
     operator fun get(id: Int): Item? = byId[id]
 
     // Items whose name has all the typed words in it (any case), best matches first: names that start with
-    // what you typed, then shorter names. Items that look the same and share a name (several IDs for one
-    // thing) are listed once. With a slot, only items worn there.
+    // what you typed, then shorter names, the item itself before its minigame and quest copies. Items that
+    // look the same and share a name (several IDs for one thing) are listed once. With a slot, only items
+    // worn there.
     fun search(text: String, slot: String? = null, limit: Int = 50): List<Item> {
         val words = text.lowercase().split(' ').filter { it.isNotEmpty() }
         if (words.isEmpty()) return emptyList()
@@ -62,8 +68,9 @@ class ItemData(tsv: String) {
         return all.asSequence()
             .filter { slot == null || it.slot == slot }
             .filter { item -> val name = item.name.lowercase(); words.all { it in name } }
-            .sortedWith(compareBy<Item>({ !it.name.lowercase().startsWith(first) }, { it.name.length }, { it.name }, { it.id }))
-            .filter { seen.add(it.name + "\t" + it.pictures.firstOrNull()) }
+            .sortedWith(compareBy<Item>({ !it.name.lowercase().startsWith(first) }, { it.name.length }, { it.name },
+                { it.variant != null }, { it.variant }, { it.id }))
+            .filter { seen.add(it.name + "\t" + it.variant + "\t" + it.pictures.firstOrNull()) }
             .take(limit)
             .toList()
     }

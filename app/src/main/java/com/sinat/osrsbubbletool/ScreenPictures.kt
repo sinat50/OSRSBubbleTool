@@ -10,7 +10,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 
-// Working with pictures of the screen, shared by the tools that read it (Puzzle Box, Light Box, DPS, Inventory Setups).
+// Working with pictures of the screen, shared by the tools that read it (Puzzle Box, Light Box, DPS).
 
 // One patch of touching marked squares: how many, their total position (for the middle) and the box around them
 class ScreenPatch {

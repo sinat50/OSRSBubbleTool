@@ -74,4 +74,15 @@ class ItemDataTest {
         assertTrue(items.search("shark", slot = "head").none { it.name == "Shark" })
         assertTrue(items.search("   ").isEmpty())
     }
+
+    @Test
+    fun minigameCopiesComeAfterTheRealItemAndSayWhereFrom() {
+        // the Last Man Standing rune pouch (23650) has the same name in the game as the real one (12791)
+        assertNull(items[12791]?.variant)
+        assertEquals("Last Man Standing", items[23650]?.variant)
+        assertNull(items[2434]?.variant)   // a potion dose isn't a copy
+        val pouches = items.search("rune pouch").filter { it.name == "Rune pouch" }
+        assertEquals(12791, pouches.first().id)
+        assertEquals(pouches.size, pouches.map { it.variant }.toSet().size)   // each copy listed once
+    }
 }

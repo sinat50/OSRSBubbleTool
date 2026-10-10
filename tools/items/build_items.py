@@ -5,10 +5,12 @@ wiki's API: "infobox_item" (every item version: ID, name, picture) and "infobox_
 it goes in). The pictures are Jagex's artwork from the wiki, included under Jagex's Fan Content Policy.
 
 Makes:
-  items/items.tsv  one line per item ID: ID, name, equipment slot (empty if it isn't worn), picture file(s).
+  items/items.tsv  one line per item ID: ID, name, equipment slot (empty if it isn't worn), picture file(s),
+                   and the wiki page if it isn't the item's name (minigame and quest copies have their own page).
                    Items whose picture changes with the stack size (coins, arrows...) list several pictures,
                    separated by "|"; the number at the end of each name ("Coins 250.png") is the smallest stack
                    it's for.
+  items/spellbooks/ the spellbook tab pictures, 0.png to 3.png (standard, Ancient, Lunar, Arceuus).
   items/icons/     every picture named in items.tsv. Characters Windows can't have in a file name are "_"
                    ("Guam in a box?.png" is saved as "Guam in a box_.png").
 
@@ -91,7 +93,10 @@ for r in items:
         if item_id not in lines:   # the first row wins if two pages claim one ID
             stored = [file_name(f) for f in files]
             pictures.update(zip(stored, files))   # only pictures an item uses are downloaded
-            lines[item_id] = '\t'.join([str(item_id), name, slot or '', '|'.join(stored)])
+            # the wiki page, when it isn't the item's name: copies of an item from a minigame or quest are on
+            # their own page ("Rune pouch (Last Man Standing)") but have the same name in the game
+            page_note = clean(page) if clean(page) != name else ''
+            lines[item_id] = '\t'.join([str(item_id), name, slot or '', '|'.join(stored), page_note])
 
 folder = os.path.join(assets, 'items')
 icons = os.path.join(folder, 'icons')
@@ -128,3 +133,14 @@ with ThreadPoolExecutor(8) as pool:   # gentle on the wiki
     ok = sum(pool.map(save, wanted.items()))
 size = sum(os.path.getsize(os.path.join(icons, f)) for f in os.listdir(icons))
 print(f'items/icons: {ok} of {len(wanted)} pictures, {size / 1048576:.1f} MB')
+
+# The spellbook tab's four pictures (Gear Loadouts shows the loadout's spellbook with them),
+# saved as items/spellbooks/0.png to 3.png in RuneLite's order: standard, Ancient, Lunar, Arceuus
+books = os.path.join(folder, 'spellbooks')
+os.makedirs(books, exist_ok=True)
+for number, picture in enumerate(['Standard spellbook.png', 'Ancient spellbook.png', 'Lunar spellbook.png', 'Arceuus spellbook.png']):
+    data = fetch(PICTURES + urllib.parse.quote(picture.replace(' ', '_')))
+    if data[:8] != b'\x89PNG\r\n\x1a\n':
+        sys.exit('Could not get ' + picture)
+    open(os.path.join(books, f'{number}.png'), 'wb').write(data)
+print('items/spellbooks: 4 pictures')

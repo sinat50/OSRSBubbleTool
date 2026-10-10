@@ -36,7 +36,7 @@ object Palette {
     private val green = shade("#3E7A2E", "#4A8A36")
     private val readyGreen = shade("#2E8B2E", "#5BAA4A")
     private val red = shade("#B03A2E", "#C0503F")
-    private val deepRed = shade("#A04030", "#C0503F")    // Stop and Delete buttons in Timers and Inventory Setups
+    private val deepRed = shade("#A04030", "#C0503F")    // Stop and Delete buttons in Timers and Gear Loadouts
     private val orange = shade("#C0600A", "#D9822E")      // "partly done", or a warning banner
     private val warn = shade("#9C4A10", "#B8642A")
     private val blue = shade("#1F4E8C", "#4F82C8")

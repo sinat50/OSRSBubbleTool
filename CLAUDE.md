@@ -48,7 +48,8 @@ Code: `app/src/main/java/com/sinat/osrsbubbletool/` (one file per tool, roughly)
 | `GuideWindow.kt`, `ScreenPictures.kt` | Shared: the see-through guide windows both solvers draw in; and working with screen pictures (`forEachPatch`, `cutArea`, `savePictureToPhone`) |
 | `ToaPuzzleTool.kt`, `ToaPuzzles.kt`, `ToaReader.kt` | ToA Puzzle Helper (Beta): the five Path of Scabaras puzzles. **Read `docs/toa-helper.md` before changing these.** |
 | `DpsTool.kt`, `GearRecognizer.kt`, `GearIcons.kt`, `PanelFinder.kt` | DPS Calculator (wiki web page) and Import my gear |
-| `InventorySetupsTool.kt`, `RegionOverlay.kt`, `PuzzleAreaOverlay.kt` | Inventory Setups, and the "set area by hand" frames |
+| `GearLoadoutsTool.kt`, `Loadout.kt`, `ItemData.kt`, `ItemPictures.kt` | Gear Loadouts (was Inventory Setups; the `Tool` name and its settings file keep the old name): a loadout's items (`Loadout`), every item in the game (`ItemData`, `ItemCatalog`), item pictures and the square slots (`ItemIcons`, `ItemSlotView`, `SlotGrid`). Plan: `.scratch/gear-loadouts/` |
+| `RegionOverlay.kt`, `PuzzleAreaOverlay.kt` | The "set area by hand" frames |
 | `TeleportFinderTool.kt`, `TeleportData.kt`, `WalkMap.kt` | Teleport Finder (Beta): wiki lookup, teleport list, walking-route search |
 | `QuestHelperTool.kt`, `QuestData.kt`, `QuestGuides.kt`, `QuestBook.kt`, `QuestPuzzles.kt`, `QuestSolvers.kt`, `QuestSolverViews.kt`, `PuzzleDiagramView.kt` | Quest Helper (Beta), from the Quest Helper RuneLite plugin (`PuzzleDiagramView` draws the puzzle answer maps) |
 | `WikiSync.kt`, `WikiSyncTool.kt` | WikiSync account data, and the ✓/✗ WikiSync tag other tools show |
@@ -162,7 +163,7 @@ trailer and the ToA demo video; how to update them is in `trailer/README.md`), `
 ## Checking your work
 
 - Build with `./gradlew.bat assembleDebug`, and run Android's checks with `./gradlew.bat lintDebug` (report in
-  `app/build/reports/lint-results-debug.sarif`). Expected warnings: 95 "SetTextI18n" (text written in the code,
+  `app/build/reports/lint-results-debug.sarif`). Expected warnings: 83 "SetTextI18n" (text written in the code,
   see `.scratch/lint-text-warnings/`) and 2 "IconXmlAndPng" (the app icon).
 - PC tests: `./gradlew.bat testDebugUnitTest`, in `app/src/test/`: the Puzzle Box and Light Box solvers, the ToA
   answers, farming growth times, quest requirement checks, the Zen Garden's save file, placed things and auto rake patterns, and keeping windows clear of the bars (expected answers worked out by hand or from the

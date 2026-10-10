@@ -231,7 +231,7 @@ class BubbleService : Service() {
         PUZZLE_BOX("Puzzle Box Solver"),
         LIGHT_BOX("Light Box Solver"),
         TOA_PUZZLES("ToA Puzzle Helper (Beta)"),
-        INVENTORY_SETUPS("Inventory Setups"),
+        INVENTORY_SETUPS("Gear Loadouts"),   // (named Inventory Setups before; the name stays, it's saved in settings)
         XP_CALCULATOR("XP Calculator"),
         DPS_CALCULATOR("DPS Calculator"),
         SHOOTING_STARS("Shooting Star Tracker"),
@@ -1006,8 +1006,8 @@ class BubbleService : Service() {
         Tool.LIGHT_BOX -> LightBoxTool(toolContext, windowManager, capture, ::setOverlaysVisible) { hideToolWindow() }.let { t ->
             ToolParts(t::buildView, onBack = null, onRotated = t::onRotated, onDestroy = t::destroy, isBusy = t::isGuiding)
         }
-        Tool.INVENTORY_SETUPS -> InventorySetupsTool(toolContext, windowManager, capture, ::setOverlaysVisible).let { t ->
-            ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed, onRotated = t::onRotated, onDestroy = t::destroy)
+        Tool.INVENTORY_SETUPS -> GearLoadoutsTool(toolContext).let { t ->
+            ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed, onDestroy = t::destroy)
         }
         Tool.ZULRAH -> ZulrahTool(toolContext).let { t -> ToolParts(t::buildView, t::goBack) }
         Tool.TOA_PUZZLES -> ToaPuzzleTool(toolContext, capture, ::setOverlaysVisible, ::setWindowCompact).let { t ->

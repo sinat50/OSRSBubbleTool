@@ -81,7 +81,7 @@ class DpsTool(
 
     private val handler = Handler(Looper.getMainLooper())
     private val recognizer = GearRecognizer(context)
-    // Same saved area as Inventory Setups' Equipment, so setting it in either tool works for both
+    // The equipment area set by hand (the same saved area the older Inventory Setups used)
     private val equipmentArea = RegionOverlay(context, windowManager, "region_equipment", "Equipment")
 
     private var web: WebView? = null
