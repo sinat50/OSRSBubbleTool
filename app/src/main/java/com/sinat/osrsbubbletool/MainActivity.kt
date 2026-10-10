@@ -388,6 +388,7 @@ class MainActivity : Activity() {
             "It has been shortened and reformatted for the app, and anything adapted from it is shared under the same licence. It includes:\n\n" +
             "\u2022 Puzzle Box Solver: the solved puzzle box pictures\n" +
             "\u2022 DPS Calculator gear import: a few item pictures\n" +
+            "\u2022 Gear Loadouts: every item's name, ID, equipment slot and picture, from the wiki's item pages\n" +
             "\u2022 Quest Helper: solved puzzle pictures and some puzzle answers from the wiki's quick guides\n" +
             "\u2022 Hunter Rumours: rumour lists, locations, travel and equipment from the Hunters' Rumours pages\n" +
             "\u2022 Teleport Finder: search suggestions, where NPCs, monsters and places are on the map, monster levels, and descriptions of some teleport destinations\n\n" +

@@ -29,6 +29,14 @@ git clone https://github.com/Varzeki/golems-dont-die        # obstacles.gz (BSD 
 runs them against one or more versions of `walks.txt` and prints how many results are guesses and every
 place whose top result changed. Build and run instructions are at the top of the file.
 
+## Gear Loadouts item list (`items/`)
+
+No downloads needed first: the script reads the OSRS Wiki's item tables through the wiki's API.
+
+| Script | Makes | Notes |
+| --- | --- | --- |
+| `build_items.py` | `items/items.tsv`, `items/icons/` | `python3 build_items.py app/src/main/assets` (from the project folder). Every item's ID, name, equipment slot and picture(s). Skips pictures already there and removes ones no longer needed. About 8 minutes the first time (15,000 pictures), seconds after. |
+
 ## DPS Calculator gear import (`dps/`)
 
 ```

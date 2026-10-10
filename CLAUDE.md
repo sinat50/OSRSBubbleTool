@@ -73,6 +73,7 @@ Data: `app/src/main/assets/` (how to run the scripts: `tools/README.md`)
 | `dungeons.txt` | `tools/teleport-finder/build_dungeons.py` | RuneLite world map `DungeonLocation.java` |
 | `entrances.tsv` | (older, kept only as a fallback for straight-line estimates) | |
 | `dps/equipment.json` | `tools/dps/build_equipment_json.py` | OSRS Wiki DPS calculator repository |
+| `items/items.tsv`, `items/icons/` (14,982 item pictures, 8.4 MB) | `tools/items/build_items.py` | OSRS Wiki item tables (every item's ID, name, slot, picture), for Gear Loadouts (`ItemData`) |
 | `dps/empty_slots.png` | cut from a game screenshot | what empty equipment slots look like |
 | `dps/icons/` (4,991 item pictures, 2.6 MB), `puzzles/`, `quest_images/` | `tools/dps/fetch_pictures.py` | DPS calculator repository at `GearIcons.COMMIT`; OSRS Wiki |
 
