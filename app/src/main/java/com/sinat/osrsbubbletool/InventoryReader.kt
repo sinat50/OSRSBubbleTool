@@ -129,15 +129,22 @@ object InventoryReader {
         var gamma = 1.2f
         if (grids != null && canvases != null) {
             // with RuneLite's icons: the best few icons in a few clear spaces, then the setting they fit best at
-            val clearGrids = spaces.indices.filter { spaces[it]?.let { sp -> !sp.hasText } == true }.mapNotNull { grids[it] }.take(8)
+            // (spaces without an amount, whose digits could get in the way; if every item has one, as in an inventory
+            // of runes, those too: with none at all, every setting fit "perfectly" and the darkest won)
+            val withoutText = spaces.indices.filter { spaces[it]?.let { sp -> !sp.hasText } == true }.mapNotNull { grids[it] }
+            val clearGrids = withoutText.ifEmpty { spaces.indices.mapNotNull { grids[it] } }.take(8)
             val likely = clearGrids.map { g -> floatArrayOf(0.9f, 1.2f, 1.5f).flatMap { fixedShortlist(g[0], canvases, shading(it), 3) }.distinct() }
             var bestTotal = Float.MAX_VALUE
             for (gm in GAMMAS) {
                 val lut = shading(gm)
                 var total = 0f
-                for ((k, g) in clearGrids.withIndex()) total += likely[k].mapNotNull { i -> icon(canvases.ids[i])?.let { fixedFit(g, it, lut, 0) } }.minOrNull() ?: continue
-                debugLog?.invoke("brightness $gm: total %.1f (icons)".format(total))
-                if (total < bestTotal) { bestTotal = total; gamma = gm }
+                var fitted = 0
+                for ((k, g) in clearGrids.withIndex()) {
+                    total += likely[k].mapNotNull { i -> icon(canvases.ids[i])?.let { fixedFit(g, it, lut, 0) } }.minOrNull() ?: continue
+                    fitted++
+                }
+                debugLog?.invoke("brightness $gm: total %.1f over $fitted (icons)".format(total))
+                if (fitted > 0 && total < bestTotal) { bestTotal = total; gamma = gm }
             }
         } else if (clear.isNotEmpty()) {
             val likely = clear.map { sp -> floatArrayOf(0.9f, 1.2f, 1.5f).flatMap { shortlist(sp, shapes, shading(it), 4) }.distinct() }

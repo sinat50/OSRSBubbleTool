@@ -37,10 +37,23 @@ class GuidedScan(private val capture: CaptureManager, private val reading: GameR
         var gear: GameReading.GearReading? = null
         var pouch: List<Loadout.Stack>? = null
         var hasPouch: Boolean? = null   // whether the inventory has a rune pouch (null until it's read)
-        var emptyPouchSeen = false      // the last look saw an empty pouch (believed when the next one sees it too)
-        var emptyInventorySeen = false  // the same for an empty inventory
+        val emptyPouch = SecondLook()
+        val emptyInventory = SecondLook()
         val done get() = book != null && inventory != null && gear != null && (pouch != null || hasPouch == false)
         val seconds get() = (System.nanoTime() - started) / 1e9
+    }
+
+    // An empty reading is only believed when two looks in a row see it: a pouch window caught while it's still being
+    // drawn could show its Xs before its runes, and a tab's button can turn red a moment before its items are drawn
+    class SecondLook {
+        private var seen = false   // the last look saw it empty
+
+        // The reading to use from this look: as it is, or null for an empty one not yet seen twice
+        fun <T> check(reading: T?, empty: Boolean): T? {
+            val believed = !empty || seen
+            seen = empty && !believed
+            return if (believed) reading else null
+        }
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -125,15 +138,10 @@ class GuidedScan(private val capture: CaptureManager, private val reading: GameR
                 busy = false
                 if (progress !== sc) return@post   // stopped meanwhile
                 if (book != null) sc.book = book
-                // An empty pouch (an X in every slot) is only believed when two looks in a row see it: a window caught
-                // while it's still being drawn could show its Xs before its runes
-                if (pouch?.isEmpty() == true && !sc.emptyPouchSeen) { sc.emptyPouchSeen = true; pouch = null }
-                else sc.emptyPouchSeen = false
-                if (pouch != null) sc.pouch = pouch
-                // the same for an empty inventory: a tab's button can turn red a moment before its items are drawn
-                val empty = inventory?.spaces?.all { it == null } == true
-                val newInventory = if (empty && !sc.emptyInventorySeen) null else inventory
-                sc.emptyInventorySeen = empty && newInventory == null
+                // an empty pouch (an X in every slot) or an empty inventory: believed on the second look in a row
+                val newPouch = sc.emptyPouch.check(pouch, pouch?.isEmpty() == true)
+                if (newPouch != null) sc.pouch = newPouch
+                val newInventory = sc.emptyInventory.check(inventory, inventory?.isEmpty == true)
                 var noPouch = false
                 if (newInventory != null) {
                     sc.inventory = newInventory
@@ -143,13 +151,13 @@ class GuidedScan(private val capture: CaptureManager, private val reading: GameR
                     noPouch = sc.hasPouch == false
                 }
                 if (gear != null) sc.gear = gear
-                if (book != null || newInventory != null || gear != null || pouch != null) {
+                if (book != null || newInventory != null || gear != null || newPouch != null) {
                     if (debugBuild) {
                         val ticked = listOfNotNull(book?.let { "spellbook" }, newInventory?.let { "inventory" + if (noPouch) " (no pouch)" else "" },
-                            gear?.let { "equipment" }, pouch?.let { "rune pouch" })
+                            gear?.let { "equipment" }, newPouch?.let { "rune pouch" })
                         Log.d("GearLoadouts", "ticked at %.1f s: ${ticked.joinToString()}".format(sc.seconds))
                     }
-                    listener.read(Look(book, newInventory, gear, pouch, noPouch))
+                    listener.read(Look(book, newInventory, gear, newPouch, noPouch))
                 }
                 if (progress !== sc) return@post   // the listener stopped it
                 if (sc.done) listener.finished() else handler.postDelayed(tick, LOOK_EVERY_MS)

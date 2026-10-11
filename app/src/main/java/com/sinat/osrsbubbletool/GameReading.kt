@@ -23,7 +23,9 @@ class GameReading(private val context: Context, private val icons: ItemIcons, pr
 
     // What the inventory tab shows: each space's guesses (item IDs, best first; null for an empty space), amount, and
     // whether its best guess fits only poorly (or its amount couldn't be read)
-    class InventoryReading(val spaces: List<List<Int>?>, val amounts: List<Int?>, val unsure: List<Boolean>)
+    class InventoryReading(val spaces: List<List<Int>?>, val amounts: List<Int?>, val unsure: List<Boolean>) {
+        val isEmpty get() = spaces.all { it == null }   // nothing in any space (a trip with only gear)
+    }
 
     // What the equipment tab shows: each slot's guesses (item IDs, best first; an empty list for an empty slot), the
     // ammunition's amount, and the slots read without a clear fit

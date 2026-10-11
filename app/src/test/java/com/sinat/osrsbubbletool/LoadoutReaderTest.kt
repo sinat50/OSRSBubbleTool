@@ -118,6 +118,19 @@ class LoadoutReaderTest {
         }
     }
 
+    @Test
+    fun readsRunesWithYellowAndDarkSymbols() {
+        // cosmic (a yellow symbol), mind and death (dark parts): yellow and black count as the amount's digits only in
+        // the strip at the top where it's written, so these symbols are compared like any other
+        val expected = listOf(Stack(564, 13511), Stack(558, 16000), Stack(560, 16000))
+        val p = shot("17_rune_pouch_cosmic.png")
+        assertEquals(expected, LoadoutReader.runePouch(p, PanelFinder.runePouchWindow(p)!!, runes))
+        for (scale in listOf(0.7, 1.3)) {
+            val q = resized("17_rune_pouch_cosmic.png", scale)
+            assertEquals("at ${scale}x", expected, LoadoutReader.runePouch(q, PanelFinder.runePouchWindow(q)!!, runes))
+        }
+    }
+
     // A screenshot resized, as a phone with a smaller or bigger screen draws the game (smoothly)
     private fun resized(name: String, scale: Double): LightBoxReader.PixelSource {
         val original = ImageIO.read(File(shots, name))

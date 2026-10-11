@@ -299,4 +299,31 @@ class InventoryReaderTest {
         assertEquals(List(28) { null }, read.map { nameOf(it) })
         assertEquals(true, InventoryReader.trusted(read))
     }
+
+    // An inventory of every kind of rune, each with its amount (the owner's, 11 October 2026). Two bugs showed here:
+    // every item having an amount left nothing to work out the game's brightness from (spaces with digits were left
+    // out), so the darkest setting won and most runes read as rune essence; and the second 6 of 2667 was cut half a
+    // game pixel off (its blurred left edge fell short of "yellow") and read as a 3.
+    @Test
+    fun readsAnInventoryOfRunes() {
+        val f = File(shots, "16_inventory_all_runes.png")
+        assumeTrue(f.exists())
+        val expected = listOf("Mind rune" to 47006, "Body rune" to 3833, "Astral rune" to 27146, "Mud rune" to 3509,
+            "Blood rune" to 36919, "Soul rune" to 40514, "Death rune" to 99426, "Air rune" to 28404, "Wrath rune" to 6012,
+            "Sunfire rune" to 1748, "Nature rune" to 25872, "Smoke rune" to 10324, "Aether rune" to 849, "Cosmic rune" to 13511,
+            "Dust rune" to 4000, "Fire rune" to 11513, "Earth rune" to 34977, "Steam rune" to 1475, "Chaos rune" to 134_000,
+            "Water rune" to 4749, "Lava rune" to 2667, "Mist rune" to 2284, "Law rune" to 18404)
+        val problems = ArrayList<String>()
+        for (scale in listOf(1.0, 0.85, 1.15)) {
+            val p = if (scale == 1.0) Shot(f) else resized(f.name, scale)
+            val read = read(p, PanelFinder.findPanel(p)!!)
+            if (!InventoryReader.trusted(read)) problems.add("at ${scale}x: not trusted")
+            for (i in 0 until 28) {
+                val want = expected.getOrNull(i)
+                val got = nameOf(read[i])?.let { it to read[i]?.amount }
+                if (got != want) problems.add("at ${scale}x, space $i: expected $want, read $got")
+            }
+        }
+        assertEquals("", problems.joinToString("; "))
+    }
 }

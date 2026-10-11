@@ -142,7 +142,8 @@ object LoadoutReader {
         val scaled = runes.map { (id, pic) -> id to scale(pic, bestScale) }
         val stone = sharedStone(scaled.map { it.second })
         val read = stones.map { spot ->
-            val digits = nearDigits(p, spot.x - 2, spot.y - 2, stone.w + 4, stone.h + 4)
+            // the amount is written across the top of the slot: its digits (and around them) only looked for there
+            val digits = nearDigits(p, spot.x - 2, spot.y - 2, stone.w + 4, stone.h + 4, spot.y + (AMOUNT_ROWS * bestScale).toInt())
             // Compare where the runes differ from each other: each rune's symbol, and whatever on the screen
             // isn't plain stone (so a rune with a small symbol can't win just by matching the stone)
             val scores = scaled.map { (id, pic) ->
@@ -206,7 +207,9 @@ object LoadoutReader {
     private val EMPTY_MARK_WIDTH = 13f..25f   // the owner's Xs: 18.5-19 wide, 163-167 of grey
     private const val EMPTY_MARK_FILL = 90f
     // The amount's digits and the pixels around them (their blurred edges and shadow aren't plain yellow or black,
-    // but differ from the stone as much): left out when comparing runes. Worked out once per rune, over an area.
+    // but differ from the stone as much): left out when comparing runes. Worked out once per rune, over an area; only
+    // digit-coloured pixels above digitsEnd count (lower down, yellow or black is the rune's own: a cosmic rune's
+    // yellow symbol, a death rune's dark one, the stone's outline).
     private class DigitArea(val left: Int, val top: Int, val w: Int, val h: Int, val mask: BooleanArray) {
         fun near(x: Int, y: Int): Boolean {
             val i = x - left; val j = y - top
@@ -214,22 +217,24 @@ object LoadoutReader {
         }
     }
 
-    private fun nearDigits(p: PixelSource, left: Int, top: Int, w: Int, h: Int): DigitArea {
-        val l = left.coerceAtLeast(0); val t = top.coerceAtLeast(0)
-        val r = (left + w).coerceAtMost(p.width); val b = (top + h).coerceAtMost(p.height)
-        val ww = (r - l).coerceAtLeast(0); val hh = (b - t).coerceAtLeast(0)
-        val digit = BooleanArray(ww * hh) { isAmount(p.rgb(l + it % ww, t + it / ww)) }
-        val mask = BooleanArray(ww * hh)
-        for (y in 0 until hh) for (x in 0 until ww) if (digit[y * ww + x]) {
+    private fun nearDigits(p: PixelSource, left: Int, top: Int, w: Int, h: Int, digitsEnd: Int): DigitArea {
+        val areaLeft = left.coerceAtLeast(0); val areaTop = top.coerceAtLeast(0)
+        val width = ((left + w).coerceAtMost(p.width) - areaLeft).coerceAtLeast(0)
+        val height = ((top + h).coerceAtMost(p.height) - areaTop).coerceAtLeast(0)
+        val mask = BooleanArray(width * height)
+        for (y in 0 until minOf(height, digitsEnd - areaTop)) for (x in 0 until width) {
+            if (!isAmount(p.rgb(areaLeft + x, areaTop + y))) continue
             for (dy in -DIGIT_MARGIN..DIGIT_MARGIN) for (dx in -DIGIT_MARGIN..DIGIT_MARGIN) {
-                val xx = x + dx; val yy = y + dy
-                if (xx in 0 until ww && yy in 0 until hh) mask[yy * ww + xx] = true
+                val near = x + dx; val nearY = y + dy
+                if (near in 0 until width && nearY in 0 until height) mask[nearY * width + near] = true
             }
         }
-        return DigitArea(l, t, ww, hh, mask)
+        return DigitArea(areaLeft, areaTop, width, height, mask)
     }
 
     private const val DIGIT_MARGIN = 2
+    // How far down from the top of a rune's stone the amount's digits reach, in game pixels (the strip readAmount reads)
+    private const val AMOUNT_ROWS = 10f
     private const val POUCH_WINDOW_GAME_WIDTH = 358f
     private const val SYMBOL_DIFF = 90
 
@@ -332,7 +337,7 @@ object LoadoutReader {
         val left = (spot.x - 4 * s).toInt().coerceAtLeast(0)
         val right = (spot.x + stone.w + 14 * s).toInt().coerceAtMost(p.width)
         val top = (spot.y - 6 * s).toInt().coerceAtLeast(0)
-        val bottom = (spot.y + 10 * s).toInt().coerceAtMost(p.height)
+        val bottom = (spot.y + AMOUNT_ROWS * s).toInt().coerceAtMost(p.height)
         if (right <= left || bottom <= top) return null
         return amountIn(p, Box(left, top, right, bottom))
     }
@@ -375,6 +380,12 @@ object Digits {
         '9' to listOf(".###.", "#...#", "#...#", ".#..#", "..###", "....#", "....#", "....#"),
     )
     private const val ROWS = 8
+    // Where each digit's weight is centred across, in game pixels from its left edge
+    private val FONT_MIDDLE = FONT.mapValues { (_, shape) ->
+        var n = 0; var sum = 0f
+        for (row in shape) for ((k, ch) in row.withIndex()) if (ch == '#') { n++; sum += k + 0.5f }
+        sum / n
+    }
 
     // The number in a patch of the screen, given how much each pixel is the text's colour (0 to 1), or null if
     // there's none. stopAtOther: a shape that isn't a digit ends the number (the K or M after it) rather than
@@ -466,14 +477,21 @@ object Digits {
         var best: Char? = null
         var bestWrong = Int.MAX_VALUE
         var bestCells = 0
+        // where the yellow's weight is centred, across (a blurred edge can fall either side of "yellow", so the run's
+        // ends can be half a game pixel off; its weight isn't: a 6 cut half a pixel off once read as a 3)
+        var weight = 0f; var moment = 0f
+        for (y in top until minOf(top + rows, h)) for (x in (from - 1).coerceAtLeast(0) until minOf(to + 1, w)) {
+            val v = yellow[y * w + x]
+            weight += v; moment += v * (x + 0.5f)
+        }
+        val middle = if (weight > 0f) moment / weight else (from + to) / 2f
         for ((c, shape) in FONT) {
             val cols = shape[0].length
             if (abs(wide - cols) > 1.6f) continue
-            // this patch cut into game pixels the size of the font's digit, centred on what was found (its blurred
-            // edges make it look a little wider): each game pixel yellow if most of it is. On a small screen a game
-            // pixel is under 2 screen pixels and the cut can fall a little off: nudged, it's tried a third of a game
-            // pixel either way.
-            val centred = from + ((to - from) - cols * pixel) / 2
+            // this patch cut into game pixels the size of the font's digit, placed so the digit's own weight is centred
+            // where the screen's is: each game pixel yellow if most of it is. On a small screen a game pixel is under
+            // 2 screen pixels and the cut can fall a little off: nudged, it's tried a third of a game pixel either way.
+            val centred = (middle - FONT_MIDDLE.getValue(c) * pixel).coerceIn(from - pixel, to.toFloat())
             val steps = if (nudges) -1..1 else 0..0
             for (nx in steps) for (ny in steps) {
                 val start = centred + nx * pixel / 3

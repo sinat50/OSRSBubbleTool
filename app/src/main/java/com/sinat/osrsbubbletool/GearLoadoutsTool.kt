@@ -687,7 +687,7 @@ class GearLoadoutsTool(
         checklistLines?.text = listOf(
             if (sc.book != null) "\u2713 Spellbook" else "\u2022 Spellbook: keep the side panel open",
             when {
-                sc.inventory?.spaces?.all { it == null } == true -> "\u2713 Inventory: empty"
+                sc.inventory?.isEmpty == true ->"\u2713 Inventory: empty"
                 sc.inventory != null -> "\u2713 Inventory"
                 else -> "\u2022 Inventory: open its tab"
             },
