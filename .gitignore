@@ -44,3 +44,6 @@ tools/sandsound.mp3
 
 # The owner's Zen Garden frame sketch
 tools/gardenbox.png
+
+# Android Studio's code check settings: it rewrites this file by itself, so it stays on this computer only
+/.idea/inspectionProfiles/Project_Default.xml
