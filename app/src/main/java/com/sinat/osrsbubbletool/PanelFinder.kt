@@ -21,7 +21,9 @@ object PanelFinder {
     // The side panel (inventory, equipment, spellbook...): a bit taller than wide
     fun find(p: LightBoxReader.PixelSource): Rect? = findPanel(p)?.toRect()
 
-    fun findPanel(p: LightBoxReader.PixelSource): Box? = biggestOutline(p, 1.15f, 1.6f)
+    // (only a box with the column of tab buttons beside it: in a dark scene, the floor can outline a bigger box of the
+    // same shape)
+    fun findPanel(p: LightBoxReader.PixelSource): Box? = biggestOutline(p, 1.15f, 1.6f) { hasTabButtons(p, it) }
 
     // The spellbook tab button, whose picture shows which spellbook you're on. It's in the column of tab
     // buttons right of the panel: left column, 4th row down (the panel and the 7 rows of buttons are as tall).
@@ -49,11 +51,37 @@ object PanelFinder {
         return n > 0 && (r - g) / n > 40
     }
 
+    // Whether the 14 tab buttons are beside a box: most of them the buttons' brownish grey (about 87, 77, 63), or red
+    // for the open one
+    private fun hasTabButtons(p: LightBoxReader.PixelSource, panel: Box): Boolean {
+        var buttons = 0
+        for (column in 0 until 2) for (row in 0 until 7) {
+            val left = panel.right + panel.width * 0.012f + column * panel.width * 0.198f
+            val colW = panel.width * 0.198f
+            val rowH = panel.height / 7f
+            var r = 0; var g = 0; var b = 0; var n = 0
+            for (fx in floatArrayOf(0.12f, 0.16f, 0.84f, 0.88f)) for (fy in floatArrayOf(0.12f, 0.16f, 0.84f, 0.88f)) {
+                val x = (left + colW * fx).toInt(); val y = (panel.top + row * rowH + rowH * fy).toInt()
+                if (x < 0 || y < 0 || x >= p.width || y >= p.height) continue
+                val c = p.rgb(x, y)
+                r += (c shr 16) and 0xFF; g += (c shr 8) and 0xFF; b += c and 0xFF; n++
+            }
+            if (n == 0) continue
+            r /= n; g /= n; b /= n
+            val grey = r in 40..140 && r - g in 4..20 && g - b in 6..22
+            val red = r - g > 40
+            if (grey || red) buttons++
+        }
+        return buttons >= MIN_TAB_BUTTONS
+    }
+
+    private const val MIN_TAB_BUTTONS = 11   // of 14 (a few can be covered: a tooltip, a highlighted tab)
+
     const val INVENTORY_TAB = 0   // its row (in column 0)
     const val EQUIPMENT_TAB = 1
 
     // An open rune pouch's window (it's almost square), or null if none is open
-    fun runePouchWindow(p: LightBoxReader.PixelSource): Box? = biggestOutline(p, 0.85f, 1.0f)
+    fun runePouchWindow(p: LightBoxReader.PixelSource): Box? = biggestOutline(p, 0.85f, 1.0f) { true }
 
     // The runes inside that window: the "Pouch" box near its top
     fun runePouchBox(window: Box): Box {
@@ -63,8 +91,9 @@ object PanelFinder {
             window.left + (w * 0.802f).toInt(), window.top + (h * 0.306f).toInt())
     }
 
-    // The biggest window outlined in black whose height / width is between minAspect and maxAspect
-    private fun biggestOutline(p: LightBoxReader.PixelSource, minAspect: Float, maxAspect: Float): Box? {
+    // The biggest window outlined in black whose height / width is between minAspect and maxAspect, and that `accept`
+    // agrees is the window looked for
+    private fun biggestOutline(p: LightBoxReader.PixelSource, minAspect: Float, maxAspect: Float, accept: (Box) -> Boolean): Box? {
         val w = p.width
         val h = p.height
         fun black(x: Int, y: Int): Boolean {
@@ -72,24 +101,29 @@ object PanelFinder {
             return ((c shr 16) and 0xFF) + ((c shr 8) and 0xFF) + (c and 0xFF) < 80
         }
 
-        // Longest black run in every column and every row. Gaps of up to 2 pixels are allowed,
-        // so a speck of noise in the line doesn't break it.
+        // Every long black run in each row, and the longest in each column. Gaps of up to 2 pixels are allowed,
+        // so a speck of noise in the line doesn't break it. (Every run in a row, not just the longest: in a dark
+        // scene, the floor beside the panel can make a longer black run in the same row as its top edge.)
         val colBest = IntArray(w); val colStart = IntArray(w); val colRun = IntArray(w); val colGap = IntArray(w)
         val rows = mutableListOf<Line>()
+        val longRow = w * 0.12f
         for (y in 0 until h) {
-            var run = 0; var gap = 0; var bestRun = 0; var bestStart = 0
+            var run = 0; var gap = 0
             for (x in 0 until w) {
                 if (black(x, y)) {
                     run += 1 + gap; gap = 0
                     colRun[x] += 1 + colGap[x]; colGap[x] = 0
                     if (colRun[x] > colBest[x]) { colBest[x] = colRun[x]; colStart[x] = y - colRun[x] + 1 }
                 } else {
-                    if (run > 0 && ++gap > 2) { run = 0; gap = 0 }
+                    if (run > 0 && ++gap > 2) {
+                        // the run ended 3 pixels back
+                        if (run >= longRow) rows.add(Line(y, x - gap - run + 1, run))
+                        run = 0; gap = 0
+                    }
                     if (colRun[x] > 0 && ++colGap[x] > 2) { colRun[x] = 0; colGap[x] = 0 }
                 }
-                if (run > bestRun) { bestRun = run; bestStart = x - gap - run + 1 }
             }
-            if (bestRun >= w * 0.12f) rows.add(Line(y, bestStart, bestRun))
+            if (run >= longRow) rows.add(Line(y, w - gap - run, run))
         }
         val cols = (0 until w).filter { colBest[it] >= h * 0.3f }.map { Line(it, colStart[it], colBest[it]) }
         if (rows.size < 2 || cols.size < 2) return null
@@ -126,7 +160,7 @@ object PanelFinder {
             if (aspect !in minAspect..maxAspect) continue
             // the inside of the black outline
             val r = Box(leftLine.at + 1, top.at + 1, rightLine.at, bottom.at)
-            if (best == null || r.width * r.height > best.width * best.height) best = r
+            if ((best == null || r.width * r.height > best.width * best.height) && accept(r)) best = r
         }
         return best
     }

@@ -326,4 +326,63 @@ class InventoryReaderTest {
         }
         assertEquals("", problems.joinToString("; "))
     }
+
+    // The game's brightness setting on its lowest step (the owner's rune inventory): the dark floor beside the side
+    // panel made longer black lines than the panel's own top and bottom edges, and only the longest line in each row
+    // was kept, so the panel was never found (a box in the floor was taken instead, and nothing could be read)
+    @Test
+    fun findsTheSidePanelAtTheLowestBrightness() {
+        val f = File(shots, "18_inventory_brightness_low.png")
+        assumeTrue(f.exists())
+        // where it is at the usual brightness (a pixel's give: the border is a pixel thicker this dark)
+        val found = PanelFinder.findPanel(Shot(f))
+        assertNotNull(found)
+        val expected = PanelFinder.Box(1698, 491, 2125, 1068)
+        assertEquals("$found", true, listOf(found!!.left - expected.left, found.top - expected.top, found.right - expected.right,
+            found.bottom - expected.bottom).all { kotlin.math.abs(it) <= 2 })
+    }
+
+    // ...and the equipment tab there, with nothing worn: the panel is found, its tab is open, and every slot is empty
+    @Test
+    fun readsEmptyEquipmentAtTheLowestBrightness() {
+        val f = File(shots, "19_equipment_brightness_low.png")
+        assumeTrue(f.exists())
+        val p = Shot(f)
+        val panel = PanelFinder.findPanel(p)
+        assertNotNull(panel)
+        assertEquals(true, PanelFinder.tabOpen(p, panel!!, 0, PanelFinder.EQUIPMENT_TAB))
+        val worn = InventoryReader.readEquipment(p, panel, canvases, icons) { id -> items.shown(id)?.first?.slot }!!
+        assertEquals("", worn.slots.filterValues { it.isNotEmpty() }.entries.joinToString { (k, v) -> "$k ${items.shown(v[0].first)?.first?.name}" })
+    }
+
+    // ...and the inventory reads there: every rune and amount, and the rune pouch (the one item without an amount: the
+    // game's brightness was once worked out from it alone, from a guess that was itself wrong, a Crystal helm)
+    @Test
+    fun readsTheInventoryAtTheLowestBrightness() = readsTheInventoryAtBrightness("18_inventory_brightness_low.png")
+
+    // and the same inventory at the highest brightness. There the chaos rune's light stone is light enough to count as
+    // white text and joins the 4 of "134K" to the K: the amount is left unread and ringed for checking, never wrong.
+    // (Telling the stone apart lets the K stand alone, and its upright stroke then reads as a 1: 1,341,000. Reading
+    // it properly needs the K and M themselves to be known: left for later.)
+    @Test
+    fun readsTheInventoryAtTheHighestBrightness() = readsTheInventoryAtBrightness("20_inventory_brightness_high.png", unreadOk = setOf(18))
+
+    private fun readsTheInventoryAtBrightness(name: String, unreadOk: Set<Int> = emptySet()) {
+        val f = File(shots, name)
+        assumeTrue(f.exists())
+        val expected = listOf("Mind rune" to 31006, "Body rune" to 3833, "Astral rune" to 27146, "Mud rune" to 3509,
+            "Blood rune" to 36919, "Soul rune" to 40514, "Death rune" to 83426, "Air rune" to 28404, "Wrath rune" to 6012,
+            "Sunfire rune" to 1748, "Nature rune" to 25872, "Smoke rune" to 10324, "Aether rune" to 849, null,
+            "Dust rune" to 4000, "Fire rune" to 11513, "Earth rune" to 34977, "Steam rune" to 1475, "Chaos rune" to 134_000,
+            "Water rune" to 4749, "Lava rune" to 2667, "Mist rune" to 2284, "Law rune" to 18404, "Rune pouch" to null)
+        val p = Shot(f)
+        val read = read(p, PanelFinder.findPanel(p)!!)
+        assertEquals(true, InventoryReader.trusted(read))
+        val wrong = (0 until 28).filter { i ->
+            val got = nameOf(read[i])?.let { n -> n to read[i]?.amount }
+            got != expected.getOrNull(i) && !(i in unreadOk && read[i]?.amountUnread == true && got?.first == expected.getOrNull(i)?.first)
+        }
+            .map { "space $it: expected ${expected.getOrNull(it)}, read ${nameOf(read[it])} x ${read[it]?.amount}" }
+        assertEquals("", wrong.joinToString("; "))
+    }
 }

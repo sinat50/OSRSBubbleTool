@@ -129,10 +129,12 @@ object InventoryReader {
         var gamma = 1.2f
         if (grids != null && canvases != null) {
             // with RuneLite's icons: the best few icons in a few clear spaces, then the setting they fit best at
-            // (spaces without an amount, whose digits could get in the way; if every item has one, as in an inventory
-            // of runes, those too: with none at all, every setting fit "perfectly" and the darkest won)
+            // (spaces without an amount, whose digits could get in the way; with fewer than 3 of those, as in an
+            // inventory of runes, the others too: with none at all, every setting fit "perfectly" and the darkest won,
+            // and one item alone once set it wrong, from a guess that was itself wrong)
             val withoutText = spaces.indices.filter { spaces[it]?.let { sp -> !sp.hasText } == true }.mapNotNull { grids[it] }
-            val clearGrids = withoutText.ifEmpty { spaces.indices.mapNotNull { grids[it] } }.take(8)
+            val clearGrids = (if (withoutText.size >= 3) withoutText
+                else withoutText + spaces.indices.filter { spaces[it]?.hasText == true }.mapNotNull { grids[it] }).take(8)
             val likely = clearGrids.map { g -> floatArrayOf(0.9f, 1.2f, 1.5f).flatMap { fixedShortlist(g[0], canvases, shading(it), 3) }.distinct() }
             var bestTotal = Float.MAX_VALUE
             for (gm in GAMMAS) {
