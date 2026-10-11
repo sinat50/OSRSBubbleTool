@@ -105,6 +105,36 @@ class LoadoutReaderTest {
     }
 
     @Test
+    fun readsARegularPouch() {
+        // a regular 3-slot rune pouch: dust, law and steam runes. Dust once scored nearly the same as smoke and mud (and
+        // at 130% smoke won): the "4000" over it has blurred edges and a shadow that aren't plain yellow or black, so
+        // they were compared too, the same for every rune. The digits' surroundings are now left out.
+        val expected = listOf(Stack(4696, 4000), Stack(563, 16000), Stack(4694, 1475))
+        val p = shot("15_rune_pouch_regular.png")
+        assertEquals(expected, LoadoutReader.runePouch(p, PanelFinder.runePouchWindow(p)!!, runes))
+        for (scale in listOf(0.7, 1.3)) {
+            val q = resized("15_rune_pouch_regular.png", scale)
+            assertEquals("at ${scale}x", expected, LoadoutReader.runePouch(q, PanelFinder.runePouchWindow(q)!!, runes))
+        }
+    }
+
+    // A screenshot resized, as a phone with a smaller or bigger screen draws the game (smoothly)
+    private fun resized(name: String, scale: Double): LightBoxReader.PixelSource {
+        val original = ImageIO.read(File(shots, name))
+        val im = java.awt.image.BufferedImage((original.width * scale).toInt(), (original.height * scale).toInt(), java.awt.image.BufferedImage.TYPE_INT_RGB)
+        im.createGraphics().apply {
+            setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+            drawImage(original, 0, 0, im.width, im.height, null)
+            dispose()
+        }
+        val data = IntArray(im.width * im.height).also { im.getRGB(0, 0, im.width, im.height, it, 0, im.width) }
+        return object : LightBoxReader.PixelSource {
+            override val width = im.width; override val height = im.height
+            override fun rgb(x: Int, y: Int) = data[y * width + x] and 0xFFFFFF
+        }
+    }
+
+    @Test
     fun readsAnEmptyPouch() {
         // every slot crossed out: read as an empty pouch (an empty list), not "not read", so the scan can tick it off
         val p = shot("14_rune_pouch_empty.png")

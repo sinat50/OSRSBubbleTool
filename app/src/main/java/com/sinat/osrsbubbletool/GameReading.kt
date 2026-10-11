@@ -11,14 +11,10 @@ import android.util.Log
 class GameReading(private val context: Context, private val icons: ItemIcons, private val debugBuild: Boolean) {
 
     companion object {
-        // Read the wiki's way (stacks drawn differently by size), an inventory is trusted when 60% of its items fit
-        // better than this; an item fitting worse than UNSURE_FIT is ringed after a read, to be checked (good fits 8-25)
-        private const val GOOD_FIT = 40f
+        // An item read the wiki's way (stacks drawn differently by size) fitting worse than this is ringed after a read,
+        // to be checked (good fits 8-25); read with RuneLite's icons (smaller fits: the owner's items fit 8-20), an item
+        // or worn slot fitting worse than ICONS_UNSURE_FIT. (Whether a whole inventory is trusted: InventoryReader.trusted)
         private const val UNSURE_FIT = 30f
-        // Read with RuneLite's icons (their fits are smaller: the owner's items fit 8-20): an inventory's middle fit
-        // must be this or better (other tabs' and the inventory dimmed behind a window are 20 or more), and an item
-        // or worn slot fitting worse than ICONS_UNSURE_FIT is ringed
-        private const val ICONS_MIDDLE_FIT = 17f
         private const val ICONS_UNSURE_FIT = 22f
         // An equipment slot read by the older gear reader is ringed above this (dark melee gear fits 11-37 there)
         private const val GEAR_UNSURE_FIT = 32f
@@ -87,14 +83,9 @@ class GameReading(private val context: Context, private val icons: ItemIcons, pr
         }
         val found = InventoryReader.read(pixels, panel, shapeList, { name -> assetPicture("items/icons/$name") }, notedItems.keys,
             canvasList, { id -> iconPicture(id) })
-        val filled = found.filterNotNull()
         if (debugBuild) Log.d("GearLoadouts", "inventory: ${found.mapIndexed { i, f -> "$i ${f?.let { it.itemId?.let { id -> data.shown(id)?.first?.name + " #$id" } ?: it.picture } ?: "-"} ${f?.cost?.let { "%.0f".format(it) } ?: ""}" }}")
-        // Another tab (equipment, prayers...) or the inventory dimmed behind a window gives poor fits, or none: then the
-        // inventory isn't changed
-        if (filled.isEmpty()) return null
-        if (filled.any { it.itemId != null }) {
-            if (filled.map { it.cost }.sorted()[filled.size / 2] > ICONS_MIDDLE_FIT) return null
-        } else if (filled.count { it.cost < GOOD_FIT } < filled.size * 0.6f) return null
+        // poor fits (the inventory dimmed behind a window, say): the inventory isn't changed
+        if (!InventoryReader.trusted(found)) return null
         return InventoryReading(
             found.map { f -> f?.let {
                 if (it.itemId != null) data.fromIcons(listOf(it.itemId) + it.otherIds, listOf(it.cost) + it.otherCosts, alike)

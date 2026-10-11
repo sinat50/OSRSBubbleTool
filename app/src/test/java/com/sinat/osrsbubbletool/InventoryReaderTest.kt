@@ -95,18 +95,16 @@ class InventoryReaderTest {
     }
 
     // Read on another tab (or the inventory dimmed behind the rune pouch), the fits are poor: the app then leaves the
-    // inventory as it was (GearLoadoutsTool: the middle fit must be 17 or better, read with RuneLite's icons)
+    // inventory as it was (InventoryReader.trusted: the middle fit must be 17 or better, read with RuneLite's icons)
     @Test
     fun otherTabsDontLookLikeAnInventory() {
         for (name in listOf("2_equipment.png", "3_rune_pouch.png", "4_lunar.png")) {
             val f = File(shots, name)
             assumeTrue(f.exists())
             val p = Shot(f)
-            val read = read(p, PanelFinder.findPanel(p)!!).filterNotNull()
-            val middle = read.map { it.cost }.sorted().getOrNull(read.size / 2) ?: Float.MAX_VALUE
-            println("$name: ${read.size} spaces with something, middle fit $middle")
-            val looksLikeInventory = read.isNotEmpty() && middle <= 17f
-            assertEquals(name, name == "4_lunar.png", looksLikeInventory)   // that one has the inventory tab open
+            val read = read(p, PanelFinder.findPanel(p)!!)
+            println("$name: ${read.count { it != null }} spaces with something")
+            assertEquals(name, name == "4_lunar.png", InventoryReader.trusted(read))   // that one has the inventory tab open
         }
     }
 
@@ -273,5 +271,32 @@ class InventoryReaderTest {
         println("first equipment screenshot: " + worn.slots.entries.joinToString { (k, v) -> "$k ${v.firstOrNull()?.let { items.shown(it.first)?.first?.name + " %.1f".format(it.second) } ?: "-"}" })
         assertEquals(emptyList<Pair<Int, Float>>(), worn.slots["shield"])
         assertEquals(10, worn.slots.count { it.value.isNotEmpty() })
+    }
+
+    // An empty inventory (a trip with only gear) is an inventory too: the red rug screenshot with its empty bottom rows
+    // copied over the items. Every space reads empty, and that's trusted: the scan only reads the inventory with its
+    // tab open, so "nothing anywhere" can't be another tab. (It was thrown away as one: the inventory never ticked
+    // off, nor the rune pouch, and the scan waited its full 90 seconds.)
+    @Test
+    fun anEmptyInventoryIsTrusted() {
+        val f = File(shots, "11_inventory_red_rug.png")
+        assumeTrue(f.exists())
+        val im = ImageIO.read(f)
+        val panel = PanelFinder.findPanel(Shot(f))!!
+        val s = panel.width / 202.7f
+        val rowH = (36 * s).toInt()
+        fun rowTop(row: Int) = (panel.top + (14.4f + row * 36) * s - 4 * s).toInt()
+        for (row in 0 until 4) {
+            val from = rowTop(4 + row % 3)
+            for (y in 0 until rowH) for (x in panel.left until panel.right) im.setRGB(x, rowTop(row) + y, im.getRGB(x, from + y))
+        }
+        val data = IntArray(im.width * im.height).also { im.getRGB(0, 0, im.width, im.height, it, 0, im.width) }
+        val p = object : LightBoxReader.PixelSource {
+            override val width = im.width; override val height = im.height
+            override fun rgb(x: Int, y: Int) = data[y * width + x] and 0xFFFFFF
+        }
+        val read = read(p, PanelFinder.findPanel(p)!!)
+        assertEquals(List(28) { null }, read.map { nameOf(it) })
+        assertEquals(true, InventoryReader.trusted(read))
     }
 }

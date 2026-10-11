@@ -38,6 +38,7 @@ class GuidedScan(private val capture: CaptureManager, private val reading: GameR
         var pouch: List<Loadout.Stack>? = null
         var hasPouch: Boolean? = null   // whether the inventory has a rune pouch (null until it's read)
         var emptyPouchSeen = false      // the last look saw an empty pouch (believed when the next one sees it too)
+        var emptyInventorySeen = false  // the same for an empty inventory
         val done get() = book != null && inventory != null && gear != null && (pouch != null || hasPouch == false)
         val seconds get() = (System.nanoTime() - started) / 1e9
     }
@@ -129,22 +130,26 @@ class GuidedScan(private val capture: CaptureManager, private val reading: GameR
                 if (pouch?.isEmpty() == true && !sc.emptyPouchSeen) { sc.emptyPouchSeen = true; pouch = null }
                 else sc.emptyPouchSeen = false
                 if (pouch != null) sc.pouch = pouch
+                // the same for an empty inventory: a tab's button can turn red a moment before its items are drawn
+                val empty = inventory?.spaces?.all { it == null } == true
+                val newInventory = if (empty && !sc.emptyInventorySeen) null else inventory
+                sc.emptyInventorySeen = empty && newInventory == null
                 var noPouch = false
-                if (inventory != null) {
-                    sc.inventory = inventory
+                if (newInventory != null) {
+                    sc.inventory = newInventory
                     // no rune pouch in the inventory: the loadout has none (unless one was read open: then there is one,
                     // and the inventory just read it as something else)
-                    sc.hasPouch = sc.pouch != null || inventory.spaces.any { ids -> ids?.firstOrNull()?.let { data.runePouchSize(it) } != null }
+                    sc.hasPouch = sc.pouch != null || newInventory.spaces.any { ids -> ids?.firstOrNull()?.let { data.runePouchSize(it) } != null }
                     noPouch = sc.hasPouch == false
                 }
                 if (gear != null) sc.gear = gear
-                if (book != null || inventory != null || gear != null || pouch != null) {
+                if (book != null || newInventory != null || gear != null || pouch != null) {
                     if (debugBuild) {
-                        val ticked = listOfNotNull(book?.let { "spellbook" }, inventory?.let { "inventory" + if (noPouch) " (no pouch)" else "" },
+                        val ticked = listOfNotNull(book?.let { "spellbook" }, newInventory?.let { "inventory" + if (noPouch) " (no pouch)" else "" },
                             gear?.let { "equipment" }, pouch?.let { "rune pouch" })
                         Log.d("GearLoadouts", "ticked at %.1f s: ${ticked.joinToString()}".format(sc.seconds))
                     }
-                    listener.read(Look(book, inventory, gear, pouch, noPouch))
+                    listener.read(Look(book, newInventory, gear, pouch, noPouch))
                 }
                 if (progress !== sc) return@post   // the listener stopped it
                 if (sc.done) listener.finished() else handler.postDelayed(tick, LOOK_EVERY_MS)

@@ -142,12 +142,13 @@ object LoadoutReader {
         val scaled = runes.map { (id, pic) -> id to scale(pic, bestScale) }
         val stone = sharedStone(scaled.map { it.second })
         val read = stones.map { spot ->
+            val digits = nearDigits(p, spot.x - 2, spot.y - 2, stone.w + 4, stone.h + 4)
             // Compare where the runes differ from each other: each rune's symbol, and whatever on the screen
             // isn't plain stone (so a rune with a small symbol can't win just by matching the stone)
             val scores = scaled.map { (id, pic) ->
                 val symbol = Use { i, x, y ->
                     val c = p.rgb(x, y)
-                    !isAmount(c) && (diff(pic.rgb[i], stone.rgb[i]) > SYMBOL_DIFF || diff(c, stone.rgb[i]) > SYMBOL_DIFF)
+                    !digits.near(x, y) && (diff(pic.rgb[i], stone.rgb[i]) > SYMBOL_DIFF || diff(c, stone.rgb[i]) > SYMBOL_DIFF)
                 }
                 var best = Float.MAX_VALUE
                 for (dy in -2..2) for (dx in -2..2) {
@@ -204,6 +205,31 @@ object LoadoutReader {
 
     private val EMPTY_MARK_WIDTH = 13f..25f   // the owner's Xs: 18.5-19 wide, 163-167 of grey
     private const val EMPTY_MARK_FILL = 90f
+    // The amount's digits and the pixels around them (their blurred edges and shadow aren't plain yellow or black,
+    // but differ from the stone as much): left out when comparing runes. Worked out once per rune, over an area.
+    private class DigitArea(val left: Int, val top: Int, val w: Int, val h: Int, val mask: BooleanArray) {
+        fun near(x: Int, y: Int): Boolean {
+            val i = x - left; val j = y - top
+            return i in 0 until w && j in 0 until h && mask[j * w + i]
+        }
+    }
+
+    private fun nearDigits(p: PixelSource, left: Int, top: Int, w: Int, h: Int): DigitArea {
+        val l = left.coerceAtLeast(0); val t = top.coerceAtLeast(0)
+        val r = (left + w).coerceAtMost(p.width); val b = (top + h).coerceAtMost(p.height)
+        val ww = (r - l).coerceAtLeast(0); val hh = (b - t).coerceAtLeast(0)
+        val digit = BooleanArray(ww * hh) { isAmount(p.rgb(l + it % ww, t + it / ww)) }
+        val mask = BooleanArray(ww * hh)
+        for (y in 0 until hh) for (x in 0 until ww) if (digit[y * ww + x]) {
+            for (dy in -DIGIT_MARGIN..DIGIT_MARGIN) for (dx in -DIGIT_MARGIN..DIGIT_MARGIN) {
+                val xx = x + dx; val yy = y + dy
+                if (xx in 0 until ww && yy in 0 until hh) mask[yy * ww + xx] = true
+            }
+        }
+        return DigitArea(l, t, ww, hh, mask)
+    }
+
+    private const val DIGIT_MARGIN = 2
     private const val POUCH_WINDOW_GAME_WIDTH = 358f
     private const val SYMBOL_DIFF = 90
 

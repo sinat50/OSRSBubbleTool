@@ -460,6 +460,24 @@ object InventoryReader {
         return Equipment(slots, ammo)
     }
 
+    // ---------------- Trusting a reading ----------------
+
+    // Whether a reading of the inventory tab (read()) can be trusted as the inventory: its items fit well. The inventory
+    // dimmed behind a window, or another tab, fits poorly. Every space empty is an empty inventory (a trip with only
+    // gear): the scan reads the inventory only while its tab's button shows it's open, so it can't be another tab.
+    fun trusted(found: List<Found?>): Boolean {
+        val filled = found.filterNotNull()
+        if (filled.isEmpty()) return true
+        // read with RuneLite's icons: the middle fit; the wiki's way: most items fitting well
+        return if (filled.any { it.itemId != null }) filled.map { it.cost }.sorted()[filled.size / 2] <= ICONS_MIDDLE_FIT
+            else filled.count { it.cost < GOOD_FIT } >= filled.size * 0.6f
+    }
+
+    // Read with RuneLite's icons, the owner's items fit 8-20; other tabs and the inventory dimmed behind a window, 20 or
+    // more. Read the wiki's way (stacks drawn differently by size), good fits are 8-25.
+    private const val ICONS_MIDDLE_FIT = 17f
+    private const val GOOD_FIT = 40f
+
     // ---------------- One space ----------------
 
     // A space shrunk to game pixels: each pixel's colour (the middle of it, as the edges are blurred), its darkest
