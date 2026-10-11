@@ -71,8 +71,41 @@ class Loadout(val id: String, var name: String) {
         // "inv" (28 spaces), "eq" (the equipment, in RUNELITE_SLOTS order), "rp" rune pouch, "bp" bolt pouch,
         // "qv" quiver (left out if you have none), "name", "notes", "sb" (spellbook: 0-3, 4 for none, left out
         // for standard). Each item is {"id": 385, "q": 5}, "q" left out when it's 1; an empty space is null.
-        // Everything else (highlight colour, favourite, bank options, the bank tag "layout") isn't used here.
+        // Everything else (favourite, bank options...) isn't used here. Exports need two more things, or RuneLite says
+        // "Invalid setup data": "layout", how the setup's items are laid out in its bank tab (see runeLiteLayout), and
+        // "hc", the highlight colour (the plugin's own default, red).
         private const val RUNELITE_NO_SPELLBOOK = 4
+        private const val RUNELITE_HIGHLIGHT = "#FFFF0000"
+
+        // Where the plugin's "Preset" bank tab layout (its default) puts each part, 8 squares to a row: the equipment
+        // down the left as in the game, the quiver beside the head, the inventory's 4 columns on the right, the rune
+        // pouch and bolt pouch in the rows below the equipment. (InventorySetupLayoutUtilities.getPresetLayout.)
+        private val LAYOUT_PLACES = mapOf("head" to 1, "cape" to 8, "neck" to 9, "ammo" to 10, "weapon" to 16,
+            "body" to 17, "shield" to 18, "legs" to 25, "hands" to 32, "feet" to 33, "ring" to 34)
+        private const val LAYOUT_QUIVER = 2
+        private const val LAYOUT_RUNE_POUCH = 40
+        private const val LAYOUT_BOLT_POUCH = 48
+        private const val LAYOUT_SIZE = 56   // the inventory's last square is 55
+        // Items with a second ID for when they're worn (Graceful, Penance gloves, Ikov boots...): the bank tab shows
+        // the item's own ID, as RuneLite's ItemManager.canonicalize does with this list (its WORN_ITEMS; RuneLite,
+        // BSD 2-Clause, the notice is on the Legal screen)
+        private val WORN_TO_ITEM = mapOf(
+            89 to 88, 10554 to 10553, 11851 to 11850, 11853 to 11852, 11855 to 11854, 11857 to 11856, 11859 to
+            11858, 11861 to 11860, 13580 to 13579, 13582 to 13581, 13584 to 13583, 13586 to 13585, 13588 to
+            13587, 13590 to 13589, 13592 to 13591, 13594 to 13593, 13596 to 13595, 13598 to 13597, 13600 to
+            13599, 13602 to 13601, 13604 to 13603, 13606 to 13605, 13608 to 13607, 13610 to 13609, 13612 to
+            13611, 13614 to 13613, 13616 to 13615, 13618 to 13617, 13620 to 13619, 13622 to 13621, 13624 to
+            13623, 13626 to 13625, 13628 to 13627, 13630 to 13629, 13632 to 13631, 13634 to 13633, 13636 to
+            13635, 13638 to 13637, 13668 to 13667, 13670 to 13669, 13672 to 13671, 13674 to 13673, 13676 to
+            13675, 13678 to 13677, 21063 to 21061, 21066 to 21064, 21069 to 21067, 21072 to 21070, 21075 to
+            21073, 21078 to 21076, 24745 to 24743, 24748 to 24746, 24751 to 24749, 24754 to 24752, 24757 to
+            24755, 24760 to 24758, 25071 to 25069, 25074 to 25072, 25077 to 25075, 25080 to 25078, 25083 to
+            25081, 25086 to 25084, 27446 to 27444, 27449 to 27447, 27452 to 27450, 27455 to 27453, 27458 to
+            27456, 27461 to 27459, 30047 to 30045, 30050 to 30048, 30053 to 30051, 30056 to 30054, 30059 to
+            30057, 30062 to 30060, 13342 to 13280, 10073 to 10069, 10074 to 10071, 13341 to 9772, 13340 to 9771,
+            28839 to 10053, 28842 to 10055, 28845 to 10057, 28848 to 10059, 28851 to 10061, 28854 to 10063,
+            28857 to 10065, 28860 to 10067
+        )
 
         // Every setup in pasted text or a file, one setup or a list of them. makeId gives each new loadout its id.
         // Throws if the text isn't a RuneLite export at all.
@@ -127,7 +160,8 @@ class Loadout(val id: String, var name: String) {
         private fun runeLiteJson(list: List<Stack?>) = JSONArray().apply { list.forEach { put(runeLiteJson(it)) } }
 
         // Several loadouts as one mass export file (RuneLite's Mass Import reads it)
-        fun toRuneLite(loadouts: List<Loadout>): JSONArray = JSONArray().apply { loadouts.forEach { put(it.toRuneLite()) } }
+        fun toRuneLite(loadouts: List<Loadout>, plain: (Int) -> Int = { it }): JSONArray =
+            JSONArray().apply { loadouts.forEach { put(it.toRuneLite(plain)) } }
 
         // A stack is saved as [id, amount], or null for an empty place
         private fun stack(v: Any?): Stack? {
@@ -167,8 +201,9 @@ class Loadout(val id: String, var name: String) {
         quiver?.let { put("qv", json(it)) }
     }
 
-    // This loadout as RuneLite's Export Setup writes one (its Import Setup reads it)
-    fun toRuneLite(): JSONObject {
+    // This loadout as RuneLite's Export Setup writes one (its Import Setup reads it). plain: a noted item's own ID (the
+    // bank tab shows the item itself), the same ID for anything else.
+    fun toRuneLite(plain: (Int) -> Int = { it }): JSONObject {
         val setup = JSONObject().apply {
             put("inv", runeLiteJson(inventory.toList()))
             put("eq", runeLiteJson(RUNELITE_SLOTS.map { slot -> slot?.let { equipment[it] } }))
@@ -178,7 +213,20 @@ class Loadout(val id: String, var name: String) {
             put("name", name)
             put("notes", notes)
             put("sb", spellbook ?: RUNELITE_NO_SPELLBOOK)
+            put("hc", RUNELITE_HIGHLIGHT)
         }
-        return JSONObject().put("setup", setup)
+        return JSONObject().put("setup", setup).put("layout", JSONArray().apply { runeLiteLayout(plain).forEach { put(it) } })
+    }
+
+    // The bank tab layout RuneLite's plugin makes for this setup by default: an item ID in each square, -1 for none
+    fun runeLiteLayout(plain: (Int) -> Int = { it }): IntArray {
+        val layout = IntArray(LAYOUT_SIZE) { -1 }
+        fun shown(id: Int) = plain(id).let { WORN_TO_ITEM[it] ?: it }
+        for ((slot, at) in LAYOUT_PLACES) equipment[slot]?.let { layout[at] = shown(it.id) }
+        quiver?.let { layout[LAYOUT_QUIVER] = shown(it.id) }
+        for (i in inventory.indices) inventory[i]?.let { layout[4 + i % 4 + (i / 4) * 8] = shown(it.id) }
+        runePouch?.forEachIndexed { i, s -> if (s != null && i < 8) layout[LAYOUT_RUNE_POUCH + i] = shown(s.id) }
+        boltPouch?.forEachIndexed { i, s -> if (s != null && i < 8) layout[LAYOUT_BOLT_POUCH + i] = shown(s.id) }
+        return layout
     }
 }

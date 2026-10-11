@@ -3,7 +3,6 @@ package com.sinat.osrsbubbletool
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -44,7 +43,7 @@ import org.json.JSONArray
 // Scan Current Loadout fills in the spellbook and an open rune pouch (LoadoutReader), the equipment when its tab is open
 // (GearRecognizer, shared with the DPS Calculator) and the inventory when its tab is open (InventoryReader), in a
 // guided scan (see below).
-// hideWindow and showWindow close and reopen this tool's window, so Android's file chooser and share menu
+// hideWindow and showWindow close and reopen this tool's window, so Android's file chooser
 // (which open under the floating windows) can be seen; setWindowCompact shrinks the window to a checklist in a
 // corner while the scan looks at the game.
 class GearLoadoutsTool(
@@ -413,14 +412,15 @@ class GearLoadoutsTool(
         if (l.hasItems) {
             page.addView(label("To RuneLite", 14f, bold = true), fullWidth(14))
             val sendRow = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-            val sendNote = label("")
+            val sendNote = label(exportMessage ?: "")
+            exportMessage = null
             sendRow.addView(button("Copy") {
                 saveTyping()
-                copyToClipboard(l.name, l.toRuneLite().toString())
+                copyToClipboard(l.name, l.toRuneLite(::plainId).toString())
                 sendNote.text = "Copied. Get it to your computer (a message to yourself works), copy it there, then " +
                     "click the import button in RuneLite's Inventory Setups panel."
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            sendRow.addView(button("Share") { saveTyping(); share(l) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            sendRow.addView(button("Export Setup") { saveTyping(); exportToFile(l) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 .apply { leftMargin = dp(6) })
             page.addView(sendRow, fullWidth(4))
             page.addView(sendNote, fullWidth(4))
@@ -832,9 +832,19 @@ class GearLoadoutsTool(
         }
 
         override fun saved(ok: Boolean) {
-            if (ok) listMessage = "Saved your loadouts. On your computer, right-click the import button in " +
-                "RuneLite's Inventory Setups panel and choose Mass Import Setups."
-            if (current == null) showList()
+            val one = exporting
+            exporting = null
+            val open = current
+            if (one != null && open != null) {
+                // one loadout exported from its own page: say so there
+                if (ok) exportMessage = "Saved. On your computer, right-click the import button in RuneLite's " +
+                    "Inventory Setups panel and choose Mass Import Setups, then pick this file."
+                if (open.id == one) showLoadout(open)
+            } else {
+                if (ok) listMessage = "Saved your loadouts. On your computer, right-click the import button in " +
+                    "RuneLite's Inventory Setups panel and choose Mass Import Setups."
+                if (current == null) showList()
+            }
             showWindow()
         }
     }
@@ -844,24 +854,31 @@ class GearLoadoutsTool(
     private fun saveAllToFile() {
         val chosen = loadouts.filter { it.hasItems }
         hideWindow()
-        LoadoutFileActivity.save(context, EXPORT_FILE_NAME, Loadout.toRuneLite(chosen).toString())
+        LoadoutFileActivity.save(context, EXPORT_FILE_NAME, Loadout.toRuneLite(chosen, ::plainId).toString())
     }
 
     private fun copyToClipboard(label: String, text: String) {
         context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText(label, text))
     }
 
-    // Android's share menu (a message, an email, a cloud drive...), to get the setup to your computer
-    private fun share(l: Loadout) {
-        val send = Intent(Intent.ACTION_SEND).setType("text/plain")
-            .putExtra(Intent.EXTRA_SUBJECT, "${l.name} (Inventory Setups)")
-            .putExtra(Intent.EXTRA_TEXT, l.toRuneLite().toString())
+    // One loadout as a file, saved wherever you choose (the same as Save all as a file, for just this one). It's
+    // saved in the same form, a list of setups, so RuneLite's Mass Import Setups (and this tool's import) reads it.
+    private var exporting: String? = null        // the loadout being saved (its id), while the file chooser is up
+    private var exportMessage: String? = null    // shown under the loadout's To RuneLite buttons once, after saving
+
+    private fun exportToFile(l: Loadout) {
+        exporting = l.id
         hideWindow()
-        try {
-            context.startActivity(Intent.createChooser(send, "Send ${l.name}").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        } catch (_: Exception) {
-            showWindow()
-        }
+        LoadoutFileActivity.save(context, exportFileName(l.name), Loadout.toRuneLite(listOf(l), ::plainId).toString())
+    }
+
+    // A noted item's own ID, for RuneLite's bank tab layout (the same ID for anything else)
+    private fun plainId(id: Int) = items?.plainOf(id) ?: id
+
+    // A file name from the loadout's name: letters, numbers, spaces, dashes and underscores kept, the rest left out
+    private fun exportFileName(name: String): String {
+        val safe = name.filter { it.isLetterOrDigit() || it == ' ' || it == '-' || it == '_' }.trim().take(60)
+        return (safe.ifEmpty { "loadout" }) + ".json"
     }
 
     // One item to pick: its picture and name

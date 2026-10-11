@@ -162,4 +162,44 @@ class LoadoutTest {
         // several: a list, like the mass export file
         assertEquals(2, Loadout.toRuneLite(listOf(l, again)).length())
     }
+
+    // RuneLite's plugin turns down a setup without a bank tab "layout" ("Invalid setup data", as the owner's first
+    // exported file got): every export has one, 56 squares, and the highlight colour its own exports have
+    @Test
+    fun exportsHaveTheBankTabLayoutRuneLiteNeeds() {
+        val l = Loadout.fromRuneLite(exported, ids()).single()
+        val one = l.toRuneLite()
+        assertEquals(56, one.getJSONArray("layout").length())
+        assertEquals("#FFFF0000", one.getJSONObject("setup").getString("hc"))
+        // the weapon (4151, abyssal whip) is in the third row's first square, as the plugin's Preset layout puts it
+        assertEquals(4151, one.getJSONArray("layout").getInt(16))
+        // an empty loadout still has one, all empty
+        val empty = Loadout("a", "b").toRuneLite().getJSONArray("layout")
+        assertEquals(56, empty.length())
+        assertTrue((0 until 56).all { empty.getInt(it) == -1 })
+        // a noted item is laid out as the item itself
+        val noted = Loadout("n", "noted").apply { inventory[0] = Loadout.Stack(8, 5) }
+        assertEquals(7, noted.toRuneLite { if (it == 8) 7 else it }.getJSONArray("layout").getInt(4))
+    }
+
+    // The owner's own RuneLite export: for each setup, the layout made here is the one RuneLite made (skipped
+    // without the file)
+    @Test
+    fun theLayoutMatchesRuneLitesOwn() {
+        val f = java.io.File(System.getProperty("user.home"), "Documents/Androiddev/osrsbubbletool/gear exports/inventory_setups_VersaceSinat.json")
+        org.junit.Assume.assumeTrue(f.exists())
+        val file = org.json.JSONArray(f.readText())
+        val loadouts = Loadout.fromRuneLite(f.readText(), ids())
+        var compared = 0
+        for (k in 0 until file.length()) {
+            val theirs = file.getJSONObject(k).getJSONArray("layout")
+            val mine = loadouts[k].runeLiteLayout()
+            // (RuneLite drops empty squares at the end, then fills up to 56; a longer one was changed by hand)
+            if (theirs.length() != 56) continue
+            assertEquals("setup ${loadouts[k].name}", (0 until 56).map { theirs.getInt(it) }, mine.toList())
+            compared++
+        }
+        println("compared $compared of ${file.length()} setups")
+        assertTrue(compared > 0)
+    }
 }
