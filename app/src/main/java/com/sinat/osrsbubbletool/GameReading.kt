@@ -102,19 +102,33 @@ class GameReading(private val context: Context, private val icons: ItemIcons, pr
     fun equipment(pixels: LightBoxReader.Pixels, panel: PanelFinder.Box, data: ItemData): GearReading? {
         // RuneLite's icons at each slot's exact place: a fraction of a second. The older gear reader (the DPS tool's,
         // 9-14 seconds on the owner's phone, and the phone slows down after it) only if that finds nothing at all.
-        val canvasList = synchronized(lock) { canvases() }
-        if (canvasList != null) {
-            val worn = InventoryReader.readEquipment(pixels, panel, canvasList, { id -> iconPicture(id) }) { id -> data.shown(id)?.first?.slot }
-            if (worn != null && worn.slots.values.any { it.isNotEmpty() }) {
-                if (debugBuild) Log.d("GearLoadouts", "equipment: " + worn.slots.entries.joinToString { (k, v) ->
-                    "$k ${v.firstOrNull()?.let { (id, fit) -> data.shown(id)?.first?.name + " %.0f".format(fit) } ?: "-"}" })
-                val alike = synchronized(lock) { lookAlikes(data) }
-                val ids = worn.slots.mapValues { (_, fits) -> data.fromIcons(fits.map { it.first }, fits.map { it.second }, alike) }
-                val unsure = worn.slots.filterValues { (it.firstOrNull()?.second ?: 0f) > ICONS_UNSURE_FIT }.keys
-                return GearReading(ids, worn.ammoAmount, unsure)
-            }
+        val worn = wornGear(pixels, panel, data)
+        if (worn != null) {
+            val ids = worn.slots.mapValues { (_, fits) -> fits.map { it.first } }
+            val unsure = worn.slots.filterValues { (it.firstOrNull()?.second ?: 0f) > ICONS_UNSURE_FIT }.keys
+            return GearReading(ids, worn.ammoAmount, unsure)
         }
         return equipmentSlowly(pixels, panel)
+    }
+
+    // The equipment read with RuneLite's icons at each slot's exact place: each slot's guesses (item ID and how well it
+    // fits, lower is better; best first, each item once, look-alikes as the one to pick, a charged item before its
+    // uncharged look-alike; none for an empty slot). Null if nothing could be read. Also used by the DPS Calculator's
+    // Import my gear.
+    fun wornGear(pixels: LightBoxReader.Pixels, panel: PanelFinder.Box, data: ItemData): InventoryReader.Equipment? {
+        val canvasList = synchronized(lock) { canvases() } ?: return null
+        val worn = InventoryReader.readEquipment(pixels, panel, canvasList, { id -> iconPicture(id) }) { id -> data.shown(id)?.first?.slot }
+        if (worn == null || worn.slots.values.all { it.isEmpty() }) return null
+        if (debugBuild) Log.d("GearLoadouts", "equipment: " + worn.slots.entries.joinToString { (k, v) ->
+            "$k ${v.firstOrNull()?.let { (id, fit) -> data.shown(id)?.first?.name + " %.0f".format(fit) } ?: "-"}" })
+        val alike = synchronized(lock) { lookAlikes(data) }
+        val slots = worn.slots.mapValues { (_, fits) ->
+            // each guess as the item to pick for its icon, keeping its best fit
+            val fitOf = HashMap<Int, Float>()
+            for ((id, fit) in fits) { val shown = alike[id] ?: id; fitOf[shown] = minOf(fitOf[shown] ?: fit, fit) }
+            data.fromIcons(fits.map { it.first }, fits.map { it.second }, alike).map { it to (fitOf[it] ?: Float.MAX_VALUE) }
+        }
+        return InventoryReader.Equipment(slots, worn.ammoAmount, worn.gamma)
     }
 
     private fun equipmentSlowly(pixels: LightBoxReader.Pixels, panel: PanelFinder.Box): GearReading? {

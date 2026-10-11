@@ -197,6 +197,17 @@ class GearRecognizer private constructor(private val context: Context) {
 
     fun iconBitmap(item: Item): Bitmap? = pictures.decode(item.iconFile)
 
+    // The calculator's item for an item read from the game (from Gear Loadouts' item list: its ID, name and wiki
+    // picture), or null if the calculator doesn't have it. By ID first; then, for a copy the calculator doesn't list
+    // (a charge it leaves out, say), the item with the same wiki picture, or the same name.
+    fun calculatorItem(id: Int, slot: String, name: String, picture: String?): Item? {
+        val list = items()[slot] ?: return null
+        list.firstOrNull { it.id == id }?.let { return it }
+        if (picture != null) list.firstOrNull { it.iconFile == picture }?.let { return it }
+        fun plain(s: String) = s.lowercase().replace(" ", "")
+        return list.firstOrNull { plain(it.label) == plain(name) } ?: list.firstOrNull { plain(it.name) == plain(name) }
+    }
+
     // Loads the item list, every icon and the empty-slot outlines. Called when the DPS tool
     // opens, so the first import doesn't wait for it. Safe to call more than once.
     @Synchronized

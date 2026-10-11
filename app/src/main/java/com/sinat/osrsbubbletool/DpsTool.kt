@@ -1,11 +1,7 @@
 package com.sinat.osrsbubbletool
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
@@ -18,17 +14,13 @@ import android.webkit.JsResult
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.edit
-import androidx.core.graphics.toColorInt
 import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
 import com.sinat.osrsbubbletool.Palette.DARK_BROWN
 import com.sinat.osrsbubbletool.Palette.PARCHMENT
-import com.sinat.osrsbubbletool.Palette.ROW_BROWN
-import java.util.Locale
 import org.json.JSONObject
 
 // The DPS Calculator tool: the wiki's calculator, plus "Import my gear", which reads
@@ -41,6 +33,12 @@ class DpsTool(
 ) {
     companion object {
         const val CAPTURE_DELAY_MS = 500L
+
+        // Reading with RuneLite's icons (Gear Loadouts' reader): good fits are 8-20, worse than this is flagged for
+        // checking; your earlier pick goes first if it fits within PICK_MARGIN of the best; guesses kept per slot
+        private const val UNSURE_FIT = 22f
+        private const val PICK_MARGIN = 3f
+        private const val MAX_GUESSES = 5
 
         // Puts gear into the calculator's saved session, then reloads the page to show it.
         // __GEAR__ is replaced with {"head": 1234, "cape": null, ...}
@@ -81,6 +79,10 @@ class DpsTool(
 
     private val handler = Handler(Looper.getMainLooper())
     private val recognizer = GearRecognizer.shared(context)
+    // Gear Loadouts' reader: RuneLite's icons at each slot's exact place (quicker and surer than the recognizer above,
+    // which is the backup: for an area set by hand, or when this reads nothing)
+    private val icons = ItemIcons(context)   // RuneLite's item icons, as the game draws them
+    private val reading = GameReading(context, icons, debugBuild = false)
     // The equipment area set by hand (the same saved area the older Inventory Setups used)
     private val equipmentArea = RegionOverlay(context, windowManager, "region_equipment", "Equipment")
 
@@ -88,10 +90,8 @@ class DpsTool(
     private var status: TextView? = null
     private var areaButton: TextView? = null
     private var resultsPanel: ScrollView? = null
+    private var resultActions: View? = null   // Load into calculator and Cancel, shown with the results
     private var busy = false
-    private var lastCapture: Bitmap? = null      // the equipment window from the last import
-    private var previewView: ImageView? = null   // shows it while you check the guesses
-    private var saveButton: View? = null
     // Items you picked yourself, remembered per slot (slot to item id)
     private val picksPrefs = context.getSharedPreferences("gear_import_picks", Context.MODE_PRIVATE)
 
@@ -99,6 +99,11 @@ class DpsTool(
     private var choices: Map<String, List<GearRecognizer.Choice>> = emptyMap()
     private var notes: Map<String, String> = emptyMap()   // slots to double-check
     private val picked = HashMap<String, Int>()
+    // The grid of slots on the results panel, the slot last tapped, and the lines under the grid about it
+    private val slotViews = HashMap<String, ItemSlotView>()
+    private var selectedSlot: String? = null
+    private var detailText: TextView? = null
+    private var noteText: TextView? = null
 
     private fun dp(value: Int) = (value * context.resources.displayMetrics.density).toInt()
 
@@ -138,6 +143,18 @@ class DpsTool(
                 .apply { leftMargin = dp(6) })
         }
 
+        // While you check a scan's gear: Load into calculator and Cancel, under Import my gear
+        val actions = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(6), 0, dp(6), dp(4))
+            setBackgroundColor(PARCHMENT)
+            visibility = View.GONE
+            addView(button("Load into calculator") { loadIntoCalculator() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2f))
+            addView(button("Cancel") { closeResults() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { leftMargin = dp(6) })
+        }
+        resultActions = actions
+
         val statusView = TextView(context).apply {
             textSize = 12f
             setTextColor(DARK_BROWN)
@@ -164,6 +181,8 @@ class DpsTool(
             orientation = LinearLayout.VERTICAL
             addView(buttons, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(actions, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(statusView, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             addView(content, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -172,20 +191,6 @@ class DpsTool(
 
     fun onWindowClosed() {
         finishAreaSetup()
-        forgetPicture()
-    }
-
-    // Lets go of the captured picture once the window is closed. Any guesses you're checking stay,
-    // so you can still load them into the calculator. Without guesses there's nothing left to show.
-    private fun forgetPicture(keepMessage: Boolean = false) {
-        if (lastCapture == null && previewView == null) return
-        lastCapture = null
-        previewView?.setImageDrawable(null)
-        previewView?.visibility = View.GONE
-        previewView = null
-        saveButton?.visibility = View.GONE
-        saveButton = null
-        if (choices.isEmpty() && resultsPanel?.visibility == View.VISIBLE) closeResults(keepMessage)
     }
 
     fun onRotated() {
@@ -267,14 +272,20 @@ class DpsTool(
             val preferred = GearRecognizer.SLOT_ORDER
                 .filter { picksPrefs.contains(it) }
                 .associateWith { picksPrefs.getInt(it, 0) }
-            Thread {
+            // (the item list is loaded first, in the background, if no tool has loaded it yet)
+            ItemCatalog.get(context) { data -> Thread {
                 try {
                     // Find the side panel by itself; the area set by hand is a backup, also tried when the panel
                     // found by itself has no equipment slots in it (it found some other window)
-                    val found = PanelFinder.find(LightBoxReader.Pixels(shot))
+                    val pixels = LightBoxReader.Pixels(shot)
+                    val panel = PanelFinder.findPanel(pixels)
+                    val found = panel?.toRect()
                     val saved = equipmentArea.savedArea(shot.width, shot.height)
                     var tab = cutArea(shot, found ?: saved, 40, 60)
-                    var result = tab?.let { t -> try { recognizer.recognize(t, preferred) } catch (e: Exception) { null } }
+                    // With the equipment tab open, Gear Loadouts' reader first; the older recognizer if it reads nothing
+                    var result = if (tab != null && panel != null && PanelFinder.tabOpen(pixels, panel, 0, PanelFinder.EQUIPMENT_TAB))
+                        try { readByIcons(pixels, panel, data, preferred) } catch (e: Exception) { null } else null
+                    if (result == null) result = tab?.let { t -> try { recognizer.recognize(t, preferred) } catch (e: Exception) { null } }
                     if ((result == null || result.slots.isEmpty()) && found != null && saved != null && saved != found) {
                         val other = cutArea(shot, saved, 40, 60)
                         val second = other?.let { t -> try { recognizer.recognize(t, preferred) } catch (e: Exception) { null } }
@@ -283,10 +294,11 @@ class DpsTool(
                             tab = other; result = second
                         } else if (other != null && other !== shot) other.recycle()
                     }
-                    if (tab !== shot) shot.recycle()   // the full screenshot isn't needed any more
-                    val picture = tab
+                    // the pictures aren't needed any more
+                    if (tab != null && tab !== shot) tab.recycle()
+                    shot.recycle()
                     val reading = result
-                    if (picture == null) {
+                    if (tab == null) {
                         handler.post {
                             busy = false
                             showStatus("Couldn't find your equipment tab. Make sure it's open and not covered, " +
@@ -296,157 +308,151 @@ class DpsTool(
                     }
                     handler.post {
                         busy = false
-                        lastCapture = picture
-                        showRecognition(reading, picture)
-                        // the window was closed while this worked: let go of the pictures now (the guesses stay)
-                        if (resultsPanel?.isShown != true) forgetPicture(keepMessage = true)
+                        showRecognition(reading)
                     }
                 } catch (t: Throwable) {
                     // e.g. out of memory on an older phone: say so, and let Import be tapped again
                     handler.post { busy = false; showStatus("Couldn't read your gear. Try again.") }
                 }
-            }.start()
+            }.start() }
         }, CAPTURE_DELAY_MS)
     }
 
-
-    // The captured window with each found slot outlined in gold
-    private fun drawSlots(tab: Bitmap, rects: Map<String, Rect>): Bitmap {
-        val out = tab.copy(Bitmap.Config.ARGB_8888, true)
-        val canvas = Canvas(out)
-        val paint = Paint().apply {
-            color = "#E8C766".toColorInt()
-            style = Paint.Style.STROKE
-            strokeWidth = maxOf(2f, out.width / 150f)
+    // The equipment read the way Gear Loadouts reads it, as the calculator's items: each slot's guesses (the item you
+    // picked last time first, if it fits about as well as the best), and "Nothing equipped" last. Null if nothing
+    // was read.
+    private fun readByIcons(pixels: LightBoxReader.Pixels, panel: PanelFinder.Box, data: ItemData,
+                            preferred: Map<String, Int>): GearRecognizer.Result? {
+        val worn = reading.wornGear(pixels, panel, data) ?: return null
+        val slots = LinkedHashMap<String, List<GearRecognizer.Choice>>()
+        val notes = HashMap<String, String>()
+        for (slot in GearRecognizer.SLOT_ORDER) {
+            val fits = worn.slots[slot] ?: continue
+            val options = ArrayList<GearRecognizer.Choice>()
+            for ((id, fit) in fits) {
+                val item = data[id] ?: continue
+                val calc = recognizer.calculatorItem(id, slot, item.name, item.pictures.firstOrNull()) ?: continue
+                if (options.none { it.item?.id == calc.id }) options.add(GearRecognizer.Choice(calc, fit))
+            }
+            if (fits.isNotEmpty() && options.isEmpty()) {
+                notes[slot] = "Read as ${data[fits[0].first]?.name ?: "an item"}, which the calculator doesn't have"
+            }
+            // the item you switched to here last time comes first again, if it's about as close
+            val pick = preferred[slot]
+            val k = options.indexOfFirst { it.item?.id == pick }
+            if (k > 0 && options[k].cost - options[0].cost < PICK_MARGIN) {
+                options.add(0, options.removeAt(k))
+                notes[slot] = "Starting with ${options[0].item?.label} because you picked it last time"
+            } else if (options.isNotEmpty() && options[0].cost > UNSURE_FIT) {
+                notes[slot] = "Check this one: it's not a clear match"
+            }
+            slots[slot] = options.take(MAX_GUESSES) + GearRecognizer.Choice(null, 0f)
         }
-        rects.values.forEach { canvas.drawRect(it, paint) }
-        return out
+        return GearRecognizer.Result(slots, 1f, emptyMap(), notes, worn.gamma)
     }
 
-    private fun showRecognition(result: GearRecognizer.Result?, tab: Bitmap) {
-        val preview = if (result != null) drawSlots(tab, result.slotRects) else tab
+    private fun showRecognition(result: GearRecognizer.Result?) {
         if (result == null || result.slots.isEmpty()) {
-            val score = result?.let { String.format(Locale.US, " (fit %.2f)", it.layoutScore) } ?: ""
-            showStatus("Couldn't find the equipment slots$score. The picture shows what was captured and " +
-                "where the slots were expected. Make sure the equipment tab is open and the frame " +
-                "covers the whole equipment window.")
+            closeResults(keepMessage = true)
             choices = emptyMap()
             notes = emptyMap()
-            buildResultsPanel(preview)
+            showStatus("Couldn't find your equipment slots. Make sure the equipment tab is open and not covered, " +
+                "then try again. If you set an area by hand, check it covers the whole equipment window.")
             return
         }
         choices = result.slots
         notes = result.notes
         picked.clear()
-        showStatus(String.format(Locale.US, "Check each slot (game brightness measured as %.1f). Tap an " +
-            "item to switch to the next guess, then tap Load into calculator.", result.gamma))
-        buildResultsPanel(preview)
+        showStatus(null)
+        buildResultsPanel()
     }
 
     // ---------------- Checking the guesses ----------------
 
-    private fun buildResultsPanel(preview: Bitmap) {
+    private fun buildResultsPanel() {
         val panel = resultsPanel ?: return
         val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(10))
         }
 
-        // What was captured, with the slots it found outlined
-        val pic = ImageView(context).apply {
-            setImageBitmap(preview)
-            adjustViewBounds = true
-            scaleType = ImageView.ScaleType.FIT_CENTER
+        // What was read, laid out like the game's equipment tab (and Gear Loadouts')
+        column.addView(equipmentGrid(), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        // the slot you tapped: its name, which guess it is, and anything to check
+        val detail = TextView(context).apply { textSize = 13f; setTextColor(DARK_BROWN) }
+        val note = TextView(context).apply {
+            textSize = 11f
+            setTextColor(Palette.ORANGE)
+            setTypeface(typeface, Typeface.BOLD)
         }
-        previewView = pic
-        column.addView(pic, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(160)))
+        detailText = detail
+        noteText = note
+        column.addView(detail, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
+        column.addView(note, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        showDetail(null)
 
-        for (slot in GearRecognizer.SLOT_ORDER) {
-            val options = choices[slot] ?: continue
-            column.addView(slotRow(slot, options), LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(6) })
-        }
-
-        // Full-width Load button on top, then Save picture and Cancel side by side
-        if (choices.isNotEmpty()) {
-            column.addView(button("Load into calculator") { loadIntoCalculator() }, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(8) })
-        }
-
-        val actions = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-        // Saves the uncompressed capture, for checking how well recognition works
-        val save = button("Save picture to phone") { saveCapture() }
-        saveButton = save
-        actions.addView(save, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2f))
-        actions.addView(button(if (choices.isEmpty()) "Close" else "Cancel") { closeResults() },
-            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(6) })
-
-        column.addView(actions, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(if (choices.isNotEmpty()) 14 else 8) })
-
+        resultActions?.visibility = View.VISIBLE
         panel.removeAllViews()
         panel.addView(column)
         panel.visibility = View.VISIBLE
     }
 
-    private fun slotRow(slot: String, options: List<GearRecognizer.Choice>): View {
-        val iconView = ImageView(context).apply { scaleType = ImageView.ScaleType.FIT_CENTER }
-        val nameView = TextView(context).apply {
-            textSize = 14f
-            setTextColor(DARK_BROWN)
-        }
-        val slotLabel = TextView(context).apply {
-            text = GearRecognizer.SLOT_LABELS[slot] ?: slot
-            textSize = 11f
-            setTextColor(DARK_BROWN)
-            setTypeface(typeface, Typeface.BOLD)
-        }
-
-        fun refresh() {
-            val index = picked[slot] ?: 0
-            val choice = options[index]
-            val item = choice.item
-            val more = if (options.size > 1) "  (${index + 1}/${options.size}) ▸" else ""
-            nameView.text = (item?.label ?: "Nothing equipped") + more
-            iconView.setImageBitmap(item?.let { recognizer.iconBitmap(it) })
-        }
-        refresh()
-
-        val texts = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(slotLabel)
-            addView(nameView)
-            // look-alike items that were close: ask you to check
-            notes[slot]?.let { note ->
-                addView(TextView(context).apply {
-                    text = note
-                    textSize = 11f
-                    setTextColor(Palette.ORANGE)
-                    setTypeface(typeface, Typeface.BOLD)
-                })
-            }
-        }
-
-        return LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(6), dp(8), dp(6))
-            background = GradientDrawable().apply {
-                setColor(ROW_BROWN)
-                cornerRadius = dp(6).toFloat()
-            }
-            addView(iconView, LinearLayout.LayoutParams(dp(36), dp(36)))
-            addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                .apply { leftMargin = dp(10) })
-            // tap to switch to the next guess
+    // The slots read, laid out as in the game (and in Gear Loadouts). Tap a slot to see what it is; tap it again for
+    // the next guess. Slots to check have an amber ring.
+    private fun equipmentGrid(): View {
+        slotViews.clear()
+        selectedSlot = null
+        val grid = SlotGrid(context, 3, dp(44), dp(3))
+        fun s(slot: String): View = ItemSlotView(context).apply {
+            label = GearRecognizer.SLOT_LABELS[slot] ?: slot
+            unsure = notes[slot]?.let { !it.startsWith("Starting with") } == true
+            slotViews[slot] = this
+            showPick(slot)
+            val options = choices[slot] ?: return@apply
             setOnClickListener {
-                picked[slot] = ((picked[slot] ?: 0) + 1) % options.size
-                refresh()
+                // the first tap shows what's there; the next ones switch to the next guess
+                if (selectedSlot == slot && options.size > 1) picked[slot] = ((picked[slot] ?: 0) + 1) % options.size
+                showDetail(slot)
             }
         }
+        grid.addRow(listOf(null, s("head"), null))
+        grid.addRow(listOf(s("cape"), s("neck"), s("ammo")))
+        grid.addRow(listOf(s("weapon"), s("body"), s("shield")))
+        grid.addRow(listOf(null, s("legs"), null))
+        grid.addRow(listOf(s("hands"), s("feet"), s("ring")))
+        return grid
+    }
+
+    // A slot's square shows the guess picked for it (RuneLite's icon, as the game draws it; the calculator's picture
+    // if there's none); empty, its name
+    private fun showPick(slot: String) {
+        val view = slotViews[slot] ?: return
+        val item = choices[slot]?.getOrNull(picked[slot] ?: 0)?.item
+        view.picture = item?.let { icons.canvas(it.id) ?: recognizer.iconBitmap(it) }
+        view.contentDescription = "${view.label}: ${item?.label ?: "nothing equipped"}"
+    }
+
+    // Under the grid: the tapped slot's item, which guess it is and its note; before any tap, how to use the grid
+    private fun showDetail(slot: String?) {
+        selectedSlot?.let { slotViews[it]?.apply { square = Palette.CELL; invalidate() } }
+        selectedSlot = slot
+        val detail = detailText ?: return
+        val note = noteText ?: return
+        if (slot == null) {
+            detail.text = "Tap a slot to see what was read; tap it again for the next guess." +
+                if (slotViews.values.any { it.unsure }) " Amber rings: please check those." else ""
+            note.visibility = View.GONE
+            return
+        }
+        slotViews[slot]?.apply { square = Palette.CURRENT; invalidate() }
+        showPick(slot)
+        val options = choices[slot].orEmpty()
+        val index = picked[slot] ?: 0
+        val name = options.getOrNull(index)?.item?.label ?: "Nothing equipped"
+        val more = if (options.size > 1) " (${index + 1} of ${options.size}: tap again for the next)" else ""
+        detail.text = "${GearRecognizer.SLOT_LABELS[slot] ?: slot}: $name$more"
+        note.text = notes[slot].orEmpty()
+        note.visibility = if (notes[slot] == null) View.GONE else View.VISIBLE
     }
 
     // (keepMessage: the window was closed while an import that failed was worked on: its message stays for when
@@ -454,17 +460,12 @@ class DpsTool(
     private fun closeResults(keepMessage: Boolean = false) {
         resultsPanel?.visibility = View.GONE
         resultsPanel?.removeAllViews()
-        lastCapture = null   // only "Save picture" (on the panel just closed) used it
-        previewView = null
-        saveButton = null
+        resultActions?.visibility = View.GONE
+        slotViews.clear()
+        selectedSlot = null
+        detailText = null
+        noteText = null
         if (!keepMessage) showStatus(null)
-    }
-
-    // Saves the last capture as an uncompressed PNG in Pictures/OSRS Bubble Tool
-    private fun saveCapture() {
-        val picture = lastCapture ?: return
-        // (the picture stays: the results panel still shows it)
-        savePictureToPhone(context, picture, "equipment", recycle = false) { showStatus(it) }
     }
 
     private fun loadIntoCalculator() {

@@ -437,9 +437,10 @@ object InventoryReader {
         "hands" to (29f to 171f), "feet" to (85.5f to 170.5f), "ring" to (141.5f to 170.5f))
     private const val EQUIPMENT_SHORTLIST = 30
 
-    // What's worn: each slot's guesses (item ID to fit, best first; none for an empty slot), and the ammunition's amount.
-    // slotOf: an item's equipment slot. Null if the panel can't be looked at.
-    class Equipment(val slots: Map<String, List<Pair<Int, Float>>>, val ammoAmount: Int?)
+    // What's worn: each slot's guesses (item ID to fit, best first; none for an empty slot), the ammunition's amount, and
+    // the game's brightness setting found (as GearRecognizer's gamma). slotOf: an item's equipment slot. Null if the
+    // panel can't be looked at.
+    class Equipment(val slots: Map<String, List<Pair<Int, Float>>>, val ammoAmount: Int?, val gamma: Float = 1.2f)
 
     fun readEquipment(p: PixelSource, panel: Box, c: Canvases, icons: Icons, slotOf: (Int) -> String?): Equipment? {
         val iconCache = HashMap<Int, LoadoutReader.Picture?>()
@@ -466,7 +467,7 @@ object InventoryReader {
         val ammo = if (slots["ammo"].isNullOrEmpty()) null else LoadoutReader.amountIn(p, Box(
             (panel.left + (ax - 1) * s).toInt(), (panel.top + (ay - 1) * s).toInt(),
             (panel.left + (ax + CANVAS_W) * s).toInt(), (panel.top + (ay + TEXT_ROWS) * s).toInt()))
-        return Equipment(slots, ammo)
+        return Equipment(slots, ammo, gamma)
     }
 
     // ---------------- Trusting a reading ----------------
