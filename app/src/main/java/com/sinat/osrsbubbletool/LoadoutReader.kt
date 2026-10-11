@@ -246,7 +246,12 @@ object LoadoutReader {
             else -> ::whiteness to 1_000L
         }
         val mask = FloatArray(w * h) { textness(p.rgb(left + it % w, top + it / w)) }
-        val digits = Digits.read(mask, w, h, stopAtOther = times > 1)?.toLongOrNull() ?: return null
+        val text = Digits.read(mask, w, h, stopAtOther = times > 1) ?: return null
+        // the game writes a K amount with 3 or 4 digits (100K to 9999K), an M amount with 2 or more (10M and up): any
+        // other count means a digit wasn't read, and then the amount isn't known rather than wrong ("134K" once came
+        // out as 1,000)
+        if ((times == 1_000L && text.length !in 3..4) || (times == 1_000_000L && text.length < 2)) return null
+        val digits = text.toLongOrNull() ?: return null
         return (digits * times).takeIf { it <= Int.MAX_VALUE }?.toInt()
     }
 
@@ -333,17 +338,21 @@ object Digits {
         val pixel = bestRows / ROWS.toFloat()   // one game pixel, in screen pixels
 
         // Each digit: a run of columns with yellow in them
-        val text = StringBuilder()
+        val runs = ArrayList<IntArray>()
         var start = -1
         for (x in 0..w) {
             val any = x < w && (bestTop until bestTop + bestRows).any { yellow[it * w + x] > 0.5f }
             if (any && start < 0) start = x
-            if (!any && start >= 0) {
-                val d = digits(yellow, w, start, x, bestTop, bestRows, pixel)
-                if (d == null) { if (stopAtOther && text.isNotEmpty()) break else return null }
-                text.append(d)
-                start = -1
-            }
+            if (!any && start >= 0) { runs.add(intArrayOf(start, x)); start = -1 }
+        }
+        val text = StringBuilder()
+        for ((i, run) in runs.withIndex()) {
+            val d = digits(yellow, w, run[0], run[1], bestTop, bestRows, pixel)
+            if (d != null) { text.append(d); continue }
+            // the K or M at the end: it can come apart in up to three pieces, or touch the item behind it (the caller
+            // checks the number of digits makes sense for a K or M amount)
+            if (stopAtOther && text.isNotEmpty() && runs.size - i - 1 <= 2) break
+            return null
         }
         return text.toString().ifEmpty { null }
     }
@@ -369,32 +378,56 @@ object Digits {
 
     // The digit in columns from..to (to just after it), or null if it isn't one
     private fun digit(yellow: FloatArray, w: Int, from: Int, to: Int, top: Int, rows: Int, pixel: Float): Char? {
+        // first the cut centred on what was found; only if no digit fits that, nudged cuts, more strictly
+        best(yellow, w, from, to, top, rows, pixel, nudges = false)?.let { (c, wrong, cells) ->
+            if (wrong <= (cells * MAX_WRONG_SHARE).toInt()) return c
+        }
+        best(yellow, w, from, to, top, rows, pixel, nudges = true)?.let { (c, wrong, cells) ->
+            if (wrong <= (cells * NUDGED_WRONG_SHARE).toInt()) return c
+        }
+        return null
+    }
+
+    // The digit this patch fits best: the digit, how many game pixels are off, and how many it has
+    private fun best(yellow: FloatArray, w: Int, from: Int, to: Int, top: Int, rows: Int, pixel: Float, nudges: Boolean): Triple<Char, Int, Int>? {
+        val h = yellow.size / w
         val wide = (to - from) / pixel
         var best: Char? = null
         var bestWrong = Int.MAX_VALUE
+        var bestCells = 0
         for ((c, shape) in FONT) {
             val cols = shape[0].length
             if (abs(wide - cols) > 1.6f) continue
             // this patch cut into game pixels the size of the font's digit, centred on what was found (its blurred
-            // edges make it look a little wider): each game pixel yellow if most of it is
-            val start = from + ((to - from) - cols * pixel) / 2
-            var wrong = 0
-            for (r in 0 until ROWS) for (k in 0 until cols) {
-                val x0 = (start + k * pixel).roundToInt().coerceIn(from, to - 1)
-                val x1 = (start + (k + 1) * pixel).roundToInt().coerceIn(x0 + 1, to)
-                val y0 = top + (r * rows / ROWS.toFloat()).toInt()
-                val y1 = maxOf(y0 + 1, top + ((r + 1) * rows / ROWS.toFloat()).toInt())
-                var sum = 0f
-                for (y in y0 until y1) for (x in x0 until x1) sum += yellow[y * w + x]
-                val on = sum / ((y1 - y0) * (x1 - x0)) > 0.45f
-                if (on != (shape[r][k] == '#')) wrong++
+            // edges make it look a little wider): each game pixel yellow if most of it is. On a small screen a game
+            // pixel is under 2 screen pixels and the cut can fall a little off: nudged, it's tried a third of a game
+            // pixel either way.
+            val centred = from + ((to - from) - cols * pixel) / 2
+            val steps = if (nudges) -1..1 else 0..0
+            for (nx in steps) for (ny in steps) {
+                val start = centred + nx * pixel / 3
+                val down = ny * pixel / 3
+                var wrong = 0
+                for (r in 0 until ROWS) for (k in 0 until cols) {
+                    val x0 = (start + k * pixel).roundToInt().coerceIn(from, to - 1)
+                    val x1 = (start + (k + 1) * pixel).roundToInt().coerceIn(x0 + 1, to)
+                    val y0 = (top + down + r * rows / ROWS.toFloat()).roundToInt().coerceIn(0, h - 1)
+                    val y1 = (top + down + (r + 1) * rows / ROWS.toFloat()).roundToInt().coerceIn(y0 + 1, h)
+                    var sum = 0f
+                    for (y in y0 until y1) for (x in x0 until x1) sum += yellow[y * w + x]
+                    val on = sum / ((y1 - y0) * (x1 - x0)) > 0.45f
+                    if (on != (shape[r][k] == '#')) wrong++
+                }
+                if (wrong < bestWrong) { bestWrong = wrong; best = c; bestCells = cols * ROWS }
             }
-            if (wrong < bestWrong) { bestWrong = wrong; best = c }
         }
-        // a few game pixels can be off where the edges blur; more than that isn't a digit
-        LoadoutReader.debugLog?.invoke("  digit ${best ?: '?'}, $bestWrong game pixels off, ${"%.1f".format(wide)} wide")
-        return if (bestWrong <= MAX_WRONG) best else null
+        LoadoutReader.debugLog?.invoke("  digit ${best ?: '?'}${if (nudges) " (nudged)" else ""}, $bestWrong game pixels off, ${"%.1f".format(wide)} wide")
+        return best?.let { Triple(it, bestWrong, bestCells) }
     }
 
-    private const val MAX_WRONG = 9
+    // A few game pixels can be off where the edges blur, in proportion to the digit's size (a 1 has 24 game pixels, a
+    // wide digit 40: one stroke of an M come apart once passed for a 1 with 8 off); more isn't a digit. Nudged cuts
+    // fit wrong digits more easily (an 8 cut short looks like a 3), so they're held to less.
+    private const val NUDGED_WRONG_SHARE = 0.15f
+    private const val MAX_WRONG_SHARE = 0.22f
 }

@@ -81,7 +81,8 @@ object InventoryReader {
     // better), the amount written on it (null if none), and whether it's on a bank note. Read with RuneLite's icons,
     // itemId is the item itself (a noted item's own noted ID) and otherIds the other guesses; picture is then "".
     class Found(val picture: String, val others: List<String>, val cost: Float, val amount: Int?, val noted: Boolean = false,
-                val itemId: Int? = null, val otherIds: List<Int> = emptyList(), val otherCosts: List<Float> = emptyList())
+                val itemId: Int? = null, val otherIds: List<Int> = emptyList(), val otherCosts: List<Float> = emptyList(),
+                val amountUnread: Boolean = false)   // an amount is written on it but couldn't be read
 
     // ---------------- Reading ----------------
 
@@ -165,7 +166,7 @@ object InventoryReader {
             // see-through panel can look like an item to the first look)
             if (g != null && fixedBest == null) return@mapIndexed null
             if (fixedBest != null && fixedBest.second <= FIXED_GOOD) {
-                return@mapIndexed Found("", emptyList(), fixedBest.second, sp.amount, itemId = fixedBest.first,
+                return@mapIndexed Found("", emptyList(), fixedBest.second, sp.amount, amountUnread = sp.hasText && sp.amount == null, itemId = fixedBest.first,
                     otherIds = fixed.drop(1).take(5).map { it.first }, otherCosts = fixed.drop(1).take(5).map { it.second })
             }
             val note = sp.note
@@ -190,11 +191,12 @@ object InventoryReader {
             val best = fits.firstOrNull()
             // the exact-place icon wins if today's way does no better (a stack drawn differently by size fits better today's way)
             if (fixedBest != null && (best == null || fixedBest.second <= best.cost)) {
-                return@mapIndexed Found("", emptyList(), fixedBest.second, sp.amount, itemId = fixedBest.first,
+                return@mapIndexed Found("", emptyList(), fixedBest.second, sp.amount, amountUnread = sp.hasText && sp.amount == null, itemId = fixedBest.first,
                     otherIds = fixed.drop(1).take(5).map { it.first }, otherCosts = fixed.drop(1).take(5).map { it.second })
             }
-            if (best == null) return@mapIndexed Found("?", emptyList(), Float.MAX_VALUE, sp.amount, note != null)
-            Found(shapes.names[best.index], fits.drop(1).take(5).map { shapes.names[it.index] }, best.cost, sp.amount, note != null)
+            val unread = sp.hasText && sp.amount == null
+            if (best == null) return@mapIndexed Found("?", emptyList(), Float.MAX_VALUE, sp.amount, note != null, amountUnread = unread)
+            Found(shapes.names[best.index], fits.drop(1).take(5).map { shapes.names[it.index] }, best.cost, sp.amount, note != null, amountUnread = unread)
         }
     }
 

@@ -36,7 +36,7 @@ class InventoryReaderTest {
         }
     }
 
-    private fun read(p: Shot, panel: PanelFinder.Box) = InventoryReader.read(p, panel, shapes, pictures, notable, canvases, icons)
+    private fun read(p: LightBoxReader.PixelSource, panel: PanelFinder.Box) = InventoryReader.read(p, panel, shapes, pictures, notable, canvases, icons)
 
     // A reading's item name and whether it's noted, read either way (an icon's item, or a wiki picture's name)
     private fun idOf(f: InventoryReader.Found) =
@@ -158,5 +158,69 @@ class InventoryReaderTest {
         }.map { "space $it: expected ${expected[it]}, read ${nameOf(read[it])} x ${read[it]?.amount}, noted ${isNoted(read[it])} (fit ${read[it]?.cost})" }
         assertEquals("", wrong.joinToString("\n"))
         assertEquals("", (16 until 28).filter { read[it] != null }.joinToString { "space $it: ${nameOf(read[it])}" })   // the rest is empty
+    }
+
+    // A phone with a bigger or smaller screen draws the game bigger or smaller: a screenshot resized (smoothly, a
+    // little blurrier than a real phone would draw it)
+    private fun resized(name: String, scale: Double): LightBoxReader.PixelSource {
+        val original = ImageIO.read(File(shots, name))
+        val im = java.awt.image.BufferedImage((original.width * scale).toInt(), (original.height * scale).toInt(), java.awt.image.BufferedImage.TYPE_INT_RGB)
+        im.createGraphics().apply {
+            setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+            drawImage(original, 0, 0, im.width, im.height, null)
+            dispose()
+        }
+        val data = IntArray(im.width * im.height).also { im.getRGB(0, 0, im.width, im.height, it, 0, im.width) }
+        return object : LightBoxReader.PixelSource {
+            override val width = im.width; override val height = im.height
+            override fun rgb(x: Int, y: Int) = data[y * width + x] and 0xFFFFFF
+        }
+    }
+
+    // Every item and amount at other screen sizes. Each size once went wrong somewhere: the green 24M read as
+    // 241,000,000 (an M's stroke taken for a 1), noted items lost in the narrowing down (its colour points were on the
+    // note's paper), amounts missed on small screens (the digit cut a little off), 134K read as 1,000. (At 70% the
+    // stacks screenshot's side panel isn't found: its thin border blurs away when shrunk, which a phone wouldn't do.)
+    @Test
+    fun readsAtOtherScreenSizes() {
+        val first = listOf("Eye of Ayak", "Elidinis' ward", "Confliction gauntlets", "Virtus robe top", "Virtus robe bottom", "Virtus mask",
+            "Prayer potion(4)", "Prayer potion(4)", "Purple sweets") + List(13) { "Shark" } +
+            listOf("Ranging potion(4)", "Extended anti-venom+(4)", "Shark", "Shark", "Saturated heart", "Divine rune pouch")
+        val stacks = listOf("Coins", "Chaos rune", "Seed dibber", "Magic secateurs", "Blighted ancient ice sack", "Mos le'harmless teleport",
+            "Tai bwo wannai teleport", "Piscatoris teleport", "Revenant cave teleport", "Black chinchompa", "Rake", "Spade",
+            "Filled plant pot", "Rune platebody", "Black d'hide body", "Bottomless compost bucket") + List(12) { null }
+        val amounts = listOf(24_000_000, 134_000, null, null, 82, 59, 13, 16, 6, 62, null, null, 819, 23, 96, 1)
+        val cases = listOf("1_inventory.png" to listOf(0.7, 0.85, 1.15, 1.3), "7_inventory_stacks.png" to listOf(0.85, 1.15, 1.3),
+            "11_inventory_red_rug.png" to listOf(0.7, 0.85, 1.15, 1.3))
+        val problems = ArrayList<String>()
+        for ((name, scales) in cases) {
+            assumeTrue(File(shots, name).exists())
+            val expected = if (name.startsWith("1_")) first else stacks
+            for (scale in scales) {
+                val p = resized(name, scale)
+                val read = read(p, PanelFinder.findPanel(p) ?: run { problems.add("$name at ${scale}x: no side panel"); continue })
+                for (i in expected.indices) {
+                    val want = expected[i]; val got = nameOf(read[i])
+                    val ok = if (want == null) got == null else got?.startsWith(want) == true
+                    // an amount must be right, or (134K at 70% on the rug) unread and ringed for checking: never wrong
+                    val amountOk = expected !== stacks || read[i]?.amount == amounts.getOrNull(i) || (read[i]?.amount == null && read[i]?.amountUnread == true)
+                    if (!ok || !amountOk) problems.add("$name at ${scale}x, space $i: expected $want x ${amounts.getOrNull(i)}, read $got x ${read[i]?.amount}")
+                }
+            }
+        }
+        assertEquals("", problems.joinToString("\n"))
+    }
+
+    // The green 24M at 130% and 70% (an M's left stroke can come apart at these sizes; it was once taken for a 1)
+    @Test
+    fun readsTheAmountAtOtherScreenSizes() {
+        assumeTrue(File(shots, "11_inventory_red_rug.png").exists())
+        for (scale in listOf(1.3, 0.7)) {
+            val p = resized("11_inventory_red_rug.png", scale)
+            val panel = PanelFinder.findPanel(p)!!
+            val s = panel.width / 204f
+            val x0 = panel.left + 18 * s; val y0 = panel.top + 12 * s
+            assertEquals("at ${scale}x", 24_000_000, LoadoutReader.amountIn(p, PanelFinder.Box(x0.toInt(), y0.toInt(), (x0 + 38 * s).toInt(), (y0 + 12 * s).toInt())))
+        }
     }
 }

@@ -91,6 +91,24 @@ with open(tsv, 'w', encoding='utf-8', newline='\n') as out:
     for a in sorted(shared):
         out.write(f'{a}\t{shared[a]}\n')
 
+# The blank bank note every noted icon is drawn on: the pixels that are the same colour in nearly all noted icons.
+# A noted icon's colour points are taken from the item drawn on it, not from the note (the same on every note, so
+# points there can't tell notes apart: the reader's narrowing down once lost a noted rune platebody that way).
+noted_ids = set()
+for line in open(os.path.join(folder, 'noted.tsv'), encoding='utf-8'):
+    if not line.startswith('#') and line.strip():
+        noted_ids.add(int(line.split('\t')[1]))
+from collections import Counter
+note_counts = {}
+noted_files = [i for i in first_with.values() if i in noted_ids]
+for item_id in noted_files:
+    px = Image.open(os.path.join(canvas, f'{item_id}.png')).convert('RGBA').load()
+    for y in range(32):
+        for x in range(36):
+            note_counts.setdefault((x, y), Counter())[px[x, y]] += 1
+note_template = {p: c.most_common(1)[0][0] for p, c in note_counts.items() if c.most_common(1)[0][1] >= 0.8 * len(noted_files)}
+print(f'blank note: {len(note_template)} pixels shared by the {len(noted_files)} noted icons')
+
 def summary(item_id):
     im = Image.open(os.path.join(canvas, f'{item_id}.png')).convert('RGBA')
     w, h = im.size
@@ -100,6 +118,10 @@ def summary(item_id):
         return None
     dark = lambda p: sum(px[p][:3]) < 30
     inside = [p for p in solid if not dark(p)]
+    if item_id in noted_ids:
+        drawn = [p for p in inside if note_template.get(p) != px[p]]
+        if len(drawn) >= SAMPLES:
+            inside = drawn
     outline = [p for p in solid if dark(p)]
     xs = [p[0] for p in solid]; ys = [p[1] for p in solid]
     def spread(points, n):

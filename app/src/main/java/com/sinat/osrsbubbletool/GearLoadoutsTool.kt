@@ -920,7 +920,7 @@ class GearLoadoutsTool(
                 } else (listOf(it.picture) + it.others).mapNotNull { pic -> (if (it.noted) notedItems else items)[pic] }.distinct()
             } },
             found.map { it?.amount },
-            found.map { it != null && it.cost > (if (it.itemId != null) ICONS_UNSURE_FIT else UNSURE_FIT) })
+            found.map { it != null && (it.amountUnread || it.cost > (if (it.itemId != null) ICONS_UNSURE_FIT else UNSURE_FIT)) })
     }
 
     private fun applyGear(l: Loadout, gear: GearReading) {
