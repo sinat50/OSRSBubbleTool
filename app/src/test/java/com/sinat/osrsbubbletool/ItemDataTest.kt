@@ -109,4 +109,17 @@ class ItemDataTest {
         assertNull(items.runePouchSize(385))           // a shark
         assertNull(items.runePouchSize(12792))         // a noted ID isn't a pouch that holds runes
     }
+
+    // Reading an icon: the item to offer first. The Avernic defender (22322) and its Last Man Standing copy (24186)
+    // share one icon (canvas.tsv: the reader reports 22322 for both): the defender itself is offered, not the copy. Its
+    // broken version (22441, a crack apart) read only a little better than the whole one (1 apart) offers the whole
+    // one first; read clearly better (5 apart), it stays first.
+    @Test
+    fun anIconReadingOffersTheItemPeopleUse() {
+        val alike = items.lookAlikes(mapOf(24186 to 22322))
+        assertEquals(22322, alike[22322])
+        assertEquals(listOf(22322, 22441), items.fromIcons(listOf(22322, 22441), listOf(15f, 16f), alike))
+        assertEquals(listOf(22322, 22441), items.fromIcons(listOf(22441, 22322), listOf(15f, 16f), alike))
+        assertEquals(listOf(22441, 22322), items.fromIcons(listOf(22441, 22322), listOf(15f, 20f), alike))
+    }
 }

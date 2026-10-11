@@ -37,6 +37,7 @@ class GuidedScan(private val capture: CaptureManager, private val reading: GameR
         var gear: GameReading.GearReading? = null
         var pouch: List<Loadout.Stack>? = null
         var hasPouch: Boolean? = null   // whether the inventory has a rune pouch (null until it's read)
+        var emptyPouchSeen = false      // the last look saw an empty pouch (believed when the next one sees it too)
         val done get() = book != null && inventory != null && gear != null && (pouch != null || hasPouch == false)
         val seconds get() = (System.nanoTime() - started) / 1e9
     }
@@ -123,6 +124,10 @@ class GuidedScan(private val capture: CaptureManager, private val reading: GameR
                 busy = false
                 if (progress !== sc) return@post   // stopped meanwhile
                 if (book != null) sc.book = book
+                // An empty pouch (an X in every slot) is only believed when two looks in a row see it: a window caught
+                // while it's still being drawn could show its Xs before its runes
+                if (pouch?.isEmpty() == true && !sc.emptyPouchSeen) { sc.emptyPouchSeen = true; pouch = null }
+                else sc.emptyPouchSeen = false
                 if (pouch != null) sc.pouch = pouch
                 var noPouch = false
                 if (inventory != null) {

@@ -324,7 +324,7 @@ class GearRecognizer private constructor(private val context: Context) {
         val pool = Executors.newFixedThreadPool(threadCount()) { task ->
             // background priority: the game always gets the processor first
             Thread {
-                Process.setThreadPriority(Process.THREAD_PRIORITY_DEFAULT)
+                Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
                 task.run()
             }
         }

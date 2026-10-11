@@ -125,7 +125,8 @@ object LoadoutReader {
         // The stones are found at that size, then the size is fine-tuned around them.
         val guess = window.width / POUCH_WINDOW_GAME_WIDTH
         var stones = findStones(p, box, sharedStone(runes.map { scale(it.second, guess) }), keep)
-        if (stones.isEmpty()) return null
+        // No runes: an empty pouch shows an X in every slot (an empty list), anything else isn't read
+        if (stones.isEmpty()) return if (emptySlots(p, box, guess) >= 3) emptyList() else null
         var bestScale = guess
         var bestTotal = Float.MAX_VALUE
         val found = stones
@@ -168,6 +169,41 @@ object LoadoutReader {
         return stacks
     }
 
+    // How many empty slots (the game's grey X) are in the pouch's row: X-grey pixels gathered into columns side by side,
+    // each group as wide as an X (about 24 game pixels) and well filled. s: screen pixels per game pixel.
+    private fun emptySlots(p: PixelSource, box: Box, s: Float): Int {
+        val left = box.left.coerceAtLeast(0); val right = box.right.coerceAtMost(p.width)
+        val top = box.top.coerceAtLeast(0); val bottom = box.bottom.coerceAtMost(p.height)
+        if (right <= left || bottom <= top) return 0
+        val perColumn = IntArray(right - left)
+        for (x in left until right) for (y in top until bottom) if (isEmptyMark(p.rgb(x, y))) perColumn[x - left]++
+        var count = 0
+        var x = 0
+        val gap = (3 * s).toInt().coerceAtLeast(2)
+        while (x < perColumn.size) {
+            if (perColumn[x] == 0) { x++; continue }
+            // one group: columns with X-grey, allowing small gaps
+            var end = x; var total = 0; var blank = 0
+            while (end < perColumn.size && blank <= gap) {
+                if (perColumn[end] == 0) blank++ else { blank = 0; total += perColumn[end] }
+                end++
+            }
+            val width = (end - blank - x) / s
+            debugLog?.invoke("empty slot? width %.1f game px, %.0f game px of grey".format(width, total / (s * s)))
+            if (width in EMPTY_MARK_WIDTH && total / (s * s) >= EMPTY_MARK_FILL) count++
+            x = end
+        }
+        return count
+    }
+
+    // The grey of an empty slot's X (#655B55 on the owner's phone, a little redder than green, than blue)
+    private fun isEmptyMark(c: Int): Boolean {
+        val r = (c shr 16) and 0xFF; val g = (c shr 8) and 0xFF; val b = c and 0xFF
+        return abs(r - 0x65) <= 14 && abs(g - 0x5B) <= 14 && abs(b - 0x55) <= 14 && r >= g && g >= b
+    }
+
+    private val EMPTY_MARK_WIDTH = 13f..25f   // the owner's Xs: 18.5-19 wide, 163-167 of grey
+    private const val EMPTY_MARK_FILL = 90f
     private const val POUCH_WINDOW_GAME_WIDTH = 358f
     private const val SYMBOL_DIFF = 90
 

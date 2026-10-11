@@ -679,6 +679,7 @@ class GearLoadoutsTool(
     private fun updateChecklist() {
         val sc = scan.progress ?: return
         val pouchLine = when {
+            sc.pouch?.isEmpty() == true -> "\u2713 Rune pouch: empty"
             sc.pouch != null -> "\u2713 Rune pouch"
             sc.hasPouch == false -> "\u2713 Rune pouch: none in your inventory"
             else -> "\u2022 Rune pouch: tap it, Open"
@@ -702,7 +703,7 @@ class GearLoadoutsTool(
             sc.book?.let { "${Loadout.SPELLBOOKS[it]} spellbook" },
             sc.inventory?.let { "inventory" },
             sc.gear?.let { "equipment" },
-            sc.pouch?.let { "rune pouch" }
+            sc.pouch?.let { if (it.isEmpty()) "rune pouch (empty)" else "rune pouch" }
         )
         val missing = listOfNotNull(
             if (sc.book == null) "spellbook" else null,

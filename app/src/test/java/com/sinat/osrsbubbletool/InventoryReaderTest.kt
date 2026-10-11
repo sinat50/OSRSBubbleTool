@@ -25,10 +25,7 @@ class InventoryReaderTest {
         File(assets, "items/canvas.tsv").readLines().filter { !it.startsWith("#") && it.isNotBlank() }
             .associate { it.split('\t').let { p -> p[0].toInt() to p[1].toInt() } }
     }
-    private val lookAlikes by lazy {
-        HashMap<Int, MutableList<Int>>().also { g -> for ((a, b) in sharedIcon) g.getOrPut(b) { mutableListOf(b) }.add(a) }
-            .mapValues { items.preferred(it.value) }
-    }
+    private val lookAlikes by lazy { items.lookAlikes(sharedIcon) }
     private val icons = InventoryReader.Icons { id ->
         val f = File(assets, "items/canvas/${sharedIcon[id] ?: id}.png")
         if (!f.exists()) null else ImageIO.read(f).let { im ->
@@ -40,7 +37,7 @@ class InventoryReaderTest {
 
     // A reading's item name and whether it's noted, read either way (an icon's item, or a wiki picture's name)
     private fun idOf(f: InventoryReader.Found) =
-        items.chargedFirst((listOf(f.itemId!!) + f.otherIds).map { lookAlikes[it] ?: it }, listOf(f.cost) + f.otherCosts).first()
+        items.fromIcons(listOf(f.itemId!!) + f.otherIds, listOf(f.cost) + f.otherCosts, lookAlikes).first()
     private fun nameOf(f: InventoryReader.Found?): String? = when {
         f == null -> null
         f.itemId != null -> items.shown(idOf(f))?.first?.name
@@ -224,7 +221,7 @@ class InventoryReaderTest {
         }
     }
 
-    // The equipment tab at each slot's exact place (the owner's melee set, 12 October 2026; the older gear reader took
+    // The equipment tab at each slot's exact place (the owner's melee set, 11 October 2026; the older gear reader took
     // 9-14 seconds on the phone for this, and once rejected it over and over)
     @Test
     fun readsTheEquipmentTab() {
@@ -257,7 +254,7 @@ class InventoryReaderTest {
         // the name the app would show (Celestial ring may be charged or not; a broken one is wrong)
         fun shownName(slot: String): String? {
             val fits = worn!!.slots[slot].orEmpty()
-            val id = fits.firstOrNull()?.let { items.chargedFirst(fits.map { f -> lookAlikes[f.first] ?: f.first }, fits.map { f -> f.second }).first() }
+            val id = fits.firstOrNull()?.let { items.fromIcons(fits.map { f -> f.first }, fits.map { f -> f.second }, lookAlikes).first() }
             return id?.let { items.shown(it)?.first?.name }
         }
         return expected.filter { (slot, name) ->

@@ -115,6 +115,17 @@ class ItemData(tsv: String, notedTsv: String = "") {
         return listOf(ids[k]) + ids.filterIndexed { i, _ -> i != k }
     }
 
+    // Items that share one icon (sharedIcon: an item's ID to the ID whose icon it uses, from canvas.tsv): for each
+    // icon's ID, the item to pick when that icon is read (preferred())
+    fun lookAlikes(sharedIcon: Map<Int, Int>): Map<Int, Int> = HashMap<Int, MutableList<Int>>().also { groups ->
+        for ((a, b) in sharedIcon) groups.getOrPut(b) { mutableListOf(b) }.add(a)
+    }.mapValues { (_, group) -> preferred(group) }
+
+    // The items to offer for an icon reading (each icon's ID and how well it fits, best first): each icon as its
+    // preferred look-alike, the charged one first (chargedFirst), each item once
+    fun fromIcons(ids: List<Int>, costs: List<Float>, alike: Map<Int, Int>): List<Int> =
+        chargedFirst(ids.map { alike[it] ?: it }, costs).distinct()
+
     // The item to show for an ID, and whether it's noted (null if the ID is unknown)
     fun shown(id: Int): Pair<Item, Boolean>? =
         byId[id]?.let { it to false } ?: plainId[id]?.let { plain -> byId[plain]?.let { it to true } }

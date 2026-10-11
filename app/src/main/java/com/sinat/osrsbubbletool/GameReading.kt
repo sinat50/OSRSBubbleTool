@@ -97,10 +97,8 @@ class GameReading(private val context: Context, private val icons: ItemIcons, pr
         } else if (filled.count { it.cost < GOOD_FIT } < filled.size * 0.6f) return null
         return InventoryReading(
             found.map { f -> f?.let {
-                if (it.itemId != null) {
-                    val ids = (listOf(it.itemId) + it.otherIds).map { id -> alike[id] ?: id }
-                    data.chargedFirst(ids, listOf(it.cost) + it.otherCosts).distinct()
-                } else (listOf(it.picture) + it.others).mapNotNull { pic -> (if (it.noted) notedItems else items)[pic] }.distinct()
+                if (it.itemId != null) data.fromIcons(listOf(it.itemId) + it.otherIds, listOf(it.cost) + it.otherCosts, alike)
+                else (listOf(it.picture) + it.others).mapNotNull { pic -> (if (it.noted) notedItems else items)[pic] }.distinct()
             } },
             found.map { it?.amount },
             found.map { it != null && (it.amountUnread || it.cost > (if (it.itemId != null) ICONS_UNSURE_FIT else UNSURE_FIT)) })
@@ -118,9 +116,7 @@ class GameReading(private val context: Context, private val icons: ItemIcons, pr
                 if (debugBuild) Log.d("GearLoadouts", "equipment: " + worn.slots.entries.joinToString { (k, v) ->
                     "$k ${v.firstOrNull()?.let { (id, fit) -> data.shown(id)?.first?.name + " %.0f".format(fit) } ?: "-"}" })
                 val alike = synchronized(lock) { lookAlikes(data) }
-                val ids = worn.slots.mapValues { (_, fits) ->
-                    data.chargedFirst(fits.map { alike[it.first] ?: it.first }, fits.map { it.second }).distinct()
-                }
+                val ids = worn.slots.mapValues { (_, fits) -> data.fromIcons(fits.map { it.first }, fits.map { it.second }, alike) }
                 val unsure = worn.slots.filterValues { (it.firstOrNull()?.second ?: 0f) > ICONS_UNSURE_FIT }.keys
                 return GearReading(ids, worn.ammoAmount, unsure)
             }
@@ -160,9 +156,7 @@ class GameReading(private val context: Context, private val icons: ItemIcons, pr
     } catch (_: Exception) { null }?.also { canvases = it }
 
     // Items that look exactly alike share one icon (the lowest ID's): for an icon read, the one to pick (call under lock)
-    private fun lookAlikes(data: ItemData): Map<Int, Int> = sameLook ?: HashMap<Int, MutableList<Int>>().also { groups ->
-        for ((a, b) in icons.sharedIcon) groups.getOrPut(b) { mutableListOf(b) }.add(a)
-    }.mapValues { (_, group) -> data.preferred(group) }.also { sameLook = it }
+    private fun lookAlikes(data: ItemData): Map<Int, Int> = sameLook ?: data.lookAlikes(icons.sharedIcon).also { sameLook = it }
 
     // An item's icon (RuneLite's, 36 x 32) by its ID
     private fun iconPicture(id: Int): LoadoutReader.Picture? {
