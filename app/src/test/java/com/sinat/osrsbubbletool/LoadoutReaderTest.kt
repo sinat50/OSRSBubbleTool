@@ -97,6 +97,14 @@ class LoadoutReaderTest {
     }
 
     @Test
+    fun readsAPouchWithEmptySlots() {
+        // two runes, the other two slots crossed out (an X): the empty slots mustn't read as runes, or stop the reading
+        val p = shot("13_rune_pouch_two.png")
+        val read = LoadoutReader.runePouch(p, PanelFinder.runePouchWindow(p)!!, runes)
+        assertEquals(listOf(Stack(561, 16000), Stack(4699, 2667)), read)
+    }
+
+    @Test
     fun aPouchWithoutItsAmountsIsNotTrusted() {
         // Once a look caught the pouch window while it was still being drawn and read a smoke rune in every slot.
         // A real pouch always shows each rune's amount: the same screenshot with its yellow digits wiped off (painted

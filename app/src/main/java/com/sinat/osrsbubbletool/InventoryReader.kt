@@ -200,8 +200,8 @@ object InventoryReader {
         }
     }
 
-    // An uncharged or empty item and its charged version look almost the same. When they fit about as well, the
-    // charged one goes first: it's the one people take on a trip ("Eye of Ayak" before "Eye of Ayak (uncharged)").
+    // An uncharged, empty or broken item and its charged (whole) version look almost the same. When they fit about as
+    // well, the charged one goes first: it's the one people take on a trip ("Eye of Ayak" before "Eye of Ayak (uncharged)").
     private fun preferCharged(fits: MutableList<Fit>, shapes: Shapes) {
         val best = fits.firstOrNull() ?: return
         val name = shapes.names[best.index]
@@ -210,7 +210,7 @@ object InventoryReader {
         if (k > 0 && fits[k].cost - best.cost < CHARGED_MARGIN) fits.add(0, fits.removeAt(k))
     }
 
-    private val UNCHARGED = listOf(" (uncharged)", " (empty)", " (inactive)")
+    private val UNCHARGED = listOf(" (uncharged)", " (empty)", " (inactive)", " (broken)")
     private const val CHARGED_MARGIN = 2f
 
     // ---------------- Items at their exact place (RuneLite's icons) ----------------

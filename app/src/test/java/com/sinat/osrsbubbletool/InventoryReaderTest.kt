@@ -230,7 +230,22 @@ class InventoryReaderTest {
     fun readsTheEquipmentTab() {
         val f = File(shots, "12_equipment_melee.png")
         assumeTrue(f.exists())
-        val p = Shot(f)
+        assertEquals("", wrongMeleeGear(Shot(f)))
+    }
+
+    // The same at other screen sizes. The Avernic defender's broken look-alike (a crack, little else) once won at 70%
+    // and 85%, and was only 1.3 behind at the phone's own size: the whole one goes first when they fit about as well.
+    @Test
+    fun readsTheEquipmentTabAtOtherScreenSizes() {
+        assumeTrue(File(shots, "12_equipment_melee.png").exists())
+        val problems = listOf(0.7, 0.85, 1.15, 1.3).mapNotNull { scale ->
+            wrongMeleeGear(resized("12_equipment_melee.png", scale)).takeIf { it.isNotEmpty() }?.let { "at ${scale}x: $it" }
+        }
+        assertEquals("", problems.joinToString("\n"))
+    }
+
+    // The slots read wrong in a screenshot of the owner's melee set (empty if none)
+    private fun wrongMeleeGear(p: LightBoxReader.PixelSource): String {
         val started = System.nanoTime()
         val worn = InventoryReader.readEquipment(p, PanelFinder.findPanel(p)!!, canvases, icons) { id -> items.shown(id)?.first?.slot }
         println("equipment read in ${(System.nanoTime() - started) / 1_000_000} ms")
@@ -239,12 +254,16 @@ class InventoryReaderTest {
             "ammo" to "Rada's blessing 4", "weapon" to "Osmumten's fang", "body" to "Sunfire fanatic cuirass",
             "shield" to "Avernic defender", "legs" to "Sunfire fanatic chausses", "hands" to "Ferocious gloves",
             "feet" to "Devout boots", "ring" to "Celestial ring")
-        val wrong = expected.filter { (slot, name) ->
+        // the name the app would show (Celestial ring may be charged or not; a broken one is wrong)
+        fun shownName(slot: String): String? {
             val fits = worn!!.slots[slot].orEmpty()
             val id = fits.firstOrNull()?.let { items.chargedFirst(fits.map { f -> lookAlikes[f.first] ?: f.first }, fits.map { f -> f.second }).first() }
-            id?.let { items.shown(it)?.first?.name }?.startsWith(name) != true
-        }.map { (slot, name) -> "$slot: expected $name, read ${worn!!.slots[slot]?.firstOrNull()?.let { items.shown(it.first)?.first?.name }}" }
-        assertEquals("", wrong.joinToString("\n"))
+            return id?.let { items.shown(it)?.first?.name }
+        }
+        return expected.filter { (slot, name) ->
+            val n = shownName(slot)
+            n == null || n.contains("(broken)") || (n != name && !n.startsWith("$name "))
+        }.map { (slot, name) -> "$slot: expected $name, read ${shownName(slot)}" }.joinToString("; ")
     }
 
     // An empty slot reads as empty (the owner's first equipment screenshot: no shield), and a worn item in every other

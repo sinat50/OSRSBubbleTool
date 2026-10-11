@@ -37,7 +37,9 @@ class ItemData(tsv: String, notedTsv: String = "") {
 
     companion object {
         private val STACK = Regex(""" (\d+)\.png$""")
-        private val UNCHARGED = listOf("(uncharged)", "(empty)", "(inactive)")
+        // Words for an item's less useful look-alike: the whole, charged one is the one people take on a trip
+        // ("(broken)": the Wilderness-death copies of defenders, fire capes and void, a crack apart in the picture)
+        private val UNCHARGED = listOf("(uncharged)", "(empty)", "(inactive)", "(broken)")
         private val SLOTS = Loadout.SLOTS.toSet()
     }
 
@@ -96,13 +98,13 @@ class ItemData(tsv: String, notedTsv: String = "") {
     fun runePouchSize(id: Int): Int? = byId[id]?.name?.lowercase()?.takeIf { "rune pouch" in it }?.let { if ("divine" in it) 4 else 3 }
 
     // Of items that look exactly alike, the one to pick: the item itself before its minigame and quest copies, a
-    // charged item before its uncharged look-alike, then the lowest ID
+    // charged (or whole) item before its uncharged (or broken) look-alike, then the lowest ID
     fun preferred(ids: Collection<Int>): Int = ids.minWith(compareBy<Int>({ shown(it)?.first?.variant != null },
         { id -> shown(id)?.first?.name?.let { n -> UNCHARGED.any { n.contains(it) } } == true }, { it }))
 
     // A reading's guesses (item IDs, best first, and how well each fits: lower is better), with an uncharged item's
-    // charged version put first when it fits about as well ("Eye of Ayak" before "Eye of Ayak (uncharged)": the
-    // one people take on a trip)
+    // charged version put first when it fits about as well ("Eye of Ayak" before "Eye of Ayak (uncharged)", "Avernic
+    // defender" before "Avernic defender (broken)": the one people take on a trip)
     fun chargedFirst(ids: List<Int>, costs: List<Float>): List<Int> {
         val best = ids.firstOrNull() ?: return ids
         val name = shown(best)?.first?.name ?: return ids
