@@ -25,30 +25,36 @@ object PanelFinder {
     // same shape)
     fun findPanel(p: LightBoxReader.PixelSource): Box? = biggestOutline(p, 1.15f, 1.6f) { hasTabButtons(p, it) }
 
-    // The spellbook tab button, whose picture shows which spellbook you're on. It's in the column of tab
-    // buttons right of the panel: left column, 4th row down (the panel and the 7 rows of buttons are as tall).
-    fun spellbookTab(panel: Box): Box {
-        val left = panel.right + panel.width * 0.012f
-        val colW = panel.width * 0.198f
-        val rowH = panel.height / 7f
-        return Box(left.toInt(), (panel.top + 3 * rowH).toInt(), (left + colW).toInt(), (panel.top + 4 * rowH).toInt())
-    }
-
-    // Whether a tab is the open one: its button is red (119, 51, 40), the others brownish grey (88, 78, 64). The tab
-    // buttons are in two columns right of the panel, 7 rows; the inventory is column 0 row 0, the equipment column 0
-    // row 1. Judged by a band just inside the button's edge (its picture is in the middle).
-    fun tabOpen(p: LightBoxReader.PixelSource, panel: Box, column: Int, row: Int): Boolean {
+    // A tab button's box: they're in two columns right of the panel, 7 rows (the panel and the 7 rows are as tall)
+    private fun tabButton(panel: Box, column: Int, row: Int): Box {
         val left = panel.right + panel.width * 0.012f + column * panel.width * 0.198f
         val colW = panel.width * 0.198f
         val rowH = panel.height / 7f
-        var r = 0; var g = 0; var n = 0
+        return Box(left.toInt(), (panel.top + row * rowH).toInt(), (left + colW).toInt(), (panel.top + (row + 1) * rowH).toInt())
+    }
+
+    // A tab button's colour (red, green, blue), from a band just inside its edge (its picture is in the middle), or
+    // null if it's off the screen
+    private fun buttonColour(p: LightBoxReader.PixelSource, panel: Box, column: Int, row: Int): IntArray? {
+        val button = tabButton(panel, column, row)
+        var r = 0; var g = 0; var b = 0; var n = 0
         for (fx in floatArrayOf(0.12f, 0.16f, 0.84f, 0.88f)) for (fy in floatArrayOf(0.12f, 0.16f, 0.84f, 0.88f)) {
-            val x = (left + colW * fx).toInt(); val y = (panel.top + row * rowH + rowH * fy).toInt()
+            val x = (button.left + button.width * fx).toInt(); val y = (button.top + button.height * fy).toInt()
             if (x < 0 || y < 0 || x >= p.width || y >= p.height) continue
             val c = p.rgb(x, y)
-            r += (c shr 16) and 0xFF; g += (c shr 8) and 0xFF; n++
+            r += (c shr 16) and 0xFF; g += (c shr 8) and 0xFF; b += c and 0xFF; n++
         }
-        return n > 0 && (r - g) / n > 40
+        return if (n == 0) null else intArrayOf(r / n, g / n, b / n)
+    }
+
+    // The spellbook tab button, whose picture shows which spellbook you're on: left column, 4th row down
+    fun spellbookTab(panel: Box): Box = tabButton(panel, 0, 3)
+
+    // Whether a tab is the open one: its button is red (119, 51, 40), the others brownish grey (88, 78, 64). The
+    // inventory is column 0 row 0, the equipment column 0 row 1.
+    fun tabOpen(p: LightBoxReader.PixelSource, panel: Box, column: Int, row: Int): Boolean {
+        val c = buttonColour(p, panel, column, row) ?: return false
+        return c[0] - c[1] > 40
     }
 
     // Whether the 14 tab buttons are beside a box: most of them the buttons' brownish grey (about 87, 77, 63), or red
@@ -56,18 +62,7 @@ object PanelFinder {
     private fun hasTabButtons(p: LightBoxReader.PixelSource, panel: Box): Boolean {
         var buttons = 0
         for (column in 0 until 2) for (row in 0 until 7) {
-            val left = panel.right + panel.width * 0.012f + column * panel.width * 0.198f
-            val colW = panel.width * 0.198f
-            val rowH = panel.height / 7f
-            var r = 0; var g = 0; var b = 0; var n = 0
-            for (fx in floatArrayOf(0.12f, 0.16f, 0.84f, 0.88f)) for (fy in floatArrayOf(0.12f, 0.16f, 0.84f, 0.88f)) {
-                val x = (left + colW * fx).toInt(); val y = (panel.top + row * rowH + rowH * fy).toInt()
-                if (x < 0 || y < 0 || x >= p.width || y >= p.height) continue
-                val c = p.rgb(x, y)
-                r += (c shr 16) and 0xFF; g += (c shr 8) and 0xFF; b += c and 0xFF; n++
-            }
-            if (n == 0) continue
-            r /= n; g /= n; b /= n
+            val (r, g, b) = buttonColour(p, panel, column, row) ?: continue
             val grey = r in 40..140 && r - g in 4..20 && g - b in 6..22
             val red = r - g > 40
             if (grey || red) buttons++
@@ -81,7 +76,7 @@ object PanelFinder {
     const val EQUIPMENT_TAB = 1
 
     // An open rune pouch's window (it's almost square), or null if none is open
-    fun runePouchWindow(p: LightBoxReader.PixelSource): Box? = biggestOutline(p, 0.85f, 1.0f) { true }
+    fun runePouchWindow(p: LightBoxReader.PixelSource): Box? = biggestOutline(p, 0.85f, 1.0f)
 
     // The runes inside that window: the "Pouch" box near its top
     fun runePouchBox(window: Box): Box {
@@ -93,7 +88,7 @@ object PanelFinder {
 
     // The biggest window outlined in black whose height / width is between minAspect and maxAspect, and that `accept`
     // agrees is the window looked for
-    private fun biggestOutline(p: LightBoxReader.PixelSource, minAspect: Float, maxAspect: Float, accept: (Box) -> Boolean): Box? {
+    private fun biggestOutline(p: LightBoxReader.PixelSource, minAspect: Float, maxAspect: Float, accept: (Box) -> Boolean = { true }): Box? {
         val w = p.width
         val h = p.height
         fun black(x: Int, y: Int): Boolean {

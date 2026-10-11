@@ -239,6 +239,16 @@ class InventoryReaderTest {
         assertEquals("", problems.joinToString("\n"))
     }
 
+    // The same set at the game's highest brightness (the icons are matched brighter: 0.8)
+    @Test
+    fun readsTheEquipmentTabAtTheHighestBrightness() {
+        val f = File(shots, "22_equipment_brightness_high.png")
+        assumeTrue(f.exists())
+        val p = Shot(f)
+        assertEquals(true, PanelFinder.tabOpen(p, PanelFinder.findPanel(p)!!, 0, PanelFinder.EQUIPMENT_TAB))
+        assertEquals("", wrongMeleeGear(p))
+    }
+
     // The slots read wrong in a screenshot of the owner's melee set (empty if none)
     private fun wrongMeleeGear(p: LightBoxReader.PixelSource): String {
         val started = System.nanoTime()
