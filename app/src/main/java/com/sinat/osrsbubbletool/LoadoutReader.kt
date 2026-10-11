@@ -429,14 +429,72 @@ object Digits {
         }
         val text = StringBuilder()
         for ((i, run) in runs.withIndex()) {
+            // the K or M that ends a white or green amount (its upright stroke could otherwise pass for a 1). Looked for
+            // over the rest of the text: a faint K's arms can come apart from its stroke, leaving a 1-like piece.
+            if (stopAtOther && text.isNotEmpty() && isLetter(yellow, w, run[0], runs.last()[1], bestTop, bestRows, pixel)) break
             val d = digits(yellow, w, run[0], run[1], bestTop, bestRows, pixel)
             if (d != null) { text.append(d); continue }
-            // the K or M at the end: it can come apart in up to three pieces, or touch the item behind it (the caller
-            // checks the number of digits makes sense for a K or M amount)
-            if (stopAtOther && text.isNotEmpty() && runs.size - i - 1 <= 2) break
+            if (stopAtOther && text.isNotEmpty()) {
+                // a digit joined onto the letter (where what's behind them is as light as the text): the digit, then
+                // the letter, only if both are clearly there
+                digitBeforeLetter(yellow, w, run[0], run[1], bestTop, bestRows, pixel)?.let { text.append(it); break }
+                // the letter come apart in up to three pieces, or touching the item behind it (the caller checks the
+                // number of digits makes sense for a K or M amount)
+                if (runs.size - i - 1 <= 2) break
+            }
             return null
         }
         return text.toString().ifEmpty { null }
+    }
+
+    // The K (thousands) and M (millions) after a white or green amount. The K's top half and its upright stroke only:
+    // the item behind the number often touches its lower right.
+    private val LETTER_K = listOf("#....", "#..#.", "#.#..", "###..", "#????", "#????", "#????", "#????")
+    private val LETTER_M = listOf("#....#", "##..##", "#.##.#", "#....#", "#....#", "#....#", "#....#", "#....#")
+    private const val LETTER_WRONG = 2   // game pixels off allowed in the parts compared ('?' isn't)
+
+    // Whether columns from..to start with a K or an M (lined up on the left: whatever's behind it is to its right)
+    private fun isLetter(yellow: FloatArray, w: Int, from: Int, to: Int, top: Int, rows: Int, pixel: Float): Boolean {
+        val wide = (to - from) / pixel
+        for (letter in listOf(LETTER_K, LETTER_M)) {
+            val cols = letter[0].length
+            if (wide < cols - 0.8f) continue
+            for (nudge in -1..1) {
+                val start = from + nudge * pixel / 3
+                var wrong = 0
+                for (r in 0 until ROWS) for (k in 0 until cols) {
+                    val want = letter[r][k]
+                    if (want == '?') continue
+                    if (cellOn(yellow, w, start, k, r, top, rows, pixel) != (want == '#')) wrong++
+                }
+                if (wrong <= LETTER_WRONG) return true
+            }
+        }
+        return false
+    }
+
+    // A digit joined onto the letter after it: cut where the letter begins, the digit read on the left
+    private fun digitBeforeLetter(yellow: FloatArray, w: Int, from: Int, to: Int, top: Int, rows: Int, pixel: Float): Char? {
+        for (cut in (from + 2.5f * pixel).toInt()..(from + 6.5f * pixel).toInt().coerceAtMost(to - 1)) {
+            if (!isLetter(yellow, w, cut, to, top, rows, pixel)) continue
+            // the gap before the letter: the digit ends a little left of where the letter starts
+            for (end in cut downTo (cut - pixel).toInt().coerceAtLeast(from + 1)) {
+                digit(yellow, w, from, end, top, rows, pixel)?.let { return it }
+            }
+        }
+        return null
+    }
+
+    // Whether game pixel (k, r) of a character starting at `start` is text: most of it is
+    private fun cellOn(yellow: FloatArray, w: Int, start: Float, k: Int, r: Int, top: Int, rows: Int, pixel: Float): Boolean {
+        val h = yellow.size / w
+        val x0 = (start + k * pixel).roundToInt().coerceIn(0, w - 1)
+        val x1 = (start + (k + 1) * pixel).roundToInt().coerceIn(x0 + 1, w)
+        val y0 = (top + r * rows / ROWS.toFloat()).roundToInt().coerceIn(0, h - 1)
+        val y1 = (top + (r + 1) * rows / ROWS.toFloat()).roundToInt().coerceIn(y0 + 1, h)
+        var sum = 0f
+        for (y in y0 until y1) for (x in x0 until x1) sum += yellow[y * w + x]
+        return sum / ((y1 - y0) * (x1 - x0)) > 0.45f
     }
 
     // The digits in columns from..to: one digit, or, if it's too wide for one, two that touch (where the phone's blur

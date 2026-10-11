@@ -361,13 +361,11 @@ class InventoryReaderTest {
     fun readsTheInventoryAtTheLowestBrightness() = readsTheInventoryAtBrightness("18_inventory_brightness_low.png")
 
     // and the same inventory at the highest brightness. There the chaos rune's light stone is light enough to count as
-    // white text and joins the 4 of "134K" to the K: the amount is left unread and ringed for checking, never wrong.
-    // (Telling the stone apart lets the K stand alone, and its upright stroke then reads as a 1: 1,341,000. Reading
-    // it properly needs the K and M themselves to be known: left for later.)
+    // white text and joins the 4 of "134K" to the K (it was left unread): the K is known now, and the 4 cut from it.
     @Test
-    fun readsTheInventoryAtTheHighestBrightness() = readsTheInventoryAtBrightness("20_inventory_brightness_high.png", unreadOk = setOf(18))
+    fun readsTheInventoryAtTheHighestBrightness() = readsTheInventoryAtBrightness("20_inventory_brightness_high.png")
 
-    private fun readsTheInventoryAtBrightness(name: String, unreadOk: Set<Int> = emptySet()) {
+    private fun readsTheInventoryAtBrightness(name: String) {
         val f = File(shots, name)
         assumeTrue(f.exists())
         val expected = listOf("Mind rune" to 31006, "Body rune" to 3833, "Astral rune" to 27146, "Mud rune" to 3509,
@@ -378,11 +376,40 @@ class InventoryReaderTest {
         val p = Shot(f)
         val read = read(p, PanelFinder.findPanel(p)!!)
         assertEquals(true, InventoryReader.trusted(read))
-        val wrong = (0 until 28).filter { i ->
-            val got = nameOf(read[i])?.let { n -> n to read[i]?.amount }
-            got != expected.getOrNull(i) && !(i in unreadOk && read[i]?.amountUnread == true && got?.first == expected.getOrNull(i)?.first)
-        }
+        val wrong = (0 until 28).filter { (nameOf(read[it])?.let { n -> n to read[it]?.amount }) != expected.getOrNull(it) }
             .map { "space $it: expected ${expected.getOrNull(it)}, read ${nameOf(read[it])} x ${read[it]?.amount}" }
         assertEquals("", wrong.joinToString("; "))
+    }
+
+    // A K standing clear of the item behind it. The digit reader once relied on the K touching the item to end the
+    // number: with the chaos rune's stone painted out (in the background's colour) around "134K", the K came apart and
+    // its upright stroke read as a 1: 1,341,000. The K is known now: 134,000, or left unread, never wrong.
+    @Test
+    fun aKStandingAloneIsNotReadAsAOne() {
+        val problems = ArrayList<String>()
+        for ((name, space) in listOf("7_inventory_stacks.png" to 1, "9_inventory_noisy.png" to 1, "10_inventory_coin.png" to 1,
+                "11_inventory_red_rug.png" to 1, "16_inventory_all_runes.png" to 18, "18_inventory_brightness_low.png" to 18,
+                "20_inventory_brightness_high.png" to 18)) {
+            val f = File(shots, name)
+            assumeTrue(f.exists())
+            val im = ImageIO.read(f)
+            val data = IntArray(im.width * im.height).also { im.getRGB(0, 0, im.width, im.height, it, 0, im.width) }
+            val p = object : LightBoxReader.PixelSource {
+                override val width = im.width; override val height = im.height
+                override fun rgb(x: Int, y: Int) = data[y * width + x] and 0xFFFFFF
+            }
+            val panel = PanelFinder.findPanel(p)!!
+            // the stone (light and a little pink) around the amount, painted in the colour just above it
+            val s = panel.width / 204f
+            val x0 = (panel.left + (18 + (space % 4) * 42) * s).toInt(); val y0 = (panel.top + (12 + (space / 4) * 36) * s).toInt()
+            val behind = data[(y0 - 3) * im.width + x0 - 3]
+            for (y in y0 until (y0 + 14 * s).toInt()) for (x in x0 until (x0 + 40 * s).toInt()) {
+                val c = data[y * im.width + x]; val r = (c shr 16) and 255; val g = (c shr 8) and 255; val b = c and 255
+                if (r - g >= 5 && kotlin.math.abs(g - b) <= 3 && minOf(r, g, b) > 120) data[y * im.width + x] = behind
+            }
+            val amount = read(p, panel)[space]?.amount
+            if (amount != null && amount != 134_000) problems.add("$name: read $amount")
+        }
+        assertEquals("", problems.joinToString("; "))
     }
 }
