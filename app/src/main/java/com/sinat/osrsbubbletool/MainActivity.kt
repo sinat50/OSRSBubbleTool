@@ -175,9 +175,10 @@ class MainActivity : Activity() {
         }
 
         return page(padTop = if (landscape) 6 else 16, padBottom = if (landscape) 6 else 16) {
-            // top right: "Up To Date" or "Update Available"
+            // top left: "Report An Issue"; top right: "Up To Date" or "Update Available"
             addView(LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
+                addView(button("Report An Issue") { reportIssue() }.compact())
                 addView(View(this@MainActivity), LinearLayout.LayoutParams(0, 1, 1f))
                 if (AppSettings.checksUpdates(this@MainActivity))
                     addView(button("") { openReleasePage() }.compact().also { updateButton = it; styleUpdateButton() })
@@ -210,6 +211,38 @@ class MainActivity : Activity() {
         } catch (e: Exception) {
             Toast.makeText(this, "Couldn't open a browser", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    // Opens GitHub's "new issue" page with the app's report form (.github/ISSUE_TEMPLATE/report_an_issue.yml),
+    // its "Phone and app" box already filled in. The player sees everything before sending it, and can change it.
+    private fun reportIssue() {
+        val address = "https://github.com/sinat50/OSRSBubbleTool/issues/new".toUri().buildUpon()
+            .appendQueryParameter("template", "report_an_issue.yml")
+            .appendQueryParameter("device", deviceDetails())
+            .build()
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, address))
+        } catch (e: Exception) {
+            Toast.makeText(this, "Couldn't open a browser", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // The phone and app details that help track down a problem (nothing personal: no account or phone number)
+    private fun deviceDetails(): String {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        @Suppress("DEPRECATION") val build = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode else info.versionCode.toLong()
+        // the whole screen in pixels, the way round the phone is held now
+        val (width, height) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+            windowManager.maximumWindowMetrics.bounds.let { it.width() to it.height() }
+        else @Suppress("DEPRECATION") android.util.DisplayMetrics().also { windowManager.defaultDisplay.getRealMetrics(it) }.let { it.widthPixels to it.heightPixels }
+        val density = resources.displayMetrics.density
+        return "App: ${info.versionName} (build $build)\n" +
+            "Phone: ${Build.MANUFACTURER} ${Build.MODEL}\n" +
+            "Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\n" +
+            "Screen: ${width} × ${height} pixels, ${resources.configuration.densityDpi} dpi (×$density)\n" +
+            "Phone text size: ×${resources.configuration.fontScale}\n" +
+            "App dark mode: ${if (AppSettings.isDark(this)) "on" else "off"}\n" +
+            "Bubble running: ${if (BubbleService.isRunning) "yes" else "no"}"
     }
 
     private fun startBubble() {

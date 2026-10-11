@@ -1,0 +1,65 @@
+# The form players fill in when they tap "Report An Issue" on the app's main screen.
+# The app fills in the "Phone and app" box itself (the field id "device" must match MainActivity.reportIssue).
+name: Report an issue
+description: Something in OSRS Bubble Tool isn't working, or works wrong
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this! The more you can tell, the easier it is to fix.
+  - type: dropdown
+    id: tool
+    attributes:
+      label: Which part of the app?
+      options:
+        - The bubble or its menu
+        - Main screen, Settings or Permissions
+        - WikiSync
+        - OSRS Wiki
+        - Puzzle Box Solver
+        - Light Box Solver
+        - ToA Puzzle Helper
+        - Gear Loadouts
+        - XP Calculator
+        - DPS Calculator
+        - Shooting Star Tracker
+        - Zulrah Helper
+        - Timers
+        - GE Prices
+        - Calculator
+        - Notepad
+        - Quest Helper
+        - Hunter Rumours
+        - Teleport Finder
+        - Game Room
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What went wrong, and what did you expect to happen instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can it be made to happen again?
+      description: The steps you took, one per line, if you know them.
+      placeholder: |
+        1. Opened the Puzzle Box Solver
+        2. Tapped Solve
+        3. ...
+  - type: textarea
+    id: pictures
+    attributes:
+      label: Screenshots or recordings
+      description: If you have any, drag them in here (or tap to attach them). They help a lot.
+  - type: textarea
+    id: device
+    attributes:
+      label: Phone and app
+      description: Filled in by the app when you use its Report An Issue button. If you came here another way, please add your phone model, Android version and the app's version.
+      render: text
