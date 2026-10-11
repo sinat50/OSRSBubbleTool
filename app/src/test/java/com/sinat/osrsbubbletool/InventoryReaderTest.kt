@@ -223,4 +223,39 @@ class InventoryReaderTest {
             assertEquals("at ${scale}x", 24_000_000, LoadoutReader.amountIn(p, PanelFinder.Box(x0.toInt(), y0.toInt(), (x0 + 38 * s).toInt(), (y0 + 12 * s).toInt())))
         }
     }
+
+    // The equipment tab at each slot's exact place (the owner's melee set, 12 October 2026; the older gear reader took
+    // 9-14 seconds on the phone for this, and once rejected it over and over)
+    @Test
+    fun readsTheEquipmentTab() {
+        val f = File(shots, "12_equipment_melee.png")
+        assumeTrue(f.exists())
+        val p = Shot(f)
+        val started = System.nanoTime()
+        val worn = InventoryReader.readEquipment(p, PanelFinder.findPanel(p)!!, canvases, icons) { id -> items.shown(id)?.first?.slot }
+        println("equipment read in ${(System.nanoTime() - started) / 1_000_000} ms")
+        assertNotNull(worn)
+        val expected = mapOf("head" to "Neitiznot faceguard", "cape" to "Fire cape", "neck" to "Bonecrusher necklace",
+            "ammo" to "Rada's blessing 4", "weapon" to "Osmumten's fang", "body" to "Sunfire fanatic cuirass",
+            "shield" to "Avernic defender", "legs" to "Sunfire fanatic chausses", "hands" to "Ferocious gloves",
+            "feet" to "Devout boots", "ring" to "Celestial ring")
+        val wrong = expected.filter { (slot, name) ->
+            val fits = worn!!.slots[slot].orEmpty()
+            val id = fits.firstOrNull()?.let { items.chargedFirst(fits.map { f -> lookAlikes[f.first] ?: f.first }, fits.map { f -> f.second }).first() }
+            id?.let { items.shown(it)?.first?.name }?.startsWith(name) != true
+        }.map { (slot, name) -> "$slot: expected $name, read ${worn!!.slots[slot]?.firstOrNull()?.let { items.shown(it.first)?.first?.name }}" }
+        assertEquals("", wrong.joinToString("\n"))
+    }
+
+    // An empty slot reads as empty (the owner's first equipment screenshot: no shield), and a worn item in every other
+    @Test
+    fun anEmptySlotReadsEmpty() {
+        val f = File(shots, "2_equipment.png")
+        assumeTrue(f.exists())
+        val p = Shot(f)
+        val worn = InventoryReader.readEquipment(p, PanelFinder.findPanel(p)!!, canvases, icons) { id -> items.shown(id)?.first?.slot }!!
+        println("first equipment screenshot: " + worn.slots.entries.joinToString { (k, v) -> "$k ${v.firstOrNull()?.let { items.shown(it.first)?.first?.name + " %.1f".format(it.second) } ?: "-"}" })
+        assertEquals(emptyList<Pair<Int, Float>>(), worn.slots["shield"])
+        assertEquals(10, worn.slots.count { it.value.isNotEmpty() })
+    }
 }

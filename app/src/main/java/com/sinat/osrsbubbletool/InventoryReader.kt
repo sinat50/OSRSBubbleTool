@@ -268,12 +268,16 @@ object InventoryReader {
     // dark: each game pixel's darkest screen pixel (r + g + b), so a thin outline split between two still shows
     private class CanvasGrid(val rgb: IntArray, val text: BooleanArray, val dark: IntArray)
 
-    private fun canvasGrids(p: PixelSource, panel: Box, n: Int): List<CanvasGrid>? {
+    private fun canvasGrids(p: PixelSource, panel: Box, n: Int): List<CanvasGrid>? =
+        canvasGridsAt(p, panel, CANVAS_X + (n % 4) * STEP_X, CANVAS_Y + (n / 4) * STEP_Y)
+
+    // The same for a canvas whose top-left is (gx, gy) game pixels from the side panel's top-left
+    private fun canvasGridsAt(p: PixelSource, panel: Box, gx: Float, gy: Float): List<CanvasGrid>? {
         val s = panel.width / CANVAS_PANEL_WIDTH
         val grids = ArrayList<CanvasGrid>()
         for (phase in floatArrayOf(0f, 0.5f)) {
-            val x0 = panel.left + (CANVAS_X + (n % 4) * STEP_X - NUDGE + phase) * s
-            val y0 = panel.top + (CANVAS_Y + (n / 4) * STEP_Y - NUDGE + phase) * s
+            val x0 = panel.left + (gx - NUDGE + phase) * s
+            val y0 = panel.top + (gy - NUDGE + phase) * s
             val rgb = IntArray(GRID_W * GRID_H)
             val yellow = BooleanArray(GRID_W * GRID_H)
             val darkest = IntArray(GRID_W * GRID_H)
@@ -312,12 +316,13 @@ object InventoryReader {
 
     // The icons most like the space at their place, by their points in brief: the colours at a few places, and
     // whether the outline points are dark (best first, as indices into canvases)
-    private fun fixedShortlist(grid: CanvasGrid, c: Canvases, lut: IntArray, keep: Int): List<Int> {
+    private fun fixedShortlist(grid: CanvasGrid, c: Canvases, lut: IntArray, keep: Int, only: BooleanArray? = null): List<Int> {
         // the best few so far, in plain arrays (thousands of icons are scored for each space: no objects for each)
         val bestIndex = IntArray(keep); val bestScore = FloatArray(keep)
         var kept = 0; var worst = 0
         val all = if (debugIds.isEmpty()) null else FloatArray(c.count) { Float.MAX_VALUE }
         for (i in 0 until c.count) {
+            if (only != null && !only[i]) continue
             var best = Float.MAX_VALUE
             val sm = c.samples[i]; val ol = c.outline[i]
             for (dy in 0..2 * NUDGE) for (dx in 0..2 * NUDGE) {
@@ -406,11 +411,54 @@ object InventoryReader {
 
     // The items at their place in one space, best first (item ID to fit)
     private fun fixedRead(grids: List<CanvasGrid>, c: Canvases, icons: (Int) -> LoadoutReader.Picture?, lut: IntArray, keep: Int,
-                          itemPixels: Int): List<Pair<Int, Float>> =
-        fixedShortlist(grids[0], c, lut, keep).mapNotNull { i ->
+                          itemPixels: Int, only: BooleanArray? = null): List<Pair<Int, Float>> =
+        fixedShortlist(grids[0], c, lut, keep, only).mapNotNull { i ->
             val id = c.ids[i]
             icons(id)?.let { fixedFit(grids, it, lut, itemPixels) }?.let { id to it }
         }.sortedBy { it.second }
+
+    // ---------------- The equipment tab ----------------
+    //
+    // The equipment tab draws each worn item's icon (the same 36 x 32 canvas) at a fixed place in its slot, so it's
+    // read the same way: each slot's items laid at its place. Places measured on the owner's screenshot (every slot's
+    // item then fit 11-16, the next best 22 or worse), in game pixels from the side panel's top-left.
+    private val EQUIPMENT_PLACES = mapOf(
+        "head" to (85.5f to 12.5f), "cape" to (44.5f to 51.5f), "neck" to (85.5f to 51.5f), "ammo" to (126.5f to 51.5f),
+        "weapon" to (29f to 91f), "body" to (85.5f to 90.5f), "shield" to (141.5f to 90.5f), "legs" to (85.5f to 130.5f),
+        "hands" to (29f to 171f), "feet" to (85.5f to 170.5f), "ring" to (141.5f to 170.5f))
+    private const val EQUIPMENT_SHORTLIST = 30
+
+    // What's worn: each slot's guesses (item ID to fit, best first; none for an empty slot), and the ammunition's amount.
+    // slotOf: an item's equipment slot. Null if the panel can't be looked at.
+    class Equipment(val slots: Map<String, List<Pair<Int, Float>>>, val ammoAmount: Int?)
+
+    fun readEquipment(p: PixelSource, panel: Box, c: Canvases, icons: Icons, slotOf: (Int) -> String?): Equipment? {
+        val iconCache = HashMap<Int, LoadoutReader.Picture?>()
+        val icon = { id: Int -> iconCache.getOrPut(id) { icons.get(id) } }
+        val grids = EQUIPMENT_PLACES.mapValues { (_, at) -> canvasGridsAt(p, panel, at.first, at.second) ?: return null }
+        val slotOfIcon = Array(c.count) { slotOf(c.ids[it]) }
+        val only = EQUIPMENT_PLACES.keys.associateWith { slot -> BooleanArray(c.count) { slotOfIcon[it] == slot } }
+        // the game's brightness setting, from the best few in each slot (as for the inventory)
+        var gamma = 1.2f
+        var bestTotal = Float.MAX_VALUE
+        val likely = grids.mapValues { (slot, g) -> floatArrayOf(0.9f, 1.2f, 1.5f).flatMap { fixedShortlist(g[0], c, shading(it), 3, only[slot]) }.distinct() }
+        for (gm in GAMMAS) {
+            val lut = shading(gm)
+            var total = 0f
+            for ((slot, g) in grids) total += likely[slot].orEmpty().mapNotNull { i -> icon(c.ids[i])?.let { fixedFit(g, it, lut, 0) } }.minOrNull() ?: continue
+            if (total < bestTotal) { bestTotal = total; gamma = gm }
+        }
+        val lut = shading(gamma)
+        val slots = grids.mapValues { (slot, g) -> fixedRead(g, c, icon, lut, EQUIPMENT_SHORTLIST, 0, only[slot]) }
+        debugLog?.invoke("equipment, brightness $gamma: " + slots.entries.joinToString { (k, v) -> "$k ${v.take(2).joinToString { "${it.first} %.1f".format(it.second) }}" })
+        // the ammunition's amount is written over the top of its slot
+        val s = panel.width / CANVAS_PANEL_WIDTH
+        val (ax, ay) = EQUIPMENT_PLACES.getValue("ammo")
+        val ammo = if (slots["ammo"].isNullOrEmpty()) null else LoadoutReader.amountIn(p, Box(
+            (panel.left + (ax - 1) * s).toInt(), (panel.top + (ay - 1) * s).toInt(),
+            (panel.left + (ax + CANVAS_W) * s).toInt(), (panel.top + (ay + TEXT_ROWS) * s).toInt()))
+        return Equipment(slots, ammo)
+    }
 
     // ---------------- One space ----------------
 

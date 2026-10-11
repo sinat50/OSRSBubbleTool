@@ -67,7 +67,9 @@ class GearLoadoutsTool(
         // read as items fit far worse)
         private const val GOOD_FIT = 40f
         // The same for the equipment: the middle score of the worn items' best guesses must be under this
-        private const val GEAR_GOOD_FIT = 32f
+        // An equipment slot whose best guess fits worse than this is ringed after a read, to be checked (the owner's
+        // gear fits 11-37; dark melee gear fits less tightly than crystal armour)
+        private const val GEAR_UNSURE_FIT = 32f
         // An inventory item fitting worse than this is ringed after a read, to be checked (good fits are 8-25)
         private const val UNSURE_FIT = 30f
         // The same read with RuneLite's icons (their fits are smaller: the owner's items fit 8-20)
@@ -368,6 +370,7 @@ class GearLoadoutsTool(
         right.addView(label("Equipment", 14f, bold = true))
         val worn = SlotGrid(context, 3, dp(44), dp(3))
         fun w(slot: String) = slot(l.equipment[slot], SLOT_LABELS[slot]) { showPicker(l, Place.Worn(slot)) }
+            .apply { unsure = guessesFor == l.id && slot in this@GearLoadoutsTool.unsure }
         val quiver = if (hasQuiver(l)) slot(l.quiver, "Quiver") { showPicker(l, Place.Quiver) } else null
         worn.addRow(listOf(null, w("head"), quiver))
         worn.addRow(listOf(w("cape"), w("neck"), w("ammo")))
@@ -509,7 +512,9 @@ class GearLoadoutsTool(
     }
 
     private fun put(l: Loadout, p: Place, s: Stack?) {
-        if (p is Place.Inventory) unsure = unsure - "inv${p.index}"   // you've checked it
+        // you've checked it
+        if (p is Place.Inventory) unsure = unsure - "inv${p.index}"
+        if (p is Place.Worn) unsure = unsure - p.slot
         fun MutableList<Stack?>?.with(i: Int): MutableList<Stack?> =
             (this ?: mutableListOf()).also { list -> while (list.size <= i) list.add(null); list[i] = s }
         when (p) {
@@ -660,6 +665,8 @@ class GearLoadoutsTool(
     // Done, or after SCAN_SECONDS.
 
     private class Scan(val l: Loadout, val ends: Long) {
+        val started = System.nanoTime()   // for the timings in a test build's log
+        var looks = 0
         var book: Int? = null
         var inventory: InventoryReading? = null
         var gear: GearReading? = null
@@ -726,33 +733,51 @@ class GearLoadoutsTool(
         if (sc.busy) return
         if (System.currentTimeMillis() > sc.ends) { finishScan(); return }
         val data = items ?: run { handler.postDelayed(scanTick, SCAN_EVERY_MS); return }
+        val grabStarted = System.nanoTime()
         capture.matchScreenSize()
         val shot = capture.grab()
         if (shot == null) { handler.postDelayed(scanTick, SCAN_EVERY_MS); return }
+        val grabMs = (System.nanoTime() - grabStarted) / 1_000_000
         sc.busy = true
+        val look = ++sc.looks
         Thread {
             var book: Int? = null; var inventory: InventoryReading? = null; var gear: GearReading? = null
             var pouch: List<Stack>? = null
+            // how long each part of this look takes, for a test build's log (adb logcat -s GearLoadouts)
+            val times = StringBuilder("look $look at %.1f s: screenshot $grabMs ms".format((grabStarted - sc.started) / 1e9))
+            var t = System.nanoTime()
+            fun lap(what: String) { times.append(", $what ${(System.nanoTime() - t) / 1_000_000}"); t = System.nanoTime() }
             try {
                 val pixels = LightBoxReader.Pixels(shot)
                 shot.recycle()   // the pixels are copied: the screenshot isn't needed any more
+                lap("copy")
                 val (bookPictures, runePictures) = readerPictures(data)
+                lap("load pictures")
                 val panel = PanelFinder.findPanel(pixels)
+                lap("find panel${if (panel == null) " (none)" else ""}")
+                // an open rune pouch's window dims the inventory behind it: it's only read with the window closed
+                val pouchWindow = if (sc.pouch == null || sc.inventory == null) PanelFinder.runePouchWindow(pixels) else null
+                lap("find pouch${if (pouchWindow == null) " (none)" else ""}")
                 if (panel != null) {
-                    if (sc.book == null) book = LoadoutReader.spellbook(pixels, panel, bookPictures)
-                    if (sc.inventory == null && PanelFinder.tabOpen(pixels, panel, 0, PanelFinder.INVENTORY_TAB)) {
+                    if (sc.book == null) { book = LoadoutReader.spellbook(pixels, panel, bookPictures); lap("spellbook${if (book == null) " (no)" else ""}") }
+                    if (sc.inventory == null && pouchWindow == null && PanelFinder.tabOpen(pixels, panel, 0, PanelFinder.INVENTORY_TAB)) {
                         inventory = readInventory(pixels, panel, data)
+                        lap("inventory${if (inventory == null) " (rejected)" else ""}")
                     }
                     if (sc.gear == null && PanelFinder.tabOpen(pixels, panel, 0, PanelFinder.EQUIPMENT_TAB)) {
-                        gear = readEquipment(pixels, panel)
+                        gear = readEquipment(pixels, panel, data)
+                        lap("equipment${if (gear == null) " (rejected)" else ""}")
                     }
                 }
-                if (sc.pouch == null && sc.hasPouch != false) {
-                    pouch = PanelFinder.runePouchWindow(pixels)?.let { LoadoutReader.runePouch(pixels, it, runePictures) }
+                if (sc.pouch == null && sc.hasPouch != false && pouchWindow != null) {
+                    pouch = LoadoutReader.runePouch(pixels, pouchWindow, runePictures)
+                    lap("pouch${if (pouch == null) " (no)" else ""}")
                 }
-            } catch (_: Throwable) {
+            } catch (e: Throwable) {
                 // e.g. out of memory on an older phone: this look is skipped, the next one tries again
+                times.append(", failed: $e")
             }
+            if (debugBuild) Log.d("GearLoadouts", times.toString())
             handler.post {
                 sc.busy = false
                 if (scan !== sc) return@post   // stopped meanwhile
@@ -769,6 +794,11 @@ class GearLoadoutsTool(
                 }
                 if (gear != null) { sc.gear = gear; applyGear(l, gear) }
                 if (book != null || inventory != null || gear != null || pouch != null) saveLoadouts()
+                if (debugBuild) {
+                    val ticked = listOfNotNull(book?.let { "spellbook" }, inventory?.let { "inventory" + if (sc.hasPouch == false) " (no pouch)" else "" },
+                        gear?.let { "equipment" }, pouch?.let { "rune pouch" })
+                    if (ticked.isNotEmpty()) Log.d("GearLoadouts", "ticked at %.1f s: ${ticked.joinToString()}".format((System.nanoTime() - sc.started) / 1e9))
+                }
                 updateChecklist()
                 if (sc.done) finishScan() else handler.postDelayed(scanTick, SCAN_EVERY_MS)
             }
@@ -779,6 +809,7 @@ class GearLoadoutsTool(
     private fun finishScan() {
         val sc = scan ?: return
         scan = null
+        if (debugBuild) Log.d("GearLoadouts", "scan finished at %.1f s after ${sc.looks} looks".format((System.nanoTime() - sc.started) / 1e9))
         handler.removeCallbacks(scanTick)
         checklistLines = null
         setWindowCompact(BubbleService.COMPACT_OFF)
@@ -794,7 +825,7 @@ class GearLoadoutsTool(
             if (sc.gear == null) "equipment" else null,
             if (sc.pouch == null && sc.hasPouch != false) "rune pouch" else null
         )
-        val toCheck = sc.inventory?.unsure?.count { it } ?: 0
+        val toCheck = (sc.inventory?.unsure?.count { it } ?: 0) + (sc.gear?.unsure?.size ?: 0)
         readMessage = (if (read.isEmpty()) "Nothing read. " else "Read: ${read.joinToString(", ")}. ") +
             (if (toCheck > 0) "Check the $toCheck ringed square${if (toCheck == 1) "" else "s"}: tap one for other guesses. " else "") +
             (if (missing.isEmpty()) "" else "Not read: ${missing.joinToString(", ")} (tap Read from game again).")
@@ -849,9 +880,39 @@ class GearLoadoutsTool(
 
     // What the equipment tab shows: each slot's guesses (item IDs, best first; an empty list for an empty slot)
     // and the ammunition's amount. Null if the side panel isn't showing the equipment tab.
-    private class GearReading(val slots: Map<String, List<Int>>, val ammoAmount: Int?)
+    private class GearReading(val slots: Map<String, List<Int>>, val ammoAmount: Int?, val unsure: Set<String>)
 
-    private fun readEquipment(pixels: LightBoxReader.Pixels, panel: PanelFinder.Box): GearReading? {
+    private fun readEquipment(pixels: LightBoxReader.Pixels, panel: PanelFinder.Box, data: ItemData): GearReading? {
+        // RuneLite's icons at each slot's exact place: a fraction of a second. The older gear reader (the DPS tool's,
+        // 9-14 seconds on the owner's phone, and the phone slows down after it) only if that finds nothing at all.
+        val canvasList = synchronized(readerLock) {
+            canvases ?: try {
+                InventoryReader.Canvases(context.assets.open("items/canvas.bin").use { it.readBytes() })
+            } catch (_: Exception) { null }?.also { canvases = it }
+        }
+        if (canvasList != null) {
+            val worn = InventoryReader.readEquipment(pixels, panel, canvasList, { id -> iconPicture(id) }) { id -> data.shown(id)?.first?.slot }
+            if (worn != null && worn.slots.values.any { it.isNotEmpty() }) {
+                if (debugBuild) Log.d("GearLoadouts", "equipment: " + worn.slots.entries.joinToString { (k, v) ->
+                    "$k ${v.firstOrNull()?.let { (id, fit) -> data.shown(id)?.first?.name + " %.0f".format(fit) } ?: "-"}" })
+                val alike = synchronized(readerLock) { lookAlikes(data) }
+                val ids = worn.slots.mapValues { (_, fits) ->
+                    data.chargedFirst(fits.map { alike[it.first] ?: it.first }, fits.map { it.second }).distinct()
+                }
+                val unsure = worn.slots.filterValues { (it.firstOrNull()?.second ?: 0f) > ICONS_UNSURE_FIT }.keys
+                return GearReading(ids, worn.ammoAmount, unsure)
+            }
+        }
+        return readEquipmentSlowly(pixels, panel)
+    }
+
+    // Items that look exactly alike share one icon (the lowest ID's): for an icon read, the one to pick (call under
+    // readerLock)
+    private fun lookAlikes(data: ItemData): Map<Int, Int> = sameLook ?: HashMap<Int, MutableList<Int>>().also { groups ->
+        for ((a, b) in icons.sharedIcon) groups.getOrPut(b) { mutableListOf(b) }.add(a)
+    }.mapValues { (_, group) -> data.preferred(group) }.also { sameLook = it }
+
+    private fun readEquipmentSlowly(pixels: LightBoxReader.Pixels, panel: PanelFinder.Box): GearReading? {
         val w = panel.width
         val h = panel.height
         if (w <= 0 || h <= 0 || panel.right > pixels.width || panel.bottom > pixels.height) return null
@@ -862,17 +923,17 @@ class GearLoadoutsTool(
         if (debugBuild) for ((slot, choices) in result.slots) Log.d("GearLoadouts", "  $slot at ${result.slotRects[slot]}: " +
             choices.take(3).joinToString { "${it.item?.label ?: "empty"} (${it.item?.id}) %.1f".format(it.cost) })
         if (result.slots.isEmpty()) return null
-        // Another tab can look a little like the equipment's layout, but then nothing fits: the owner's gear fits
-        // 11-36 (about 20 in the middle), an inventory read as equipment 35-64
-        val costs = result.slots.values.mapNotNull { it.firstOrNull()?.takeIf { c -> c.item != null }?.cost }.sorted()
-        if (costs.isNotEmpty() && costs[costs.size / 2] > GEAR_GOOD_FIT) return null
+        // (The scan only reads here when the equipment tab's button shows it's open, so another tab can't be taken for
+        // it. Gear that fits only poorly is ringed for checking rather than thrown away: dark melee gear once got
+        // rejected over and over, 14 seconds a time, though every guess was right.)
+        val unsure = result.slots.filterValues { (it.firstOrNull()?.takeIf { c -> c.item != null }?.cost ?: 0f) > GEAR_UNSURE_FIT }.keys
         val slots = result.slots.mapValues { (_, choices) -> choices.mapNotNull { it.item?.id } }
         // the ammunition's amount is written in yellow over the top of its slot
         val ammo = result.slotRects["ammo"]?.takeIf { slots["ammo"].orEmpty().isNotEmpty() }?.let { r ->
             LoadoutReader.amountIn(pixels, PanelFinder.Box(panel.left + r.left - r.width() / 8, panel.top + r.top - r.height() / 6,
                 panel.left + r.right, panel.top + r.top + r.height() / 2))
         }
-        return GearReading(slots, ammo)
+        return GearReading(slots, ammo, unsure)
     }
 
     // What the inventory tab shows: each space's guesses (item IDs, best first; null for an empty space), amount, and
@@ -896,10 +957,7 @@ class GearLoadoutsTool(
             canvasList = canvases ?: try {
                 InventoryReader.Canvases(context.assets.open("items/canvas.bin").use { it.readBytes() })
             } catch (_: Exception) { null }?.also { canvases = it }
-            // Items that look exactly alike share one icon (the lowest ID's): for an icon read, the one to pick
-            lookAlikes = sameLook ?: HashMap<Int, MutableList<Int>>().also { groups ->
-                for ((a, b) in icons.sharedIcon) groups.getOrPut(b) { mutableListOf(b) }.add(a)
-            }.mapValues { (_, group) -> data.preferred(group) }.also { sameLook = it }
+            lookAlikes = lookAlikes(data)
         }
         val found = InventoryReader.read(pixels, panel, shapeList, { name -> assetPicture("items/icons/$name") }, notedItems.keys,
             canvasList, { id -> iconPicture(id) })
@@ -929,7 +987,7 @@ class GearLoadoutsTool(
             if (id == null) l.equipment.remove(slot)
             else l.equipment[slot] = Stack(id, if (slot == "ammo") gear.ammoAmount ?: 1 else 1)
         }
-        keepGuesses(l, gear.slots.filterValues { it.size > 1 })
+        keepGuesses(l, gear.slots.filterValues { it.size > 1 }, gear.unsure, inventory = false)
     }
 
     private fun applyInventory(l: Loadout, inventory: InventoryReading) {
@@ -938,15 +996,15 @@ class GearLoadoutsTool(
             l.inventory[i] = id?.let { Stack(it, inventory.amounts[i] ?: 1) }
         }
         keepGuesses(l, inventory.spaces.withIndex().filter { (it.value?.size ?: 0) > 1 }.associate { "inv${it.index}" to it.value!! },
-            inventory.unsure.withIndex().filter { it.value }.map { "inv${it.index}" }.toSet())
+            inventory.unsure.withIndex().filter { it.value }.map { "inv${it.index}" }.toSet(), inventory = true)
     }
 
     // Adds a reading's other guesses to the ones kept for this loadout (an inventory read keeps the equipment's), and
     // which squares it wasn't sure of (a new reading of the same squares replaces those)
-    private fun keepGuesses(l: Loadout, more: Map<String, List<Int>>, notSure: Set<String> = emptySet()) {
+    private fun keepGuesses(l: Loadout, more: Map<String, List<Int>>, notSure: Set<String>, inventory: Boolean) {
         val same = guessesFor == l.id
         guesses = (if (same) guesses else emptyMap()) + more
-        val replaced = if (notSure.any { it.startsWith("inv") } || more.keys.any { it.startsWith("inv") }) unsure.filter { !it.startsWith("inv") } else unsure
+        val replaced = unsure.filter { it.startsWith("inv") != inventory }   // the other reading's rings stay
         unsure = (if (same) replaced.toSet() else emptySet()) + notSure
         guessesFor = l.id
     }
