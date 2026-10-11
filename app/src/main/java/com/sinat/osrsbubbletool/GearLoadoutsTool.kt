@@ -42,7 +42,7 @@ import org.json.JSONArray
 // under a name and shown like RuneLite's Inventory Setups plugin. Tap a square to put an item in it. Setups
 // exported from that plugin can be imported, and loadouts exported back to it.
 // (It replaced Inventory Setups, which saved pictures of the screen; those pictures are still shown.)
-// Read screen fills in the spellbook and an open rune pouch (LoadoutReader), the equipment when its tab is open
+// Read from game fills in the spellbook and an open rune pouch (LoadoutReader), the equipment when its tab is open
 // (GearRecognizer, shared with the DPS Calculator) and the inventory when its tab is open (InventoryReader), in a
 // guided scan (see below).
 // hideWindow and showWindow close and reopen this tool's window, so Android's file chooser and share menu
@@ -74,9 +74,7 @@ class GearLoadoutsTool(
         private const val ICONS_MIDDLE_FIT = 17f
         private const val ICONS_KEPT = 1500
         private const val ICONS_UNSURE_FIT = 22f
-        private val SLOT_LABELS = mapOf("head" to "Head", "cape" to "Cape", "neck" to "Neck", "ammo" to "Ammo",
-            "weapon" to "Weapon", "body" to "Body", "shield" to "Shield", "legs" to "Legs", "hands" to "Hands",
-            "feet" to "Feet", "ring" to "Ring")
+        private val SLOT_LABELS = Loadout.SLOT_LABELS
     }
 
     // The pictures Inventory Setups saved for a setup, in files/setups/<id>/
@@ -97,6 +95,8 @@ class GearLoadoutsTool(
     }
 
     private val handler = Handler(Looper.getMainLooper())
+    // the readers' details go to the phone's log (adb logcat -s GearLoadouts) only in a debug build
+    private val debugBuild = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
     // (the settings file and folder keep Inventory Setups' names, so its setups carry over)
     private val prefs = context.getSharedPreferences("inventory_setups", Context.MODE_PRIVATE)
     private val folder = File(context.filesDir, "setups")
@@ -113,11 +113,13 @@ class GearLoadoutsTool(
     private var nameField: EditText? = null
     private var notesField: EditText? = null
     private var pendingSearch: Runnable? = null
-    private var readMessage: String? = null     // what the last Read screen found, shown on the loadout once
-    // The pictures the reader compares the screen with, loaded the first time Read screen is used
+    private var readMessage: String? = null     // what the last Read from game found, shown on the loadout once
+    // The pictures the reader compares the screen with, loaded the first time Read from game is used (in the
+    // background, under readerLock: a stopped scan's look can still be finishing when the next scan starts)
+    private val readerLock = Any()
     private var books: List<LoadoutReader.Picture>? = null
     private var runes: List<Pair<Int, LoadoutReader.Picture>>? = null
-    // The readers' other guesses after Read screen (item IDs, best first), offered first when you tap that square:
+    // The readers' other guesses after Read from game (item IDs, best first), offered first when you tap that square:
     // by slot ("head") for equipment, "inv5" for inventory space 6. Only for the loadout read, until the bubble closes.
     private var guessesFor: String? = null
     private var guesses: Map<String, List<Int>> = emptyMap()
@@ -141,6 +143,7 @@ class GearLoadoutsTool(
             isFocusableInTouchMode = true
         }
         root = r
+        LoadoutFileActivity.listener = fileAnswers
         showList()
         ItemCatalog.get(context) { data ->
             items = data
@@ -174,6 +177,7 @@ class GearLoadoutsTool(
     }
 
     fun destroy() {
+        if (LoadoutFileActivity.listener === fileAnswers) LoadoutFileActivity.listener = null
         stopScan()
         pendingSearch?.let { handler.removeCallbacks(it) }
         saveTyping()
@@ -461,10 +465,9 @@ class GearLoadoutsTool(
 
     // How many runes the loadout's rune pouch holds (4 for the divine one), or null if it has none
     private fun runePouchSize(l: Loadout): Int? {
-        val pouch = l.inventory.filterNotNull().mapNotNull { items?.get(it.id)?.name?.lowercase() }
-            .firstOrNull { "rune pouch" in it }
+        val pouch = l.inventory.filterNotNull().firstNotNullOfOrNull { items?.runePouchSize(it.id) }
         if (pouch == null && l.runePouch == null) return null
-        return maxOf(if (pouch != null && "divine" in pouch) 4 else 3, l.runePouch?.size ?: 0)
+        return maxOf(pouch ?: 3, l.runePouch?.size ?: 0)
     }
 
     private fun boltPouchSize(l: Loadout): Int? {
@@ -615,7 +618,7 @@ class GearLoadoutsTool(
                 }, fullWidth(4))
             }
         }
-        // After Read screen, the recogniser's other guesses for this slot (tap one if it guessed wrong)
+        // After Read from game, the readers' other guesses for this square (tap one if it guessed wrong)
         val key = when (p) { is Place.Worn -> p.slot; is Place.Inventory -> "inv${p.index}"; else -> null }
         val others = if (key != null && guessesFor == l.id) guesses[key].orEmpty() else emptyList()
         val data = items
@@ -722,10 +725,10 @@ class GearLoadoutsTool(
         val sc = scan ?: return
         if (sc.busy) return
         if (System.currentTimeMillis() > sc.ends) { finishScan(); return }
+        val data = items ?: run { handler.postDelayed(scanTick, SCAN_EVERY_MS); return }
         capture.matchScreenSize()
         val shot = capture.grab()
         if (shot == null) { handler.postDelayed(scanTick, SCAN_EVERY_MS); return }
-        val data = items ?: return
         sc.busy = true
         Thread {
             var book: Int? = null; var inventory: InventoryReading? = null; var gear: GearReading? = null
@@ -755,14 +758,16 @@ class GearLoadoutsTool(
                 if (scan !== sc) return@post   // stopped meanwhile
                 val l = sc.l
                 if (book != null) { sc.book = book; l.spellbook = book }
+                if (pouch != null) { sc.pouch = pouch; l.runePouch = pouch.toMutableList<Stack?>().also { while (it.size < 3) it.add(null) } }
                 if (inventory != null) {
                     sc.inventory = inventory
                     applyInventory(l, inventory)
-                    sc.hasPouch = l.inventory.any { s -> s != null && data.shown(s.id)?.first?.name?.lowercase()?.contains("rune pouch") == true }
+                    // no rune pouch in the inventory: the loadout has none (unless one was read open: then there is one,
+                    // and the inventory just read it as something else)
+                    sc.hasPouch = sc.pouch != null || l.inventory.any { s -> s != null && data.runePouchSize(s.id) != null }
                     if (sc.hasPouch == false) l.runePouch = null
                 }
                 if (gear != null) { sc.gear = gear; applyGear(l, gear) }
-                if (pouch != null) { sc.pouch = pouch; l.runePouch = pouch.toMutableList<Stack?>().also { while (it.size < 3) it.add(null) } }
                 if (book != null || inventory != null || gear != null || pouch != null) saveLoadouts()
                 updateChecklist()
                 if (sc.done) finishScan() else handler.postDelayed(scanTick, SCAN_EVERY_MS)
@@ -805,12 +810,12 @@ class GearLoadoutsTool(
     }
 
     // The spellbook pictures and the pouch runes' pictures, read from the app's files once (in the background)
-    private fun readerPictures(data: ItemData): Pair<List<LoadoutReader.Picture>, List<Pair<Int, LoadoutReader.Picture>>> {
+    private fun readerPictures(data: ItemData): Pair<List<LoadoutReader.Picture>, List<Pair<Int, LoadoutReader.Picture>>> = synchronized(readerLock) {
         val b = books ?: (0..3).mapNotNull { assetPicture("items/spellbooks/$it.png") }.also { books = it }
         val r = runes ?: LoadoutReader.POUCH_RUNES.mapNotNull { id ->
             (iconPicture(id)?.let { trimmed(it) } ?: data[id]?.picture()?.let { assetPicture("items/icons/$it") })?.let { id to it }
         }.also { runes = it }
-        return b to r
+        b to r
     }
 
     // An item's icon (RuneLite's, 36 x 32) by its ID. Icons read are kept (about 4.6 KB each), so reading again
@@ -853,8 +858,8 @@ class GearLoadoutsTool(
         val px = IntArray(w * h)
         for (y in 0 until h) System.arraycopy(pixels.data, (panel.top + y) * pixels.width + panel.left, px, y * w, w)
         val result = GearRecognizer.shared(context).recognize(px, w, h) ?: return null
-        Log.d("GearLoadouts", "panel $panel, slot layout fit ${result.layoutScore}, brightness ${result.gamma}")
-        for ((slot, choices) in result.slots) Log.d("GearLoadouts", "  $slot at ${result.slotRects[slot]}: " +
+        if (debugBuild) Log.d("GearLoadouts", "panel $panel, slot layout fit ${result.layoutScore}, brightness ${result.gamma}")
+        if (debugBuild) for ((slot, choices) in result.slots) Log.d("GearLoadouts", "  $slot at ${result.slotRects[slot]}: " +
             choices.take(3).joinToString { "${it.item?.label ?: "empty"} (${it.item?.id}) %.1f".format(it.cost) })
         if (result.slots.isEmpty()) return null
         // Another tab can look a little like the equipment's layout, but then nothing fits: the owner's gear fits
@@ -875,33 +880,31 @@ class GearLoadoutsTool(
     private class InventoryReading(val spaces: List<List<Int>?>, val amounts: List<Int?>, val unsure: List<Boolean>)
 
     private fun readInventory(pixels: LightBoxReader.Pixels, panel: PanelFinder.Box, data: ItemData): InventoryReading? {
-        val shapeList = shapes ?: try {
-            InventoryReader.Shapes(context.assets.open("items/shapes.bin").use { it.readBytes() })
-        } catch (_: Exception) { return null }.also { shapes = it }
-        // which item a picture shows: the item itself before its minigame copies, then the oldest (lowest ID); and
-        // on a bank note, the same among the items that can be noted (as its noted ID)
-        fun byPicture(only: (ItemData.Item) -> Boolean) = HashMap<String, ItemData.Item>().also { map ->
-            for (item in data.all) if (only(item)) for (pic in item.pictures) {
-                val had = map[pic]
-                if (had == null || (had.variant != null && item.variant == null) ||
-                    ((had.variant == null) == (item.variant == null) && item.id < had.id)) map[pic] = item
-            }
+        val shapeList: InventoryReader.Shapes
+        val items: Map<String, Int>
+        val notedItems: Map<String, Int>
+        val canvasList: InventoryReader.Canvases?
+        val lookAlikes: Map<Int, Int>
+        synchronized(readerLock) {
+            shapeList = shapes ?: try {
+                InventoryReader.Shapes(context.assets.open("items/shapes.bin").use { it.readBytes() })
+            } catch (_: Exception) { return null }.also { shapes = it }
+            // which item a picture shows; on a bank note, among the items that can be noted (as its noted ID)
+            items = pictureItems ?: data.byPicture().mapValues { it.value.id }.also { pictureItems = it }
+            notedItems = notedPictureItems ?: data.byPicture { data.notedOf(it.id) != null }
+                .mapValues { data.notedOf(it.value.id)!! }.also { notedPictureItems = it }
+            canvasList = canvases ?: try {
+                InventoryReader.Canvases(context.assets.open("items/canvas.bin").use { it.readBytes() })
+            } catch (_: Exception) { null }?.also { canvases = it }
+            // Items that look exactly alike share one icon (the lowest ID's): for an icon read, the one to pick
+            lookAlikes = sameLook ?: HashMap<Int, MutableList<Int>>().also { groups ->
+                for ((a, b) in icons.sharedIcon) groups.getOrPut(b) { mutableListOf(b) }.add(a)
+            }.mapValues { (_, group) -> data.preferred(group) }.also { sameLook = it }
         }
-        val items = pictureItems ?: byPicture { true }.mapValues { it.value.id }.also { pictureItems = it }
-        val notedItems = notedPictureItems ?: byPicture { data.notedOf(it.id) != null }
-            .mapValues { data.notedOf(it.value.id)!! }.also { notedPictureItems = it }
-        val canvasList = canvases ?: try {
-            InventoryReader.Canvases(context.assets.open("items/canvas.bin").use { it.readBytes() })
-        } catch (_: Exception) { null }?.also { canvases = it }
-        // Items that look exactly alike share one icon (the lowest ID's): for an icon read, the item itself before its
-        // minigame copies, a charged item before its uncharged look-alike, then the lowest ID
-        val lookAlikes = sameLook ?: HashMap<Int, MutableList<Int>>().also { groups ->
-            for ((a, b) in icons.sharedIcon) groups.getOrPut(b) { mutableListOf(b) }.add(a)
-        }.mapValues { (_, group) -> data.preferred(group) }.also { sameLook = it }
         val found = InventoryReader.read(pixels, panel, shapeList, { name -> assetPicture("items/icons/$name") }, notedItems.keys,
             canvasList, { id -> iconPicture(id) })
         val filled = found.filterNotNull()
-        Log.d("GearLoadouts", "inventory: ${found.mapIndexed { i, f -> "$i ${f?.let { it.itemId?.let { id -> data.shown(id)?.first?.name + " #$id" } ?: it.picture } ?: "-"} ${f?.cost?.let { "%.0f".format(it) } ?: ""}" }}")
+        if (debugBuild) Log.d("GearLoadouts", "inventory: ${found.mapIndexed { i, f -> "$i ${f?.let { it.itemId?.let { id -> data.shown(id)?.first?.name + " #$id" } ?: it.picture } ?: "-"} ${f?.cost?.let { "%.0f".format(it) } ?: ""}" }}")
         // Another tab (equipment, prayers...) or the inventory dimmed behind a window gives poor fits, or none: then the
         // inventory isn't changed. Read with RuneLite's icons, an inventory's middle fit is 10-14 (the owner's), other
         // tabs' 20 or more; read only the wiki's way, 60% of the items must fit better than GOOD_FIT.
@@ -985,7 +988,8 @@ class GearLoadoutsTool(
             if (!importText(box.text.toString())) status.text = "That isn't a setup exported from RuneLite's Inventory Setups."
         })
         page.addView(buttons, fullWidth(6))
-        page.addView(button("Pick a file") { pickFile(status) }, fullWidth(6))
+        page.addView(button("Pick a file") { pickFile() }, fullWidth(6))
+        importProblem?.let { status.text = it; importProblem = null }
         page.addView(status, fullWidth(8))
 
         setContent(ScrollView(context).apply { addView(page) })
@@ -1005,11 +1009,27 @@ class GearLoadoutsTool(
         return true
     }
 
-    private fun pickFile(status: TextView) {
+    private fun pickFile() {
         hideWindow()
-        LoadoutFileActivity.open(context) { text ->
+        LoadoutFileActivity.open(context)
+    }
+
+    // The file chooser's answers (see LoadoutFileActivity: they come to whichever tool is there by then)
+    private var importProblem: String? = null   // shown once on the import page
+    private val fileAnswers = object : LoadoutFileActivity.Listener {
+        override fun opened(text: String?) {
             showWindow()
-            if (text != null && !importText(text) && importing) status.text = "That file isn't a RuneLite Inventory Setups export."
+            if (text != null && !importText(text)) {
+                importProblem = "That file isn't a RuneLite Inventory Setups export."
+                showImport()
+            }
+        }
+
+        override fun saved(ok: Boolean) {
+            if (ok) listMessage = "Saved your loadouts. On your computer, right-click the import button in " +
+                "RuneLite's Inventory Setups panel and choose Mass Import Setups."
+            if (current == null) showList()
+            showWindow()
         }
     }
 
@@ -1018,12 +1038,7 @@ class GearLoadoutsTool(
     private fun saveAllToFile() {
         val chosen = loadouts.filter { it.hasItems }
         hideWindow()
-        LoadoutFileActivity.save(context, EXPORT_FILE_NAME, Loadout.toRuneLite(chosen).toString()) { saved ->
-            if (saved) listMessage = "Saved ${chosen.size} loadouts. On your computer, right-click the import button in " +
-                "RuneLite's Inventory Setups panel and choose Mass Import Setups."
-            if (current == null && !importing) showList()
-            showWindow()
-        }
+        LoadoutFileActivity.save(context, EXPORT_FILE_NAME, Loadout.toRuneLite(chosen).toString())
     }
 
     private fun copyToClipboard(label: String, text: String) {

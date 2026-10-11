@@ -424,10 +424,6 @@ object InventoryReader {
         val itemCount = (item.indices).count { item[it] && !text[it] }
         private val grids = HashMap<Int, IntArray>()
 
-        // The item's colours in brief over a picture-sized box (w x h): a 4 x 4 grid like the pictures' (-1 where
-        // none of the item is). The box is at the item's top left, middle or bottom right (at: 0, 1, 2; see place()):
-        // the outline found can be a pixel or two bigger on a side (something dark behind it), or digits can hide
-        // the top left. Pictures of the same size share them.
         // How much of each square of an 8 x 8 grid over a picture-sized box is the item (0-255; digits count as
         // half), placed as grid() places it
         private val covers = HashMap<Int, IntArray>()
@@ -448,6 +444,10 @@ object InventoryReader {
             }
         }
 
+        // The item's colours in brief over a picture-sized box (w x h): a 4 x 4 grid like the pictures' (-1 where
+        // none of the item is). The box is at the item's top left, middle or bottom right (at: 0, 1, 2; see place()):
+        // the outline found can be a pixel or two bigger on a side (something dark behind it), or digits can hide
+        // the top left. Pictures of the same size share them.
         fun grid(w: Int, h: Int, at: Int): IntArray = grids.getOrPut((w * 1000 + h) * 4 + at) {
             val x0 = place(left, width, w, at)
             val y0 = place(top, height, h, at)

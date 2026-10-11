@@ -38,7 +38,7 @@ class ItemData(tsv: String, notedTsv: String = "") {
     companion object {
         private val STACK = Regex(""" (\d+)\.png$""")
         private val UNCHARGED = listOf("(uncharged)", "(empty)", "(inactive)")
-        private val SLOTS = setOf("head", "cape", "neck", "ammo", "weapon", "body", "shield", "legs", "hands", "feet", "ring")
+        private val SLOTS = Loadout.SLOTS.toSet()
     }
 
     private val byId = HashMap<Int, Item>()
@@ -80,6 +80,20 @@ class ItemData(tsv: String, notedTsv: String = "") {
 
     // For a noted ID, the item's own ID (null if id isn't a noted item)
     fun plainOf(id: Int): Int? = plainId[id]
+
+    // Which item each picture shows (picture name to item), among the items `only` lets through: the item itself
+    // before its minigame and quest copies, then the oldest (lowest ID)
+    fun byPicture(only: (Item) -> Boolean = { true }): Map<String, Item> = HashMap<String, Item>().also { map ->
+        for (item in all) if (only(item)) for (pic in item.pictures) {
+            val had = map[pic]
+            if (had == null || (had.variant != null && item.variant == null) ||
+                ((had.variant == null) == (item.variant == null) && item.id < had.id)) map[pic] = item
+        }
+    }
+
+    // Whether a stack is a rune pouch that holds runes (any kind, divine too; a noted pouch holds nothing), and how
+    // many runes it holds (null if it isn't one)
+    fun runePouchSize(id: Int): Int? = byId[id]?.name?.lowercase()?.takeIf { "rune pouch" in it }?.let { if ("divine" in it) 4 else 3 }
 
     // Of items that look exactly alike, the one to pick: the item itself before its minigame and quest copies, a
     // charged item before its uncharged look-alike, then the lowest ID

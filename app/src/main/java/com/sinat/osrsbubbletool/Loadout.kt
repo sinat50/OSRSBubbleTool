@@ -22,6 +22,10 @@ class Loadout(val id: String, var name: String) {
         val RUNELITE_SLOTS = listOf("head", "cape", "neck", "weapon", "body", "shield", null, "legs", null,
             "hands", "feet", null, "ring", "ammo")
         val SLOTS = RUNELITE_SLOTS.filterNotNull()
+        // Each slot's name as shown
+        val SLOT_LABELS = mapOf("head" to "Head", "cape" to "Cape", "neck" to "Neck", "ammo" to "Ammo",
+            "weapon" to "Weapon", "body" to "Body", "shield" to "Shield", "legs" to "Legs", "hands" to "Hands",
+            "feet" to "Feet", "ring" to "Ring")
         // Spellbooks, numbered as RuneLite numbers them
         val SPELLBOOKS = listOf("Standard", "Ancient", "Lunar", "Arceuus")
 
@@ -35,9 +39,9 @@ class Loadout(val id: String, var name: String) {
 
         // Its colour in the game: yellow, white from 100K, green from 10M
         fun amountColour(n: Int): Int = when {
-            n < 100_000 -> 0xFFFFFF00.toInt()
-            n < 10_000_000 -> 0xFFFFFFFF.toInt()
-            else -> 0xFF00FF80.toInt()
+            n < 100_000 -> colour("#FFFF00")
+            n < 10_000_000 -> colour("#FFFFFF")
+            else -> colour("#00FF80")
         }
 
         // An amount typed in: "250", "1,000", "15k", "2.5m" (null if it isn't a number of at least 1)

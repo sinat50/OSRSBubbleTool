@@ -12,30 +12,42 @@ import android.os.Looper
 // float over other apps and can't open the chooser themselves.
 class LoadoutFileActivity : Activity() {
 
+    // Hears the chooser's answer (see listener below)
+    interface Listener {
+        fun opened(text: String?)   // the file's text ("" if it couldn't be read), or null if none was picked
+        fun saved(ok: Boolean)      // true once written
+    }
+
     companion object {
         private const val REQUEST_OPEN = 1
         private const val REQUEST_SAVE = 2
         private const val EXTRA_SAVE_NAME = "save_name"
         private const val MAX_FILE_BYTES = 5_000_000   // a few hundred setups is well under 1 MB
 
-        // What to do with the answer (on the main thread). Kept here, not in the Intent: the text to save can be
-        // too big for an Intent, and the answer goes straight back to the tool that asked.
-        private var onOpened: ((String?) -> Unit)? = null   // the file's text ("" if it couldn't be read), or null if none was picked
-        private var toSave: String? = null
-        private var onSaved: ((Boolean) -> Unit)? = null    // true once written
+        // Who hears the answer (on the main thread): the Gear Loadouts tool that's there when it comes. Not a callback
+        // kept from when the chooser opened: the tools are rebuilt if dark mode or the text size changes meanwhile. An
+        // answer with nobody listening waits until a tool listens.
+        var listener: Listener? = null
+            set(value) {
+                field = value
+                if (value != null) waiting?.let { w -> waiting = null; w(value) }
+            }
+        private var waiting: ((Listener) -> Unit)? = null
+        private var toSave: String? = null   // kept here, not in the Intent: it can be too big for one
 
-        fun open(context: Context, done: (String?) -> Unit) {
-            onOpened = done
-            onSaved = null
+        fun open(context: Context) {
             context.startActivity(Intent(context, LoadoutFileActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
 
-        fun save(context: Context, fileName: String, text: String, done: (Boolean) -> Unit) {
+        fun save(context: Context, fileName: String, text: String) {
             toSave = text
-            onSaved = done
-            onOpened = null
             context.startActivity(Intent(context, LoadoutFileActivity::class.java)
                 .putExtra(EXTRA_SAVE_NAME, fileName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+
+        private fun tell(what: (Listener) -> Unit) {
+            val l = listener
+            if (l != null) what(l) else waiting = what
         }
     }
 
@@ -81,16 +93,12 @@ class LoadoutFileActivity : Activity() {
     }
 
     private fun finishWith(result: Any?) {
-        val opened = onOpened
-        val saved = onSaved
-        onOpened = null
-        onSaved = null
+        val saving = intent.getStringExtra(EXTRA_SAVE_NAME) != null
         toSave = null
         finish()
         // after this screen has gone, so the tool window reopens over the game rather than under it
         Handler(Looper.getMainLooper()).post {
-            opened?.invoke(result as? String)
-            saved?.invoke(result == true)
+            if (saving) tell { it.saved(result == true) } else tell { it.opened(result as? String) }
         }
     }
 

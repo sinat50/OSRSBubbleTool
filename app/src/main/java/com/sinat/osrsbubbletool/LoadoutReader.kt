@@ -258,11 +258,7 @@ object LoadoutReader {
         val top = (spot.y - 6 * s).toInt().coerceAtLeast(0)
         val bottom = (spot.y + 10 * s).toInt().coerceAtMost(p.height)
         if (right <= left || bottom <= top) return null
-        val w = right - left
-        val h = bottom - top
-        val yellow = FloatArray(w * h) { yellowness(p.rgb(left + it % w, top + it / w)) }
-        val text = Digits.read(yellow, w, h) ?: return null
-        return text.toIntOrNull()
+        return amountIn(p, Box(left, top, right, bottom))
     }
 
     // How yellow, white or green a pixel is, 0 to 1 (the digits' edges are blurred where the phone enlarged them)

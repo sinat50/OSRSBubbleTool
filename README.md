@@ -53,7 +53,7 @@ Tool windows are two inches wide in landscape. Drag the bar at the top to move a
 
 ## Battery and privacy
 
-- The screen is only captured when you use a tool that needs it (the Puzzle Box and Light Box Solvers, the ToA Puzzle Helper's screen reading, Gear Loadouts' Read screen and DPS gear import). Capture pauses itself whenever no tool is using it. The ToA Puzzle Helper's matching Watch looks at the screen a few times a second while it's on, so it uses more battery than the other tools; tap Stop when you're done.
+- The screen is only captured when you use a tool that needs it (the Puzzle Box and Light Box Solvers, the ToA Puzzle Helper's screen reading, Gear Loadouts' Read from game and DPS gear import). Capture pauses itself whenever no tool is using it. The ToA Puzzle Helper's matching Watch looks at the screen a few times a second while it's on, so it uses more battery than the other tools; tap Stop when you're done.
 - Website tools pause while their window is closed.
 - Timers don't keep anything running. Android wakes the app once when a timer is due.
 - On Android 14 and newer you can share just the game instead of the whole screen, so your notifications and other apps are never captured.

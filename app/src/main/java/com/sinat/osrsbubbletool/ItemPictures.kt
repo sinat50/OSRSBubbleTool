@@ -13,6 +13,7 @@ import android.os.Looper
 import android.util.LruCache
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.graphics.toColorInt
 import kotlin.math.min
 
 // Showing items: the item list (loaded once, in the background), item pictures, and the square slots
@@ -122,9 +123,10 @@ class ItemSlotView(context: Context) : View(context) {
 
     companion object {
         // a bank note's colours in the game (fixed, like the item pictures)
-        private const val NOTE_PAPER = 0xFFD9C79A.toInt()
-        private const val NOTE_EDGE = 0xFF2B2115.toInt()
-        private const val UNSURE = 0xFFE8A33A.toInt()   // amber: stands out in light and dark mode
+        private val NOTE_PAPER = "#D9C79A".toColorInt()
+        private val NOTE_EDGE = "#2B2115".toColorInt()
+        private val UNSURE = "#E8A33A".toColorInt()   // amber: stands out in light and dark mode
+        private val SHADOW = "#000000".toColorInt()
     }
     private val pixels = Paint().apply { isFilterBitmap = false }   // sharp, blocky pixels like the game
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT_BOLD }
@@ -162,7 +164,7 @@ class ItemSlotView(context: Context) : View(context) {
             if (amount > 1) {
                 val words = Loadout.shortAmount(amount)
                 text.textSize = h * 0.23f
-                text.color = 0xFF000000.toInt()
+                text.color = SHADOW
                 canvas.drawText(words, w * 0.06f + 1.5f, h * 0.25f + 1.5f, text)   // the game's dark shadow
                 text.color = Loadout.amountColour(amount)
                 canvas.drawText(words, w * 0.06f, h * 0.25f, text)

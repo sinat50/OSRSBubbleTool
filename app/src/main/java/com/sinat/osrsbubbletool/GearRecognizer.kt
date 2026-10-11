@@ -45,11 +45,7 @@ class GearRecognizer private constructor(private val context: Context) {
         val SLOT_ORDER = listOf("head", "cape", "neck", "ammo", "weapon", "body",
             "shield", "legs", "hands", "feet", "ring")
 
-        val SLOT_LABELS = mapOf(
-            "head" to "Head", "cape" to "Cape", "neck" to "Neck", "ammo" to "Ammo",
-            "weapon" to "Weapon", "body" to "Body", "shield" to "Shield", "legs" to "Legs",
-            "hands" to "Hands", "feet" to "Feet", "ring" to "Ring"
-        )
+        val SLOT_LABELS = Loadout.SLOT_LABELS
 
         // Each slot's position relative to the head slot, in pixels when a slot is 72 pixels wide
         // (a "slot" here is the square inside its dark outline)

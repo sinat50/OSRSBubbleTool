@@ -101,4 +101,12 @@ class ItemDataTest {
         assertEquals(12791, pouches.first().id)
         assertEquals(pouches.size, pouches.map { it.variant }.toSet().size)   // each copy listed once
     }
+
+    @Test
+    fun runePouchesAndHowManyRunesTheyHold() {
+        assertEquals(3, items.runePouchSize(12791))    // Rune pouch
+        assertEquals(4, items.runePouchSize(27281))    // Divine rune pouch
+        assertNull(items.runePouchSize(385))           // a shark
+        assertNull(items.runePouchSize(12792))         // a noted ID isn't a pouch that holds runes
+    }
 }
