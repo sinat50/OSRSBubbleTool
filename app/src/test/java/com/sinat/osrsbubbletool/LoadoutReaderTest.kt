@@ -97,6 +97,25 @@ class LoadoutReaderTest {
     }
 
     @Test
+    fun aPouchWithoutItsAmountsIsNotTrusted() {
+        // Once a look caught the pouch window while it was still being drawn and read a smoke rune in every slot.
+        // A real pouch always shows each rune's amount: the same screenshot with its yellow digits wiped off (painted
+        // stone grey) must not be read.
+        val real = shot("3_rune_pouch.png")
+        val window = PanelFinder.runePouchWindow(real)!!
+        val wiped = object : LightBoxReader.PixelSource {
+            override val width = real.width
+            override val height = real.height
+            override fun rgb(x: Int, y: Int): Int {
+                val c = real.rgb(x, y)
+                val r = (c shr 16) and 0xFF; val g = (c shr 8) and 0xFF; val b = c and 0xFF
+                return if (minOf(r, g) - b > 60 && x in window.left..window.right && y in window.top..window.bottom) 0x5A5046 else c
+            }
+        }
+        assertNull(LoadoutReader.runePouch(wiped, window, runes))
+    }
+
+    @Test
     fun noRunePouchWhenNoneIsOpen() {
         for (name in listOf("1_inventory.png", "2_equipment.png", "4_lunar.png")) {
             val p = shot(name)

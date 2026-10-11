@@ -140,7 +140,7 @@ object LoadoutReader {
 
         val scaled = runes.map { (id, pic) -> id to scale(pic, bestScale) }
         val stone = sharedStone(scaled.map { it.second })
-        return stones.map { spot ->
+        val read = stones.map { spot ->
             // Compare where the runes differ from each other: each rune's symbol, and whatever on the screen
             // isn't plain stone (so a rune with a small symbol can't win just by matching the stone)
             val scores = scaled.map { (id, pic) ->
@@ -155,8 +155,17 @@ object LoadoutReader {
                 id to best
             }.sortedBy { it.second }
             debugLog?.invoke("  rune at ${spot.x}: ${scores.take(3).map { "${it.first} %.1f".format(it.second) }}")
-            Loadout.Stack(scores[0].first, readAmount(p, spot, stone, bestScale) ?: 1)
+            readAmount(p, spot, stone, bestScale)?.let { Loadout.Stack(scores[0].first, it) }
         }
+        // A real pouch writes an amount on every rune and never holds the same rune twice (the game stacks them). A
+        // window caught while it's still being drawn can fail both (once read as a smoke rune in every slot): it's
+        // not trusted, and the next look tries again.
+        val stacks = read.filterNotNull()
+        if (stacks.size < read.size || stacks.map { it.id }.toSet().size < stacks.size) {
+            debugLog?.invoke("pouch reading not trusted: $read")
+            return null
+        }
+        return stacks
     }
 
     private const val POUCH_WINDOW_GAME_WIDTH = 358f
