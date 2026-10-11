@@ -185,6 +185,14 @@ class MainActivity : Activity() {
                 else updateButton = null
             }, matchWidth(0))
             addView(middle, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+            // a small thank-you link to the Ko-fi page (faded, so it doesn't compete with Start Bubble)
+            addView(label("Free and ad-free. Enjoying it? ☕ Buy me a coffee", if (landscape) 11f else 12f).apply {
+                gravity = Gravity.CENTER
+                setTextColor(Palette.FADED)
+                paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
+                setPadding(0, dp(4), 0, dp(4))   // a little taller, so it's easy to tap
+                setOnClickListener { openKofi() }
+            }, matchWidth(if (landscape) 2 else 6))
             addView(label("Unofficial fan-made tool. Not affiliated with Jagex.", if (landscape) 10f else 11f).apply { gravity = Gravity.CENTER },
                 matchWidth(if (landscape) 4 else 8))
             addView(bottom, matchWidth(if (landscape) 4 else 8))
@@ -208,6 +216,15 @@ class MainActivity : Activity() {
     private fun openReleasePage() {
         try {
             startActivity(Intent(Intent.ACTION_VIEW, UpdateChecker.RELEASES_PAGE.toUri()))
+        } catch (e: Exception) {
+            Toast.makeText(this, "Couldn't open a browser", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // The owner's Ko-fi page, for anyone who'd like to say thanks
+    private fun openKofi() {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, "https://ko-fi.com/sinat50".toUri()))
         } catch (e: Exception) {
             Toast.makeText(this, "Couldn't open a browser", Toast.LENGTH_SHORT).show()
         }

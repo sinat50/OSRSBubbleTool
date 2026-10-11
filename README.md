@@ -6,7 +6,8 @@
 
 <p align="center">
   A floating toolbox for Old School RuneScape on Android.<br>
-  Free, no ads, and no accounts.
+  Free, no ads, and no accounts.<br>
+  Enjoying it? <a href="https://ko-fi.com/sinat50">☕ Buy me a coffee</a>
 </p>
 
 ---
@@ -64,6 +65,7 @@ Tool windows are two inches wide in landscape. Drag the bar at the top to move a
 - The game pictures some tools compare your screen with (item pictures and solved puzzle pictures) come with the app, so nothing needs downloading and those tools work offline.
 - Each time you open the app, it checks GitHub for a newer version. The button in the top right says **Up To Date** or **Update Available** and opens the latest release page. Nothing about you is sent.
 - Found a problem? **Report An Issue** in the top left of the main screen opens a short report form on GitHub (you'll need a free GitHub account), with your phone model, Android version, screen size and the app's version already filled in. You see everything before you send it, and can change or remove any of it.
+- **Buy me a coffee**, under Start Bubble on the main screen, opens the developer's Ko-fi page in your browser, if you'd like to say thanks. Nothing about you is sent, and the app stays free and ad-free either way.
 
 ## Permissions
 
