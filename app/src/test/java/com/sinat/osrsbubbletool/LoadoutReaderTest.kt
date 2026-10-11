@@ -33,8 +33,18 @@ class LoadoutReaderTest {
     }
 
     private val books by lazy { (0..3).map { picture(File(assets, "items/spellbooks/$it.png")) } }
+    // the runes' icons (RuneLite's, as the app uses them), cut down to the rune itself
     private val runes by lazy {
-        LoadoutReader.POUCH_RUNES.map { id -> id to picture(File(assets, "items/icons/" + items[id]!!.picture())) }
+        LoadoutReader.POUCH_RUNES.map { id -> id to trimmed(picture(File(assets, "items/canvas/$id.png"))) }
+    }
+
+    private fun trimmed(p: LoadoutReader.Picture): LoadoutReader.Picture {
+        var l = p.width; var t = p.height; var r = -1; var b = -1
+        for (y in 0 until p.height) for (x in 0 until p.width) if (((p.argb[y * p.width + x] ushr 24) and 0xFF) > 128) {
+            if (x < l) l = x; if (x > r) r = x; if (y < t) t = y; if (y > b) b = y
+        }
+        val w = r - l + 1; val h = b - t + 1
+        return LoadoutReader.Picture(w, h, IntArray(w * h) { p.argb[(t + it / w) * p.width + l + it % w] })
     }
 
     init { LoadoutReader.debugLog = { println(it) } }
@@ -92,6 +102,18 @@ class LoadoutReaderTest {
             val p = shot(name)
             val window = PanelFinder.runePouchWindow(p)
             assertNull("found a rune pouch in $name", window?.let { LoadoutReader.runePouch(p, it, runes) })
+        }
+    }
+
+    // Which tab is open: its button is red (the guided scan reads the inventory or the equipment only on its tab)
+    @Test
+    fun tellsWhichTabIsOpen() {
+        for ((name, open) in listOf("1_inventory.png" to PanelFinder.INVENTORY_TAB, "2_equipment.png" to PanelFinder.EQUIPMENT_TAB,
+                "4_arceuus.png" to PanelFinder.INVENTORY_TAB, "3_rune_pouch.png" to PanelFinder.INVENTORY_TAB)) {
+            val p = shot(name)
+            val panel = PanelFinder.findPanel(p)!!
+            assertEquals(name, open == PanelFinder.INVENTORY_TAB, PanelFinder.tabOpen(p, panel, 0, PanelFinder.INVENTORY_TAB))
+            assertEquals(name, open == PanelFinder.EQUIPMENT_TAB, PanelFinder.tabOpen(p, panel, 0, PanelFinder.EQUIPMENT_TAB))
         }
     }
 }

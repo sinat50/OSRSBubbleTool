@@ -32,6 +32,26 @@ object PanelFinder {
         return Box(left.toInt(), (panel.top + 3 * rowH).toInt(), (left + colW).toInt(), (panel.top + 4 * rowH).toInt())
     }
 
+    // Whether a tab is the open one: its button is red (119, 51, 40), the others brownish grey (88, 78, 64). The tab
+    // buttons are in two columns right of the panel, 7 rows; the inventory is column 0 row 0, the equipment column 0
+    // row 1. Judged by a band just inside the button's edge (its picture is in the middle).
+    fun tabOpen(p: LightBoxReader.PixelSource, panel: Box, column: Int, row: Int): Boolean {
+        val left = panel.right + panel.width * 0.012f + column * panel.width * 0.198f
+        val colW = panel.width * 0.198f
+        val rowH = panel.height / 7f
+        var r = 0; var g = 0; var n = 0
+        for (fx in floatArrayOf(0.12f, 0.16f, 0.84f, 0.88f)) for (fy in floatArrayOf(0.12f, 0.16f, 0.84f, 0.88f)) {
+            val x = (left + colW * fx).toInt(); val y = (panel.top + row * rowH + rowH * fy).toInt()
+            if (x < 0 || y < 0 || x >= p.width || y >= p.height) continue
+            val c = p.rgb(x, y)
+            r += (c shr 16) and 0xFF; g += (c shr 8) and 0xFF; n++
+        }
+        return n > 0 && (r - g) / n > 40
+    }
+
+    const val INVENTORY_TAB = 0   // its row (in column 0)
+    const val EQUIPMENT_TAB = 1
+
     // An open rune pouch's window (it's almost square), or null if none is open
     fun runePouchWindow(p: LightBoxReader.PixelSource): Box? = biggestOutline(p, 0.85f, 1.0f)
 
@@ -89,10 +109,12 @@ object PanelFinder {
             if (span < 30) continue
             if (height > maxAspect * (span + 10)) continue
             if (height < minAspect * 0.8f * minOf(top.length, bottom.length)) continue
-            // Side edges: long black lines that run from the top edge down to the bottom edge
+            // Side edges: long black lines that run from the top edge down to (nearly) the bottom edge. A line may
+            // start higher up: something dark above the window can carry it on past the top edge.
+            val near = height * 0.03f + 6
             val sides = cols.filter {
                 it.at in (from - 5)..(to + 5) &&
-                    abs(it.start - top.at) <= height * 0.03f + 6 && it.length >= height * 0.9f
+                    it.start <= top.at + near && it.start + it.length >= top.at + height * 0.9f
             }
             // the lines nearest the ends of the top and bottom edges
             val mid = (from + to) / 2

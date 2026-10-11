@@ -406,7 +406,7 @@ class MainActivity : Activity() {
 
         section("RuneLite",
             "Farming growth times based on RuneLite's Time Tracking plugin. Teleport Finder: newer teleport destinations " +
-            "(like the Spider cave and Wyrmscraig teleports) and the list of dungeon entrances, from RuneLite's world map (github.com/runelite/runelite).\n\n" +
+            "(like the Spider cave and Wyrmscraig teleports) and the list of dungeon entrances, from RuneLite's world map. Gear Loadouts: which items can be noted, and their noted item IDs, from RuneLite's item list (github.com/runelite/runelite); its item icons, exactly as the game draws them, as published by RuneLite (static.runelite.net; the pictures are (c) Jagex Ltd).\n\n" +
             "Copyright (c) 2016-2017, Adam <Adam@sigterm.info>\nCopyright (c) 2018-2019, Abex\n" +
             "Copyright (c) 2018, NotFoxtrot <https://github.com/NotFoxtrot>\nCopyright (c) 2018, Morgan Lewis <https://github.com/MESLewis>\n" +
             "Copyright (c) 2020, Arman S <https://github.com/Rman887>\n" +

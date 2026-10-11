@@ -48,7 +48,7 @@ Code: `app/src/main/java/com/sinat/osrsbubbletool/` (one file per tool, roughly)
 | `GuideWindow.kt`, `ScreenPictures.kt` | Shared: the see-through guide windows both solvers draw in; and working with screen pictures (`forEachPatch`, `cutArea`, `savePictureToPhone`) |
 | `ToaPuzzleTool.kt`, `ToaPuzzles.kt`, `ToaReader.kt` | ToA Puzzle Helper (Beta): the five Path of Scabaras puzzles. **Read `docs/toa-helper.md` before changing these.** |
 | `DpsTool.kt`, `GearRecognizer.kt`, `GearIcons.kt`, `PanelFinder.kt` | DPS Calculator (wiki web page) and Import my gear |
-| `GearLoadoutsTool.kt`, `Loadout.kt`, `ItemData.kt`, `ItemPictures.kt`, `LoadoutReader.kt`, `InventoryReader.kt`, `LoadoutFileActivity.kt` | Gear Loadouts (was Inventory Setups; the `Tool` name and its settings file keep the old name): a loadout's items and the RuneLite Inventory Setups format (`Loadout`), every item in the game (`ItemData`, `ItemCatalog`), item pictures and the square slots (`ItemIcons`, `ItemSlotView`, `SlotGrid`), Read screen (`LoadoutReader`: spellbook, rune pouch, the game's digits; `InventoryReader`: the 28 inventory spaces, by each item's black outline, narrowed down with `assets/items/shapes.bin`; equipment through the DPS tool's `GearRecognizer`, shared by both), the file chooser for import/export. Plan: `.scratch/gear-loadouts/`; test screenshots: `Documents\Androiddev\loadout_shots\` (`LoadoutReaderTest`, `InventoryReaderTest`) |
+| `GearLoadoutsTool.kt`, `Loadout.kt`, `ItemData.kt`, `ItemPictures.kt`, `LoadoutReader.kt`, `InventoryReader.kt`, `LoadoutFileActivity.kt` | Gear Loadouts (was Inventory Setups; the `Tool` name and its settings file keep the old name): a loadout's items and the RuneLite Inventory Setups format (`Loadout`), every item in the game (`ItemData`, `ItemCatalog`), item pictures and the square slots (`ItemIcons`, `ItemSlotView`, `SlotGrid`), Read from game (a guided scan; `LoadoutReader`: spellbook, rune pouch, the game's digits; `InventoryReader`: the 28 inventory spaces, each RuneLite icon compared at its exact place (narrowed down with `canvas.bin`), the wiki's stack pictures by each item's outline as a backup; equipment through the DPS tool's `GearRecognizer`, shared by both), the file chooser for import/export. Plan: `.scratch/gear-loadouts/`; test screenshots: `Documents\Androiddev\loadout_shots\` (`LoadoutReaderTest`, `InventoryReaderTest`) |
 | `RegionOverlay.kt`, `PuzzleAreaOverlay.kt` | The "set area by hand" frames |
 | `TeleportFinderTool.kt`, `TeleportData.kt`, `WalkMap.kt` | Teleport Finder (Beta): wiki lookup, teleport list, walking-route search |
 | `QuestHelperTool.kt`, `QuestData.kt`, `QuestGuides.kt`, `QuestBook.kt`, `QuestPuzzles.kt`, `QuestSolvers.kt`, `QuestSolverViews.kt`, `PuzzleDiagramView.kt` | Quest Helper (Beta), from the Quest Helper RuneLite plugin (`PuzzleDiagramView` draws the puzzle answer maps) |
@@ -74,7 +74,8 @@ Data: `app/src/main/assets/` (how to run the scripts: `tools/README.md`)
 | `dungeons.txt` | `tools/teleport-finder/build_dungeons.py` | RuneLite world map `DungeonLocation.java` |
 | `entrances.tsv` | (older, kept only as a fallback for straight-line estimates) | |
 | `dps/equipment.json` | `tools/dps/build_equipment_json.py` | OSRS Wiki DPS calculator repository |
-| `items/items.tsv`, `items/icons/` (14,982 item pictures, 8.4 MB), `items/shapes.bin` (each picture's shape and colours in brief, 2.3 MB) | `tools/items/build_items.py` | OSRS Wiki item tables (every item's ID, name, slot, picture), for Gear Loadouts (`ItemData`, `InventoryReader`) |
+| `items/items.tsv`, `items/noted.tsv` (each notable item's noted ID), `items/icons/` (1,754 wiki pictures: stacks drawn differently by size, items too new for RuneLite) | `tools/items/build_items.py` | OSRS Wiki item tables (every item's ID, name, slot, picture), for Gear Loadouts (`ItemData`); noted IDs from RuneLite's `gameval/ItemID.java` |
+| `items/canvas/` (14,726 icons, 10.3 MB), `items/canvas.tsv`, `items/canvas.bin` (each icon in brief, 2.2 MB), `items/shapes.bin` (the wiki pictures in brief) | `tools/items/build_icons.py` (run after build_items.py) | RuneLite's item icons (static.runelite.net), exactly as the game draws them: shown in loadouts, and read at each item's exact place (`InventoryReader`) |
 | `dps/empty_slots.png` | cut from a game screenshot | what empty equipment slots look like |
 | `dps/icons/` (4,991 item pictures, 2.6 MB), `puzzles/`, `quest_images/` | `tools/dps/fetch_pictures.py` | DPS calculator repository at `GearIcons.COMMIT`; OSRS Wiki |
 
@@ -163,7 +164,7 @@ trailer and the ToA demo video; how to update them is in `trailer/README.md`), `
 ## Checking your work
 
 - Build with `./gradlew.bat assembleDebug`, and run Android's checks with `./gradlew.bat lintDebug` (report in
-  `app/build/reports/lint-results-debug.sarif`). Expected warnings: 96 "SetTextI18n" (text written in the code,
+  `app/build/reports/lint-results-debug.sarif`). Expected warnings: 93 "SetTextI18n" (text written in the code,
   see `.scratch/lint-text-warnings/`) and 2 "IconXmlAndPng" (the app icon).
 - PC tests: `./gradlew.bat testDebugUnitTest`, in `app/src/test/`: the Puzzle Box and Light Box solvers, the ToA
   answers, farming growth times, quest requirement checks, the Zen Garden's save file, placed things and auto rake patterns, and keeping windows clear of the bars (expected answers worked out by hand or from the

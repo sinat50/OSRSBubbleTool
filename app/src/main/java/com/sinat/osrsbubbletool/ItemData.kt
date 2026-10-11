@@ -9,7 +9,10 @@ package com.sinat.osrsbubbletool
 // by stack size (coins, arrows...) list several pictures, separated by "|"; the number at the end of each
 // name ("Coins 250.png") is the smallest stack that picture is for. Last, the item's wiki page if it isn't
 // its name: copies of an item from a minigame or quest have their own page ("Rune pouch (Last Man Standing)").
-class ItemData(tsv: String) {
+//
+// Noted items (an item drawn on a bank note) have their own IDs in the game: notedTsv (assets/items/noted.tsv, from
+// RuneLite's item list) gives each notable item's noted ID, one "item ID, noted ID" pair a line.
+class ItemData(tsv: String, notedTsv: String = "") {
 
     class Item(val id: Int, val name: String, val slot: String?, val pictures: List<String>, page: String = "") {
         // Which copy this is ("Last Man Standing"), or null for the item itself
@@ -34,6 +37,7 @@ class ItemData(tsv: String) {
 
     companion object {
         private val STACK = Regex(""" (\d+)\.png$""")
+        private val UNCHARGED = listOf("(uncharged)", "(empty)", "(inactive)")
         private val SLOTS = setOf("head", "cape", "neck", "ammo", "weapon", "body", "shield", "legs", "hands", "feet", "ring")
     }
 
@@ -55,6 +59,49 @@ class ItemData(tsv: String) {
     }
 
     operator fun get(id: Int): Item? = byId[id]
+
+    private val notedId = HashMap<Int, Int>()     // item ID to its noted ID
+    private val plainId = HashMap<Int, Int>()     // noted ID to the item's own ID
+
+    init {
+        for (line in notedTsv.lineSequence()) {
+            if (line.isEmpty() || line.startsWith("#")) continue
+            val parts = line.split('\t')
+            val plain = parts.getOrNull(0)?.toIntOrNull() ?: continue
+            val noted = parts.getOrNull(1)?.toIntOrNull() ?: continue
+            if (plain !in byId) continue
+            notedId[plain] = noted
+            plainId[noted] = plain
+        }
+    }
+
+    // The noted version's ID of an item (null if it can't be noted)
+    fun notedOf(id: Int): Int? = notedId[id]
+
+    // For a noted ID, the item's own ID (null if id isn't a noted item)
+    fun plainOf(id: Int): Int? = plainId[id]
+
+    // Of items that look exactly alike, the one to pick: the item itself before its minigame and quest copies, a
+    // charged item before its uncharged look-alike, then the lowest ID
+    fun preferred(ids: Collection<Int>): Int = ids.minWith(compareBy<Int>({ shown(it)?.first?.variant != null },
+        { id -> shown(id)?.first?.name?.let { n -> UNCHARGED.any { n.contains(it) } } == true }, { it }))
+
+    // A reading's guesses (item IDs, best first, and how well each fits: lower is better), with an uncharged item's
+    // charged version put first when it fits about as well ("Eye of Ayak" before "Eye of Ayak (uncharged)": the
+    // one people take on a trip)
+    fun chargedFirst(ids: List<Int>, costs: List<Float>): List<Int> {
+        val best = ids.firstOrNull() ?: return ids
+        val name = shown(best)?.first?.name ?: return ids
+        val word = UNCHARGED.firstOrNull { name.contains(it) } ?: return ids
+        val charged = name.replace(word, "").trim()
+        val k = ids.indexOfFirst { shown(it)?.first?.name == charged }
+        if (k <= 0 || k >= costs.size || costs[k] - costs[0] >= 2f) return ids
+        return listOf(ids[k]) + ids.filterIndexed { i, _ -> i != k }
+    }
+
+    // The item to show for an ID, and whether it's noted (null if the ID is unknown)
+    fun shown(id: Int): Pair<Item, Boolean>? =
+        byId[id]?.let { it to false } ?: plainId[id]?.let { plain -> byId[plain]?.let { it to true } }
 
     // Items whose name has all the typed words in it (any case), best matches first: names that start with
     // what you typed, then shorter names, the item itself before its minigame and quest copies. Items that

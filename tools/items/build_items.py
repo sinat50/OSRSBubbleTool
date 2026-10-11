@@ -145,53 +145,28 @@ for number, picture in enumerate(['Standard spellbook.png', 'Ancient spellbook.p
     open(os.path.join(books, f'{number}.png'), 'wb').write(data)
 print('items/spellbooks: 4 pictures')
 
-# Each item picture's shape and colours in brief, for Gear Loadouts' inventory reading (InventoryReader): the
-# reader narrows 16,000 pictures down to a few dozen with these, then loads only those pictures to compare closely.
-# items/shapes.bin: "SHP1", the number of pictures (4 bytes), then for each picture: its file name (1 byte length,
-# then UTF-8), width and height (1 byte each), which pixels are part of it (1 bit each, row by row, first pixel in
-# the top bit), then a 4 x 4 grid over the picture: which squares have any of it in them (2 bytes, first square in
-# the top bit) and each square's average colour (3 bytes each, red green blue).
-from PIL import Image   # (pip install pillow)
-import struct
+# Noted items: each item that can be noted, and its noted version's ID (a noted item is its own item in the game,
+# drawn on a bank note). From RuneLite's list of the game's item IDs (github.com/runelite/runelite,
+# net/runelite/api/gameval/ItemID.java, BSD 2-Clause): its "Cert" list holds the noted IDs, under the same names
+# as the items themselves. items/noted.tsv: item ID, noted ID.
+RUNELITE_ITEMS = 'https://raw.githubusercontent.com/runelite/runelite/master/runelite-api/src/main/java/net/runelite/api/gameval/ItemID.java'
+source = fetch(RUNELITE_ITEMS).decode('utf-8', 'replace')
+cert_at = source.find('class Cert')
+if cert_at < 0:
+    sys.exit('RuneLite item list: no Cert (noted) section found')
+constant = re.compile(r'public static final int (\w+)\s*=\s*(\d+)\s*;')
+plain_ids = {n: int(v) for n, v in constant.findall(source[:cert_at])}
+cert_part = source[cert_at:].split('public static final class', 1)[0]   # up to the next list
+noted_ids = {n: int(v) for n, v in constant.findall(cert_part)}
+noted_pairs = sorted((plain_ids[n], v) for n, v in noted_ids.items() if n in plain_ids and plain_ids[n] in lines)
+with open(os.path.join(folder, 'noted.tsv'), 'w', encoding='utf-8', newline='\n') as out:
+    out.write('# Item ID and its noted version\'s ID, from RuneLite\'s item list (BSD 2-Clause). Built by tools/items/build_items.py\n')
+    for plain, noted in noted_pairs:
+        out.write(f'{plain}\t{noted}\n')
+print('items/noted.tsv:', len(noted_pairs), 'notable items')
 
-def summary(path):
-    im = Image.open(path).convert('RGBA')
-    w, h = im.size
-    if w > 255 or h > 255:
-        return None
-    px = im.load()
-    solid = [[px[x, y][3] > 128 for x in range(w)] for y in range(h)]
-    bits = bytearray((w * h + 7) // 8)
-    for y in range(h):
-        for x in range(w):
-            if solid[y][x]:
-                i = y * w + x
-                bits[i // 8] |= 0x80 >> (i % 8)
-    has, colours = 0, bytearray()
-    for j in range(4):
-        for i in range(4):
-            sums, n = [0, 0, 0], 0
-            for y in range(j * h // 4, (j + 1) * h // 4):
-                for x in range(i * w // 4, (i + 1) * w // 4):
-                    if solid[y][x]:
-                        r, g, b, _ = px[x, y]
-                        sums[0] += r; sums[1] += g; sums[2] += b; n += 1
-            if n:
-                has |= 0x8000 >> (j * 4 + i)
-            colours += bytes(s // n if n else 0 for s in sums)
-    return bytes([w, h]) + bytes(bits) + struct.pack('>H', has) + bytes(colours)
-
-entries = []
-for name in sorted(set(wanted)):
-    path = os.path.join(icons, name)
-    if not os.path.exists(path):
-        continue
-    s = summary(path)
-    if s:
-        encoded = name.encode('utf-8')
-        entries.append(bytes([len(encoded)]) + encoded + s)
-with open(os.path.join(folder, 'shapes.bin'), 'wb') as out:
-    out.write(b'SHP1' + struct.pack('>I', len(entries)))
-    for e in entries:
-        out.write(e)
-print('items/shapes.bin:', len(entries), 'pictures,', os.path.getsize(os.path.join(folder, 'shapes.bin')) // 1024, 'KB')
+# Each picture's shape and colours in brief (items/shapes.bin, see item_shapes.py). build_icons.py, run next, keeps
+# only the pictures still needed and writes this again for them.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from item_shapes import write_shapes
+write_shapes(folder, wanted)

@@ -35,7 +35,8 @@ object ItemCatalog {
         val assets = context.applicationContext.assets
         Thread {
             val read = try {
-                ItemData(assets.open("items/items.tsv").bufferedReader().use { it.readText() })
+                val noted = try { assets.open("items/noted.tsv").bufferedReader().use { it.readText() } } catch (_: Exception) { "" }
+                ItemData(assets.open("items/items.tsv").bufferedReader().use { it.readText() }, noted)
             } catch (_: Exception) {
                 ItemData("")   // missing or damaged: no items rather than a crash
             }
@@ -49,12 +50,42 @@ object ItemCatalog {
     }
 }
 
-// Item pictures from assets/items/icons/, and the spellbook pictures. Pictures seen recently are kept, so
-// scrolling and redrawing don't read them again. They're tiny (about 36 x 32), so reading one is quick.
+// Item pictures, and the spellbook pictures. Items show RuneLite's icons (assets/items/canvas/<id>.png, exactly as
+// the game draws them; noted items on their note); items drawn differently by stack size (coins, arrows) show the
+// wiki's picture for the amount (assets/items/icons/). Pictures seen recently are kept, so scrolling and redrawing
+// don't read them again. They're tiny (36 x 32), so reading one is quick.
 class ItemIcons(context: Context) {
     private val assets = context.applicationContext.assets
     private val cache = LruCache<String, Bitmap>(400)
     private val missing = HashSet<String>()
+
+    // Items that look exactly like another share its icon (assets/items/canvas.tsv: item ID, the ID whose icon it uses)
+    val sharedIcon: Map<Int, Int> by lazy {
+        val map = HashMap<Int, Int>()
+        try {
+            assets.open("items/canvas.tsv").bufferedReader().useLines { lines ->
+                for (line in lines) {
+                    if (line.startsWith("#")) continue
+                    val parts = line.split('\t')
+                    val a = parts.getOrNull(0)?.toIntOrNull() ?: continue
+                    map[a] = parts.getOrNull(1)?.toIntOrNull() ?: continue
+                }
+            }
+        } catch (_: Exception) { }
+        map
+    }
+
+    // The ID whose icon an item shows
+    fun iconId(id: Int) = sharedIcon[id] ?: id
+
+    // An item's icon by its ID (a noted ID gives the noted icon), or null if there's none
+    fun canvas(id: Int): Bitmap? = load("items/canvas/${iconId(id)}.png")
+
+    // The picture for a stack: the wiki's picture for its amount if the item is drawn differently by stack size,
+    // otherwise its icon (the wiki's picture if it has no icon)
+    fun forStack(id: Int, item: ItemData.Item, amount: Int, noted: Boolean): Bitmap? =
+        if (!noted && item.pictures.size > 1) picture(item, amount) ?: canvas(id)
+        else canvas(id) ?: picture(item, amount)
 
     private fun load(path: String): Bitmap? {
         cache.get(path)?.let { return it }
@@ -80,9 +111,21 @@ class ItemSlotView(context: Context) : View(context) {
         set(value) { field = value; invalidate() }
     var label: String? = null    // shown faintly while empty
         set(value) { field = value; invalidate() }
+    var noted = false            // drawn on a bank note, smaller, as the game draws noted items
+        set(value) { field = value; invalidate() }
+    var unsure = false           // read from the screen but not clearly: a ring round it says "check me"
+        set(value) { field = value; invalidate() }
     var square = Palette.CELL
 
     private val box = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; color = UNSURE }
+
+    companion object {
+        // a bank note's colours in the game (fixed, like the item pictures)
+        private const val NOTE_PAPER = 0xFFD9C79A.toInt()
+        private const val NOTE_EDGE = 0xFF2B2115.toInt()
+        private const val UNSURE = 0xFFE8A33A.toInt()   // amber: stands out in light and dark mode
+    }
     private val pixels = Paint().apply { isFilterBitmap = false }   // sharp, blocky pixels like the game
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT_BOLD }
     private val rect = RectF()
@@ -93,14 +136,28 @@ class ItemSlotView(context: Context) : View(context) {
         box.color = square
         rect.set(0f, 0f, w, h)
         canvas.drawRoundRect(rect, w * 0.1f, w * 0.1f, box)
+        if (unsure) {
+            ring.strokeWidth = w * 0.06f
+            rect.set(ring.strokeWidth / 2, ring.strokeWidth / 2, w - ring.strokeWidth / 2, h - ring.strokeWidth / 2)
+            canvas.drawRoundRect(rect, w * 0.1f, w * 0.1f, ring)
+        }
         val p = picture
         if (p != null) {
+            if (noted) {
+                // the bank note: a sheet of paper with a dark edge, the item two thirds as big on it
+                rect.set(w * 0.14f, h * 0.12f, w * 0.86f, h * 0.88f)
+                box.color = NOTE_EDGE
+                canvas.drawRoundRect(rect, w * 0.04f, w * 0.04f, box)
+                rect.inset(w * 0.035f, w * 0.035f)
+                box.color = NOTE_PAPER
+                canvas.drawRoundRect(rect, w * 0.03f, w * 0.03f, box)
+            }
             // as big as fits, keeping the shape, in whole steps so every game pixel is the same size
-            val fit = min(w * 0.9f / p.width, h * 0.9f / p.height)
-            val scale = if (fit >= 1f) fit.toInt().toFloat() else fit
+            val fit = min(w * 0.9f / p.width, h * 0.9f / p.height) * (if (noted) 0.6f else 1f)
+            val scale = if (fit >= 1f && !noted) fit.toInt().toFloat() else fit
             val pw = p.width * scale
             val ph = p.height * scale
-            rect.set((w - pw) / 2, (h - ph) / 2, (w + pw) / 2, (h + ph) / 2)
+            rect.set((w - pw) / 2, (h - ph) / 2 + (if (noted) h * 0.03f else 0f), (w + pw) / 2, (h + ph) / 2 + (if (noted) h * 0.03f else 0f))
             canvas.drawBitmap(p, null, rect, pixels)
             if (amount > 1) {
                 val words = Loadout.shortAmount(amount)

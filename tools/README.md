@@ -35,7 +35,8 @@ No downloads needed first: the script reads the OSRS Wiki's item tables through 
 
 | Script | Makes | Notes |
 | --- | --- | --- |
-| `build_items.py` | `items/items.tsv`, `items/icons/` | `python3 build_items.py app/src/main/assets` (from the project folder). Every item's ID, name, equipment slot and picture(s). Skips pictures already there and removes ones no longer needed. About 8 minutes the first time (15,000 pictures), seconds after. |
+| `build_items.py` | `items/items.tsv`, `items/noted.tsv`, `items/icons/` | `python3 build_items.py app/src/main/assets` (from the project folder). Every item's ID, name, equipment slot and picture(s) from the OSRS Wiki, and noted IDs from RuneLite's item list. Skips pictures already there. About 8 minutes the first time (15,000 pictures), seconds after. |
+| `build_icons.py` | `items/canvas/`, `items/canvas.tsv`, `items/canvas.bin`, `items/shapes.bin` | `python3 build_icons.py app/src/main/assets`, **right after** `build_items.py`. Every item's icon exactly as the game draws it (RuneLite's, 36 x 32, noted ones on their note), for showing items and reading the inventory at each item's exact place. Then removes the wiki pictures no longer needed (keeps stack-size pictures like coins) and writes `shapes.bin` for those kept. About 15 minutes the first time (21,000 icons), seconds after. |
 
 ## DPS Calculator gear import (`dps/`)
 

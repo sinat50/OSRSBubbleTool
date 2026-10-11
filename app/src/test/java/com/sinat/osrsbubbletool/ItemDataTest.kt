@@ -12,7 +12,9 @@ import java.io.File
 class ItemDataTest {
 
     // The real file the app comes with (tests run from the app folder)
-    private val items by lazy { ItemData(File("src/main/assets/items/items.tsv").readText()) }
+    private val items by lazy {
+        ItemData(File("src/main/assets/items/items.tsv").readText(), File("src/main/assets/items/noted.tsv").readText())
+    }
 
     @Test
     fun wellKnownItemsHaveTheirGameIds() {
@@ -73,6 +75,20 @@ class ItemDataTest {
         assertTrue(items.search("whip", slot = "weapon").all { it.slot == "weapon" })
         assertTrue(items.search("shark", slot = "head").none { it.name == "Shark" })
         assertTrue(items.search("   ").isEmpty())
+    }
+
+    @Test
+    fun notedItemsHaveTheirOwnIds() {
+        // the noted IDs as the game has them (a shark is 385, a noted shark 386)
+        assertEquals(386, items.notedOf(385))
+        assertEquals(385, items.plainOf(386))
+        assertEquals(5355, items.notedOf(5354))   // Filled plant pot
+        assertNull(items.notedOf(4151 + 1000000))
+        assertNull(items.plainOf(385))            // a shark isn't noted
+        assertEquals("Shark", items.shown(386)?.first?.name)
+        assertEquals(true, items.shown(386)?.second)
+        assertEquals(false, items.shown(385)?.second)
+        assertNull(items.notedOf(12791))          // a rune pouch can't be noted
     }
 
     @Test

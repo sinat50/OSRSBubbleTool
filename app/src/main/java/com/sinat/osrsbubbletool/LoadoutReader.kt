@@ -220,15 +220,34 @@ object LoadoutReader {
 
     // ---------------- Amounts ----------------
 
-    // The amount written in yellow in an area (the top of an equipment slot, for ammunition), or null
+    // The amount written on a stack in an area (the top left of an inventory space or an equipment slot), or null.
+    // The game writes it in yellow up to 99,999, in white with a K from 100K ("134K") and in green with an M from
+    // 10M ("24M"): the colour says which, so only the digits need reading (the K or M, and anything touching it,
+    // ends the number). A K or M amount is as the game shows it, rounded down: "134K" is 134,000.
     fun amountIn(p: PixelSource, area: Box): Int? {
         val left = area.left.coerceAtLeast(0)
         val top = area.top.coerceAtLeast(0)
         val w = area.right.coerceAtMost(p.width) - left
         val h = area.bottom.coerceAtMost(p.height) - top
         if (w <= 0 || h <= 0) return null
-        val yellow = FloatArray(w * h) { yellowness(p.rgb(left + it % w, top + it / w)) }
-        return Digits.read(yellow, w, h)?.toIntOrNull()
+        // which colour the text is: the one with the most clear pixels
+        var yellow = 0; var white = 0; var green = 0
+        for (i in 0 until w * h) {
+            val c = p.rgb(left + i % w, top + i / w)
+            if (yellowness(c) > 0.9f) yellow++
+            if (whiteness(c) > 0.9f) white++
+            if (greenness(c) > 0.9f) green++
+        }
+        val most = maxOf(yellow, white, green)
+        if (most == 0) return null
+        val (textness, times) = when (most) {
+            yellow -> ::yellowness to 1L
+            green -> ::greenness to 1_000_000L
+            else -> ::whiteness to 1_000L
+        }
+        val mask = FloatArray(w * h) { textness(p.rgb(left + it % w, top + it / w)) }
+        val digits = Digits.read(mask, w, h, stopAtOther = times > 1)?.toLongOrNull() ?: return null
+        return (digits * times).takeIf { it <= Int.MAX_VALUE }?.toInt()
     }
 
     // The amount written over a rune: yellow digits in the game's small font, 8 game pixels tall, starting at
@@ -246,10 +265,23 @@ object LoadoutReader {
         return text.toIntOrNull()
     }
 
-    // How yellow a pixel is, 0 to 1 (the digits' edges are blurred where the phone enlarged them)
+    // How yellow, white or green a pixel is, 0 to 1 (the digits' edges are blurred where the phone enlarged them)
     private fun yellowness(c: Int): Float {
         val r = (c shr 16) and 0xFF; val g = (c shr 8) and 0xFF; val b = c and 0xFF
         return ((minOf(r, g) - b - 60) / 120f).coerceIn(0f, 1f)
+    }
+
+    private fun whiteness(c: Int): Float {
+        val r = (c shr 16) and 0xFF; val g = (c shr 8) and 0xFF; val b = c and 0xFF
+        return ((minOf(r, g, b) - 130) / 90f).coerceIn(0f, 1f) * (if (maxOf(r, g, b) - minOf(r, g, b) < 50) 1f else 0f)
+    }
+
+    // The game's green text is (0, 255, 128): about half as much blue as green, and no red. Blurred into a light
+    // background it stays that way (38, 182, 114), while grass behind the panel has hardly any blue.
+    private fun greenness(c: Int): Float {
+        val r = (c shr 16) and 0xFF; val g = (c shr 8) and 0xFF; val b = c and 0xFF
+        if (r * 100 > g * 45 || b * 100 < g * 30 || b * 100 > g * 75) return 0f
+        return ((g - 130) / 60f).coerceIn(0f, 1f)
     }
 }
 
@@ -272,18 +304,35 @@ object Digits {
     )
     private const val ROWS = 8
 
-    // The number in a patch of the screen, given how yellow each pixel is (0 to 1), or null if there's none
-    fun read(yellow: FloatArray, w: Int, h: Int): String? {
-        // The rows the digits are on: the tallest run of rows with yellow in them
-        var bestTop = -1; var bestRows = 0; var runTop = -1
-        for (y in 0..h) {
-            val any = y < h && (0 until w).any { yellow[y * w + it] > 0.5f }
-            if (any && runTop < 0) runTop = y
-            if (!any && runTop >= 0) {
-                if (y - runTop > bestRows) { bestRows = y - runTop; bestTop = runTop }
-                runTop = -1
+    // The number in a patch of the screen, given how much each pixel is the text's colour (0 to 1), or null if
+    // there's none. stopAtOther: a shape that isn't a digit ends the number (the K or M after it) rather than
+    // meaning it can't be read.
+    fun read(yellow: FloatArray, w: Int, h: Int, stopAtOther: Boolean = false): String? {
+        // The rows the digits are on: the rows the first digit (the leftmost run of text columns) covers. Measured
+        // on it alone, as an item picture touching the end of the number can have the text's colour too.
+        fun inColumn(x: Int) = (0 until h).any { yellow[it * w + x] > 0.5f }
+        val first = (0 until w).firstOrNull { inColumn(it) } ?: return null
+        var last = first
+        while (last + 1 < w && inColumn(last + 1)) last++
+        // The tallest run of rows with text in the first digit's columns. A thin stroke can fade for a row where it's
+        // blurred into the background: if the digit then looks too short for its width (digits are much taller than
+        // wide), runs one empty row apart are joined.
+        fun tallest(bridge: Boolean): Pair<Int, Int> {
+            var top = -1; var rows = 0; var runTop = -1; var lastRow = -1
+            for (y in 0..h) {
+                val any = y < h && (first..last).any { yellow[y * w + it] > 0.5f }
+                if (any) {
+                    if (runTop < 0) runTop = y
+                    lastRow = y
+                } else if (runTop >= 0 && (!bridge || y - lastRow > 1)) {
+                    if (lastRow + 1 - runTop > rows) { rows = lastRow + 1 - runTop; top = runTop }
+                    runTop = -1
+                }
             }
+            return top to rows
         }
+        var (bestTop, bestRows) = tallest(false)
+        if (bestRows < (last - first + 1) * 1.4f) tallest(true).let { bestTop = it.first; bestRows = it.second }
         if (bestRows < ROWS) return null   // too small to be digits
         val pixel = bestRows / ROWS.toFloat()   // one game pixel, in screen pixels
 
@@ -294,12 +343,33 @@ object Digits {
             val any = x < w && (bestTop until bestTop + bestRows).any { yellow[it * w + x] > 0.5f }
             if (any && start < 0) start = x
             if (!any && start >= 0) {
-                text.append(digit(yellow, w, start, x, bestTop, bestRows, pixel) ?: return null)
+                val d = digits(yellow, w, start, x, bestTop, bestRows, pixel)
+                if (d == null) { if (stopAtOther && text.isNotEmpty()) break else return null }
+                text.append(d)
                 start = -1
             }
         }
         return text.toString().ifEmpty { null }
     }
+
+    // The digits in columns from..to: one digit, or, if it's too wide for one, two that touch (where the phone's blur
+    // filled the gap between them): split at the column with the least text, each side read again
+    private fun digits(yellow: FloatArray, w: Int, from: Int, to: Int, top: Int, rows: Int, pixel: Float): String? {
+        digit(yellow, w, from, to, top, rows, pixel)?.let { return it.toString() }
+        if ((to - from) / pixel < MIN_SPLIT_WIDTH) return null
+        var cut = -1; var least = Float.MAX_VALUE
+        for (x in from + (2 * pixel).toInt() until to - (2 * pixel).toInt()) {
+            var sum = 0f
+            for (y in top until top + rows) sum += yellow[y * w + x]
+            if (sum < least) { least = sum; cut = x }
+        }
+        if (cut < 0) return null
+        val left = digits(yellow, w, from, cut, top, rows, pixel) ?: return null
+        val right = digits(yellow, w, cut + 1, to, top, rows, pixel) ?: return null
+        return left + right
+    }
+
+    private const val MIN_SPLIT_WIDTH = 6.5f   // game pixels: no digit is this wide
 
     // The digit in columns from..to (to just after it), or null if it isn't one
     private fun digit(yellow: FloatArray, w: Int, from: Int, to: Int, top: Int, rows: Int, pixel: Float): Char? {
@@ -308,7 +378,7 @@ object Digits {
         var bestWrong = Int.MAX_VALUE
         for ((c, shape) in FONT) {
             val cols = shape[0].length
-            if (abs(wide - cols) > 1.2f) continue
+            if (abs(wide - cols) > 1.6f) continue
             // this patch cut into game pixels the size of the font's digit, centred on what was found (its blurred
             // edges make it look a little wider): each game pixel yellow if most of it is
             val start = from + ((to - from) - cols * pixel) / 2
@@ -330,5 +400,5 @@ object Digits {
         return if (bestWrong <= MAX_WRONG) best else null
     }
 
-    private const val MAX_WRONG = 7
+    private const val MAX_WRONG = 9
 }
