@@ -21,7 +21,7 @@ Read this before changing `SandGardenView.kt`, `SandRenderer.kt`, `SandSound.kt`
   square-by-square colours and `relight`.
 - **Sound** (`SandSound`): the raking sound is made in code, filtered noise whose tone was fitted to the owner's
   recording `tools/sandsound.mp3`. Its thread runs only while raking.
-- **Zen mode** (`SandGardenLayout`): `ZenScreen` is the tray in its wooden frame (`SandGardenView.drawFrame`), with
+- **Zen mode** (`SandGardenLayout`; chess uses the same frameless window, see `docs/chess.md`): `ZenScreen` is the tray in its wooden frame (`SandGardenView.drawFrame`), with
   a button carved into each corner block: Exit top left, the arrow bottom left that opens the row of round
   `ZenIcon`s, and move/resize on the right. The window has no top bar or background
   (`BubbleService.setGamesFrameless`): its move and resize corners become invisible touch areas on the carved

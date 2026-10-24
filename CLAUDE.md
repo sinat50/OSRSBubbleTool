@@ -10,7 +10,7 @@ game pictures keep their own terms). The README is the user-facing description o
 Run `python tools/update-check/check_updates.py` (from the project folder) and tell the owner in a few plain
 lines what changed upstream (wiki pages, pictures, source projects, new quests, game updates) and what it
 would mean for the app. Only report: update nothing unless the owner asks. It reuses its report for 6 hours.
-When a change has been dealt with, or the owner says it doesn't matter, mark it with `--checked NAME`. The
+When a change has been dealt with, or the owner says it doesn't matter, mark it with `--checked NAME`. How to bring in each source is listed in `docs/updating.md`. The
 `tools/update-check/` folder is the owner's own tool (in `.gitignore`); how to use it is at the top of the script.
 
 ## Working with the owner
@@ -26,6 +26,7 @@ When a change has been dealt with, or the owner says it doesn't matter, mark it 
 - The signing key lives in `C:\Users\Tanis\Documents\Androiddev\Keys\`: it stays there, out of the project and
   out of Git. That folder is off limits.
 - Update the README when features change and mention it at commit time (no need to show it every time).
+- Keep a "how to update" note for every tool whose data comes from outside (`docs/updating.md` lists them). Read the tool's note instead of the whole code; if a tool has none, write one the first time you update it, and fix a note whenever its routine changes (owner's request, October 2026).
 - Release notes and commit messages are written for players, not developers. The owner commits in Android
   Studio themselves: finish a change with a suggested commit message. Start every commit message with the version
   being worked on, from the release branch's name (`git branch --show-current`, e.g. `v1.0.8 Zen Garden: ...`), not
@@ -51,12 +52,12 @@ Code: `app/src/main/java/com/sinat/osrsbubbletool/` (one file per tool, roughly)
 | `GearLoadoutsTool.kt`, `Loadout.kt`, `ItemData.kt`, `ItemPictures.kt`, `GameReading.kt`, `GuidedScan.kt`, `LoadoutReader.kt`, `InventoryReader.kt`, `LoadoutFileActivity.kt` | Gear Loadouts (was Inventory Setups; the `Tool` name and its settings file keep the old name): a loadout's items and the RuneLite Inventory Setups format (`Loadout`), every item in the game (`ItemData`, `ItemCatalog`), item pictures and the square slots (`ItemIcons`, `ItemSlotView`, `SlotGrid`), Scan Current Loadout (`GuidedScan`: the scan loop; `GameReading`: loading the comparison pictures and deciding which readings to trust; `LoadoutReader`: spellbook, rune pouch (an empty one by its X marks), the game's digits and the K and M after big amounts; `InventoryReader`: the 28 inventory spaces, each RuneLite icon compared at its exact place (narrowed down with `canvas.bin`), the wiki's stack pictures by each item's outline as a backup; the equipment the same way at each slot's place (`readEquipment`), the DPS tool's `GearRecognizer` only if that finds nothing), the file chooser for import/export. Plan: `.scratch/gear-loadouts/`; test screenshots: `Documents\Androiddev\loadout_shots\` (`LoadoutReaderTest`, `InventoryReaderTest`; `DigitsTest` draws amounts itself, `GuidedScanTest` checks the scan's "believe an empty reading on the second look") |
 | `RegionOverlay.kt`, `PuzzleAreaOverlay.kt` | The "set area by hand" frames |
 | `TeleportFinderTool.kt`, `TeleportData.kt`, `WalkMap.kt` | Teleport Finder (Beta): wiki lookup, teleport list, walking-route search |
-| `QuestHelperTool.kt`, `QuestData.kt`, `QuestGuides.kt`, `QuestBook.kt`, `QuestPuzzles.kt`, `QuestSolvers.kt`, `QuestSolverViews.kt`, `PuzzleDiagramView.kt` | Quest Helper (Beta), from the Quest Helper RuneLite plugin (`PuzzleDiagramView` draws the puzzle answer maps) |
+| `QuestHelperTool.kt`, `QuestData.kt`, `QuestGuides.kt`, `QuestBook.kt`, `QuestPuzzles.kt`, `QuestSolvers.kt`, `QuestSolverViews.kt`, `PuzzleDiagramView.kt` | Quest Helper (Beta), from the Quest Helper RuneLite plugin (`PuzzleDiagramView` draws the puzzle answer maps). **Read `docs/quest-helper.md` before adding or changing quests**: `QuestData.kt` and `QuestGuides.kt` are changed only with `tools/quest-helper/quest_files.py` |
 | `WikiSync.kt`, `WikiSyncTool.kt` | WikiSync account data, and the ✓/✗ WikiSync tag other tools show |
 | `HunterRumourTool.kt`, `HunterRumours.kt` | Hunter Rumours |
 | `ZulrahTool.kt` | Zulrah Helper |
 | `FarmingTool.kt`, `FarmingTimers.kt`, `FarmingTimerReceiver.kt` | Timers (one exact alarm per timer, no background work) |
-| `GameRoomTool.kt`, `Game2048View.kt`, `FlyerView.kt`, `GameData.kt`, `SandGardenView.kt`, `SandRenderer.kt`, `SandSound.kt`, `SandGardenLayout.kt`, `ZenGardenFile.kt`, `ZenThings.kt`, `ZenPatterns.kt` | Game Room: 2048, Wing It and the Zen Garden. **Read `docs/zen-garden.md` before changing the `Sand*` or `ZenGarden*` files.** |
+| `GameRoomTool.kt`, `Game2048View.kt`, `FlyerView.kt`, `GameData.kt`, `SandGardenView.kt`, `SandRenderer.kt`, `SandSound.kt`, `SandGardenLayout.kt`, `ZenGardenFile.kt`, `ZenThings.kt`, `ZenPatterns.kt`, `ChessGame.kt`, `ChessView.kt` | Game Room: 2048, Wing It, the Zen Garden and Chess. **Read `docs/zen-garden.md` before changing the `Sand*` or `ZenGarden*` files, and `docs/chess.md` before changing chess** (the engine is CuckooChess, GPL, unchanged in `app/src/main/java/chess/`, with its data in `app/src/main/resources/`) |
 | `CalculatorTool.kt`, `NotesTool.kt`, `UpdateChecker.kt`, `WikiLinkActivity.kt` | Calculator, Notepad, GitHub update check (at most once an hour), wiki links opening in the bubble |
 | `SettingsTool.kt`, `Palette.kt` | Settings (`AppSettings`; the page is shared by the bubble's Settings window and the main screen; the bubble hears changes through `BubbleService.settingsChanged`) and the app's colours, light and dark |
 
@@ -74,8 +75,8 @@ Data: `app/src/main/assets/` (how to run the scripts: `tools/README.md`)
 | `dungeons.txt` | `tools/teleport-finder/build_dungeons.py` | RuneLite world map `DungeonLocation.java` |
 | `entrances.tsv` | (older, kept only as a fallback for straight-line estimates) | |
 | `dps/equipment.json` | `tools/dps/build_equipment_json.py` | OSRS Wiki DPS calculator repository |
-| `items/items.tsv`, `items/noted.tsv` (each notable item's noted ID), `items/icons/` (1,754 wiki pictures: stacks drawn differently by size, items too new for RuneLite) | `tools/items/build_items.py` | OSRS Wiki item tables (every item's ID, name, slot, picture), for Gear Loadouts (`ItemData`); noted IDs from RuneLite's `gameval/ItemID.java` |
-| `items/canvas/` (14,726 icons, 10.3 MB), `items/canvas.tsv`, `items/canvas.bin` (each icon in brief, 2.2 MB), `items/shapes.bin` (the wiki pictures in brief) | `tools/items/build_icons.py` (run after build_items.py) | RuneLite's item icons (static.runelite.net), exactly as the game draws them: shown in loadouts, and read at each item's exact place (`InventoryReader`) |
+| `items/items.tsv`, `items/noted.tsv` (each notable item's noted ID), `items/icons/` (1,769 wiki pictures: stacks drawn differently by size, items too new for RuneLite) | `tools/items/build_items.py` | OSRS Wiki item tables (every item's ID, name, slot, picture), for Gear Loadouts (`ItemData`); noted IDs from RuneLite's `gameval/ItemID.java` |
+| `items/canvas/` (14,766 icons, 10.3 MB), `items/canvas.tsv`, `items/canvas.bin` (each icon in brief, 2.2 MB), `items/shapes.bin` (the wiki pictures in brief) | `tools/items/build_icons.py` (run after build_items.py) | RuneLite's item icons (static.runelite.net), exactly as the game draws them: shown in loadouts, and read at each item's exact place (`InventoryReader`) |
 | `dps/empty_slots.png` | cut from a game screenshot | what empty equipment slots look like |
 | `dps/icons/` (4,991 item pictures, 2.6 MB), `puzzles/`, `quest_images/` | `tools/dps/fetch_pictures.py` | DPS calculator repository at `GearIcons.COMMIT`; OSRS Wiki |
 
@@ -164,9 +165,9 @@ trailer and the ToA demo video; how to update them is in `trailer/README.md`), `
 ## Checking your work
 
 - Build with `./gradlew.bat assembleDebug`, and run Android's checks with `./gradlew.bat lintDebug` (report in
-  `app/build/reports/lint-results-debug.sarif`). Expected warnings: 88 "SetTextI18n" (text written in the code,
+  `app/build/reports/lint-results-debug.sarif`). Expected warnings: 92 "SetTextI18n" (text written in the code,
   see `.scratch/lint-text-warnings/`) and 2 "IconXmlAndPng" (the app icon).
-- PC tests: `./gradlew.bat testDebugUnitTest`, in `app/src/test/`: the Puzzle Box and Light Box solvers, the ToA
+- PC tests: `./gradlew.bat testDebugUnitTest`, in `app/src/test/`: chess (rules and the computer player), the Puzzle Box and Light Box solvers, the ToA
   answers, farming growth times, quest requirement checks, the Zen Garden's save file, placed things and auto rake patterns, keeping windows clear of the bars, and Gear Loadouts (items, loadouts and the RuneLite format; the
   screen readers on the owner's screenshots at other screen sizes and brightness, skipped without them; amounts
   drawn from the game's font) (expected answers worked out by hand or from the game, never copied from the code); `ToaReaderTest` needs recordings (see `docs/toa-helper.md`). The real
@@ -208,8 +209,8 @@ Each release is worked on in its own branch (named like `v1.0.9`), then merged i
 
 Tags use the "v" form (`1.0.3` is the one exception). A published release's tag stays as it is: renaming it on
 GitHub creates the new tag on the latest master (that happened to v1.0.5 and was fixed by force-pushing the tag
-back to its commit from Android Studio's terminal, which has the GitHub login). Latest release: v1.0.8 (5 October
-2026, versionCode 9).
+back to its commit from Android Studio's terminal, which has the GitHub login). Latest release: v1.0.9 (11 October
+2026, versionCode 10). Being worked on: v1.1.0 (branch `v1.1.0`; chess, new quests and gear, October 2026).
 
 ## Plans, to-dos and things to test
 

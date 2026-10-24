@@ -466,6 +466,18 @@ class MainActivity : Activity() {
         section("2048",
             "The Game Room's 2048 is the app's own version of the game created by Gabriele Cirulli.", size = 11f)
 
+        section("Chess",
+            "The Game Room's chess computer player is CuckooChess, a chess engine by Peter Österlund, included unchanged " +
+            "(its chess folder) from the DroidFish project (github.com/peterosterlund2/droidfish), with its opening book and " +
+            "endgame tables. The strength of each level comes from CuckooChess's rating table (in DroidFish's " +
+            "EngineControl.java). The board, the pieces and the rest of the game are the app's own.\n\n" +
+            "CuckooChess - A java chess program.\nCopyright (C) 2011 Peter Österlund, peterosterlund2@gmail.com\n\n" +
+            "This program is free software: you can redistribute it and/or modify it under the terms of the GNU General " +
+            "Public License as published by the Free Software Foundation, either version 3 of the License, or (at your " +
+            "option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY " +
+            "WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the " +
+            "GNU General Public License for more details (gnu.org/licenses/gpl-3.0).", size = 11f)
+
         section("Zulrah Helper",
             "Zulrah Helper rotation data and arena layout adapted from the Zulrah Helper RuneLite plugin " +
             "(github.com/while-loop/runelite-plugins).\n\n" +

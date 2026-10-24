@@ -1,0 +1,44 @@
+{
+ "source": "quest-helper 06da90f9 (18 Oct 2026), helpers/quests/aruffsituation/ARuffSituation.java",
+ "data": {"n": "A Ruff Situation", "t": "P", "d": "Novice", "qp": 1,
+  "r": [{"s": "Crafting", "l": 15}],
+  "e": ["2 outlaws (level 22 and level 23)"]},
+ "guide": {
+  "n": "A Ruff Situation",
+  "items": ["Needle or costume needle", "Thread", "Fur", "Grain"],
+  "rec": ["Combat gear", "Food"],
+  "enemies": ["2 outlaws (level 22 and level 23)"],
+  "rewards": ["1 Quest point", "1,000 Crafting XP", "Access to puppies, which can be grown into dogs"],
+  "sec": [
+   {"n": "Starting off", "st": [
+    {"t": "Talk to Talia at the dog shelter south-west of the Edgeville Monastery.", "s": ["Yes."]},
+    {"t": "Talk to Gertrude in her house west of Varrock, just south of the Cooks' Guild.", "s": ["Ask about lost dogs."]}
+   ]},
+   {"n": "Following the stray dog", "st": [
+    {"t": "Interact with the stray dog barking at a guard, just south of the western Varrock bank."},
+    {"t": "Follow the stray dog to the house just west of Thessalia's Fine Clothes. If she isn't there, return to the guard just south of the western Varrock bank."},
+    {"t": "Inspect the chewed box, the torn newspaper and the rough bedding in the dog's den. Finish the dialogue after each inspection."},
+    {"t": "Interact with the stray dog again to have her pick up the puppies' scent."},
+    {"t": "Follow the stray dog from the den until a cutscene triggers north of the Cooks' Guild."},
+    {"t": "Interact with the stray dog to watch the cutscene."},
+    {"t": "Talk to the stray dog. Dismiss any pet you have out first."}
+   ]},
+   {"n": "Bargaining with the goblins", "st": [
+    {"t": "Talk to Picklenose south-west of the Cooks' Guild with the stray dog following you."},
+    {"t": "Use the grain on the fur to make a stuffed dog.", "s": ["Yes."], "i": ["Grain", "Fur", "Needle or costume needle", "Thread"]},
+    {"t": "Talk to Picklenose again to trade the stuffed dog for the puppy.", "i": ["Stuffed dog"]},
+    {"t": "Pick up the stray puppy south-west of the cook's guild."}
+   ], "i": ["Needle or costume needle", "Thread", "Fur", "Grain"]},
+   {"n": "The last puppy", "st": [
+    {"t": "Talk to the stray dog south-west of the cook's guild to see if she can sniff out the last puppy."},
+    {"t": "Interact with the stray dog and follow her until a cutscene triggers by the gap in the wall north of the Cooks' Guild.", "s": ["Yes."]},
+    {"t": "Kill both outlaws (level 22 and level 23), then watch the cutscene.", "i": ["Combat gear", "Food"]}
+   ], "i": ["Combat gear", "Food"], "c": 1, "e": ["2 outlaws (level 22 and level 23)"]},
+   {"n": "Puppy reunion", "st": [
+    {"t": "Talk to the stray dog north-west of the cook's guild."},
+    {"t": "With the three puppies in your inventory, talk to the stray dog in the den west of the Varrock apothecary.", "i": ["Puppy labrador", "Puppy pug", "Puppy spaniel"]},
+    {"t": "With the three puppies in your inventory, talk to Talia at the dog shelter south-west of the Edgeville Monastery.", "i": ["Puppy labrador", "Puppy pug", "Puppy spaniel"]}
+   ]}
+  ]
+ }
+}

@@ -1,0 +1,63 @@
+{
+ "source": "quest-helper 06da90f9 (18 Oct 2026), helpers/quests/crabquest/CrabQuest.java",
+ "data": {"n": "Crab Quest", "t": "P", "d": "Intermediate", "qp": 1,
+  "r": [{"s": "Sailing", "l": 40}, {"s": "Fishing", "l": 30}]},
+ "guide": {
+  "n": "Crab Quest",
+  "items": [],
+  "rec": ["Big Fishing Net"],
+  "enemies": [],
+  "rewards": ["1 Quest point", "10,000 Sailing XP", "3,000 Fishing XP", "Some colorful seashells", "A nagging doubt that you might have just dreamt all of this"],
+  "sec": [
+   {"n": "Starting off", "st": [
+    {"t": "Drink from the Bottle on the shore of Dognose Island.", "s": ["Yes."]},
+    {"t": "Talk to the crab."},
+    {"t": "Pick up some nearby seashells. If your inventory fills up, you can talk to the crab to turn them in."}
+   ], "c": 0},
+   {"n": "Assembling an instrument", "st": [
+    {"t": "Pick up the nearby Big Fishing Net.", "i": ["Big Fishing Net"]},
+    {"t": "Speak to the crab to reset the floatsam."},
+    {"t": "Fish a Sea-soaked bowstring from the nearby Floatsam.", "i": ["Big Fishing Net"]},
+    {"t": "Fish a Battered Barrel from the nearby Floatsam.", "i": ["Sea-soaked Bowstring", "Big Fishing Net"]},
+    {"t": "Fish a Weathered Rosewood Plank from the nearby Floatsam.", "i": ["Sea-soaked Bowstring", "Battered Barrel", "Big Fishing Net"]},
+    {"t": "Combine the instrument using the items in your inventory.", "i": ["Sea-soaked Bowstring", "Battered Barrel", "Weathered rosewood plank"]},
+    {"t": "Show the instrument to the crab.", "i": ["Instrument"]},
+    {"t": "Speak to the crab about the instrument.", "s": ["A disaster.", "Let me show you!"]}
+   ], "i": ["Big Fishing Net"], "c": 0},
+   {"n": "Recruit some band members", "st": [
+    {"t": "Check the palm near the center of the island, north of the bottle."},
+    {"t": "Talk to the shy female crab about the crab on the beach."},
+    {"t": "Check the northernmost palm."},
+    {"t": "Speak to the 'crab'."},
+    {"t": "Talk to the crab to recruit a bandmember."},
+    {"t": "Check the eastern-most plant on the north of the island."},
+    {"t": "Talk to the crab to recruit a bandmember."},
+    {"t": "Check the avium tree west of the northernmost palm."},
+    {"t": "Perform the sit emote on loop until the crab appears. You must interact with the plant before emoting."},
+    {"t": "Talk to the crab to recruit a bandmember."},
+    {"t": "Check the palm northwest of the bottle."},
+    {"t": "Talk to the crab to recruit a bandmember."},
+    {"t": "Check the palm east of the westernmost palm."},
+    {"t": "Talk to the crab to recruit a bandmember."},
+    {"t": "Check the northern-most plant along the western coast of the island."},
+    {"t": "Talk to the crab to recruit a bandmember."},
+    {"t": "Check the avium tree on the western coast of the island."},
+    {"t": "Perform the sit emote on loop until the crab appears. You must interact with the plant before emoting."},
+    {"t": "Talk to the crab to recruit a bandmember.", "s": ["1, 2, 3, 10, 11, 12, 13, 20, 21, 22, 23...", "Every 100 years.", "On the beach.", "You can't possibly expect me to know that!"]},
+    {"t": "Check the palm south of the magic tree."},
+    {"t": "Perform the sit emote on loop until the crab appears. You must interact with the plant before emoting."},
+    {"t": "Talk to the crab to recruit a bandmember."},
+    {"t": "Check the magic tree."},
+    {"t": "Perform the sit emote on loop until the crab appears. You must interact with the plant before emoting."},
+    {"t": "Talk to the crab to recruit a bandmember."},
+    {"t": "Check the leafless bush southwest of the bottle."},
+    {"t": "Talk to the crab to recruit a bandmember."},
+    {"t": "Check the leafless bush closest to the bottle."},
+    {"t": "Talk to the crab to recruit a bandmember."}
+   ], "c": 0},
+   {"n": "Attend the concert", "st": [
+    {"t": "Speak to the crab to finish the quest.", "s": ["Wait for leaders to turn up."]}
+   ], "c": 0}
+  ]
+ }
+}

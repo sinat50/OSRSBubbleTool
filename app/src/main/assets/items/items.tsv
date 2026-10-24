@@ -630,7 +630,7 @@
 966	Tile		Tile.png	
 968	Rock		Rock (limestone).png	Rock (limestone)
 970	Papyrus		Papyrus.png	
-972	Papyrus		Papyrus (Unobtainable Item).png	Papyrus (unobtainable item)
+972	Papyrus		Papyrus (unobtainable item).png	Papyrus (unobtainable item)
 973	Charcoal		Charcoal.png	
 975	Machete	weapon	Machete.png	
 977	Cooking pot		Cooking pot (unobtainable item).png	Cooking pot (unobtainable item)
@@ -876,7 +876,7 @@
 1460	Soul talisman		Soul talisman.png	
 1462	Nature talisman		Nature talisman.png	
 1464	Archery ticket		Archery ticket.png	
-1465	Weapon poison		Weapon poison (Unobtainable Item).png	Weapon poison (unobtainable item)
+1465	Weapon poison		Weapon poison (unobtainable item).png	Weapon poison (unobtainable item)
 1466	Sea slug		Sea slug (item).png	Sea slug (item)
 1467	Damp sticks		Damp sticks.png	
 1468	Dry sticks		Dry sticks.png	
@@ -16043,3 +16043,33 @@
 34641	Ancient fabric		Ancient fabric.png	
 34643	Supply crate		Supply crate (Pete Kayer's Challenges).png	Supply crate (Pete Kayer's Challenges)
 34644	Pete's vouchers		Pete's vouchers.png	
+34646	Orion		Orion.png	
+34648	Orion		Orion (robed).png	
+34657	Alliance's message		Alliance's message.png	
+34658	Archive key		Archive key.png	
+34659	Living record (tier 1)	cape	Living record (tier 1).png	
+34661	Living record (tier 2)	cape	Living record (tier 2).png	
+34663	Living record (tier 3)	cape	Living record (tier 3).png	
+34665	Living record (tier 4)	cape	Living record (tier 4).png	
+34667	Living record (tier 5)	cape	Living record (tier 5).png	
+34669	Ascension shards		Ascension shards.png	
+34671	Fragment of living earth		Fragment of living earth.png	
+34673	Fragment of deep water		Fragment of deep water.png	
+34675	Fragment of whispering wind		Fragment of whispering wind.png	
+34677	Fragment of burning fire		Fragment of burning fire.png	
+34679	Horn of Bran		Horn of Bran.png	
+34681	Ascension crossbows	weapon	Ascension crossbows.png	
+34684	Ascension bolts	ammo	Ascension bolts 1.png|Ascension bolts 2.png|Ascension bolts 3.png|Ascension bolts 4.png|Ascension bolts 5.png	
+34690	Diamond ascension bolts	ammo	Diamond ascension bolts 1.png|Diamond ascension bolts 2.png|Diamond ascension bolts 3.png|Diamond ascension bolts 4.png|Diamond ascension bolts 5.png	
+34696	Diamond ascension bolts (e)	ammo	Diamond ascension bolts (e) 1.png|Diamond ascension bolts (e) 2.png|Diamond ascension bolts (e) 3.png|Diamond ascension bolts (e) 4.png|Diamond ascension bolts (e) 5.png	
+34702	Onyx ascension bolts	ammo	Onyx ascension bolts 1.png|Onyx ascension bolts 2.png|Onyx ascension bolts 3.png|Onyx ascension bolts 4.png|Onyx ascension bolts 5.png	
+34708	Onyx ascension bolts (e)	ammo	Onyx ascension bolts (e) 1.png|Onyx ascension bolts (e) 2.png|Onyx ascension bolts (e) 3.png|Onyx ascension bolts (e) 4.png|Onyx ascension bolts (e) 5.png	
+34715	Obligator	weapon	Obligator.png	
+34717	Obligator (uncharged)	weapon	Obligator (uncharged).png	Obligator
+34719	Rondache	shield	Rondache.png	
+34722	Archivist's folio (inert)		Archivist's folio (inert).png	Archivist's folio
+34723	Archivist's folio		Archivist's folio.png	
+34725	Zorya's tome	weapon	Zorya's tome.png	
+34727	Zorya's tome (uncharged)	weapon	Zorya's tome (uncharged).png	Zorya's tome
+34729	Alliance log		Alliance log.png	
+34730	Leftovers		Leftovers.png	

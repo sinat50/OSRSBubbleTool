@@ -120,7 +120,6 @@ ADD = [
     ['Lumbridge Graveyard Teleport', 'Spell', 3241, 3194, 0, '6 Magic', 'Arceuus spellbook'],
     ['Lumbridge Graveyard tablet', 'Item', 3241, 3194, 0, '', ''],
     ['Slayer ring: Wyrmscraig Cavern', 'Item', 2581, 8633, 0, 'Fallen From Grace', ''],
-    ['Necklace of passage: Wyrmscraig', 'Item', 2591, 2221, 0, 'Fallen From Grace', ''],
     ['Ardeaglais teleport', 'Item', 2543, 2216, 0, 'Fallen From Grace', 'Scroll dropped by the Mad Angel'],
     ["Drakan's medallion: Castle Drakan", 'Item', 3557, 3358, 0, '', "Unlock by inspecting the shrine by the castle's front door (during The Blood Moon Rises)"],
     # Not in Shortest Path or RuneLite yet, and the wiki only says "Cam Torum": the spot is estimated, in the

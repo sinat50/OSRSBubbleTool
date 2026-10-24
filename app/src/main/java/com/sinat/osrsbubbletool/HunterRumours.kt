@@ -54,7 +54,8 @@ object HunterRumours {
         listOf("500 coins each time, or 500,000 coins once for permanent access"),
         emptyList())
     val NET_TRAP = Method("Net trap",
-        listOf("Ropes and small fishing nets (one of each for every trap you can lay)"),
+        listOf("Net traps (one for each trap you can lay; they stack). Make them from a rope and a small " +
+            "fishing net, or buy them from a hunter shop"),
         emptyList())
     val SPIKED_PIT = Method("Spiked pit",
         listOf("Knife or fletching knife", "Logs (any kind)", AXE, "Teasing stick or hunter's spear"),

@@ -7,6 +7,8 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -18,6 +20,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.edit
 import androidx.core.graphics.toColorInt
+import androidx.core.view.isNotEmpty
 import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
 import com.sinat.osrsbubbletool.Palette.DARK_BROWN
 import com.sinat.osrsbubbletool.Palette.FADED
@@ -26,9 +29,13 @@ import com.sinat.osrsbubbletool.Palette.PAPER
 import com.sinat.osrsbubbletool.Palette.PARCHMENT
 import com.sinat.osrsbubbletool.Palette.RED
 import com.sinat.osrsbubbletool.Palette.ROW_BROWN
+import chess.Move
+import chess.Piece
 import java.io.File
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
-// The Game Room: small games to play while you wait in the game: 2048, Wing It and the Zen Garden.
+// The Game Room: small games to play while you wait in the game: 2048, Wing It, the Zen Garden and Chess.
 // (The games are the app's own and use nothing from Old School RuneScape: Jagex's Fan Content Policy
 // doesn't allow games made with its content.)
 // frameless(on): the window shows without its top bar and background (the Zen Garden's zen mode, whose move and
@@ -80,7 +87,30 @@ class GameRoomTool(
         "Nothing can be placed under the corners.\n\n" +
         "Your garden is saved as you go."
 
-    private enum class Screen { MENU, G2048, FLYER, SAND }
+    private val helpChess = "You play against the computer, on a board in a plain wooden frame with a button in " +
+        "each corner:\n" +
+        "• Top left: Exit, back to the Game Room.\n" +
+        "• Top right: drag it to move the board.\n" +
+        "• Bottom right: drag it to make the board bigger or smaller.\n" +
+        "• Bottom left: the arrow opens the controls over the bottom of the board; tap it again to close them.\n\n" +
+        "Tap one of your pieces, then the square to move it to. The bar along the top says whose move it is. " +
+        "With \"Confirm each move\" on (in Options), the move is shown on the board and only played when you tap " +
+        "Play in the bar along the bottom, so a slip of the finger doesn't cost you the game: tap Cancel, or anywhere " +
+        "on the board, to pick again. A pawn reaching the far side asks which piece it becomes.\n\n" +
+        "Dots show where the picked piece can go, and rings show pieces it can take. The last move is tinted yellow, " +
+        "and a king in check glows red.\n\n" +
+        "The controls, left to right:\n" +
+        "• New game: playing as white, black or a random side.\n" +
+        "• Undo (the back arrow): takes back your last move (and the computer's reply).\n" +
+        "• Level: how strong the computer plays, from Beginner to Max. You can change it during a game.\n" +
+        "• Options (the gear): confirm each move, show where pieces can go, and the letters and numbers along the board.\n" +
+        "• Help: this page.\n\n" +
+        "The computer only thinks on its own turn: about a second at the easier levels, up to a few seconds at Expert " +
+        "and Max. Your game is saved after every move, so you " +
+        "can close the window any time.\n\n" +
+        "The computer player is CuckooChess, by Peter Österlund (free software, GPL)."
+
+    private enum class Screen { MENU, G2048, FLYER, SAND, CHESS }
 
     private val prefs = context.getSharedPreferences("game_room", Context.MODE_PRIVATE)
 
@@ -101,8 +131,11 @@ class GameRoomTool(
         return holder
     }
 
-    // The bubble is shutting down (nothing runs in the background, so there's nothing to stop; the garden is saved)
+    // The bubble is shutting down: the computer stops thinking (its thread ends), and the garden is saved
     fun destroy() {
+        stopThinking()
+        chessThreads?.shutdownNow()
+        chessThreads = null
         sandView?.save(now = true)
         SandGardenView.waitForSaves()   // (one started in the background when the window closed is finished first)
     }
@@ -125,19 +158,22 @@ class GameRoomTool(
 
     private fun show() {
         if (!::holder.isInitialized) return
-        // the Zen Garden has no window around it: no top bar, no background
-        val zen = screen == Screen.SAND
+        // the Zen Garden and chess have no window around them: no top bar, no background
+        val zen = screen == Screen.SAND || screen == Screen.CHESS
         frameless(zen)
         holder.background?.alpha = if (zen) 0 else 255
         // leaving the garden: let it go (it saves itself as it comes off the screen, just below), so its sand,
         // light and undo steps don't take up memory while you're elsewhere
-        if (!zen) { zenScreen = null; sandView = null }
+        if (screen != Screen.SAND) { zenScreen = null; sandView = null }
+        // leaving chess: let its engine go (about 2 MB) unless it's still thinking about its move
+        if (screen != Screen.CHESS) { chessRefresh = null; letThinkerGo() }
         holder.removeAllViews()
         holder.addView(when (screen) {
             Screen.MENU -> menu()
             Screen.G2048 -> game2048()
             Screen.FLYER -> flyer()
             Screen.SAND -> sandGarden()
+            Screen.CHESS -> chess()
         })
         openHelp?.let { (t, h) -> showHelp(t, h) }
     }
@@ -152,6 +188,7 @@ class GameRoomTool(
             Triple(GameIcon.G2048, "2048", "Join the tiles, reach 2048") to { open(Screen.G2048) },
             Triple(GameIcon.FLYER, "Wing It", "Tap to fly through the gaps") to { open(Screen.FLYER) },
             Triple(GameIcon.SAND, "Zen Garden", "Rake lines in the sand") to { open(Screen.SAND) },
+            Triple(GameIcon.CHESS, "Chess", "Play the computer, six levels") to { open(Screen.CHESS) },
         )
         for (row in games.chunked(2)) {
             addView(LinearLayout(context).apply {
@@ -567,6 +604,274 @@ class GameRoomTool(
         }
     }
 
+    // ---------------- Chess ----------------
+
+    // The game, from its saved moves (a save that doesn't make sense starts a new game)
+    private val chessGame: ChessGame by lazy { ChessGame().apply { load(prefs.getString("chess_moves", "") ?: "") } }
+    private val chessPlayerWhite get() = prefs.getBoolean("chess_white", true)
+    private val chessLevel get() = prefs.getInt("chess_level", ChessEngine.DEFAULT_LEVEL).coerceIn(0, ChessEngine.LEVELS.size - 1)
+
+    // The computer player: made on its own thread when it's first needed, used only there, and let go there when you
+    // leave chess (after any move it's still thinking about)
+    private var thinker: ChessEngine.Thinker? = null     // (only ever touched on the "chess" thread)
+    private var thinking: ChessEngine.Job? = null
+    private var chessThreads: ExecutorService? = null    // one background thread, so only one move is thought about at a time
+    private var chessVersion = 0                         // goes up when you start again or undo: a late answer is ignored
+    private val mainThread = Handler(Looper.getMainLooper())
+    private var chessRefresh: (() -> Unit)? = null       // redraws the chess screen, while it's showing
+
+    private fun saveChess() = prefs.edit { putString("chess_moves", chessGame.moveText) }
+
+    private fun computerToMove() = chessGame.end() == ChessGame.End.NONE && chessGame.whiteToMove != chessPlayerWhite
+
+    // The computer's turn: think about its move on the background thread, then play it here on the main one
+    private fun startThinking() {
+        if (thinking != null || !computerToMove()) return
+        val threads = chessThreads ?: Executors.newSingleThreadExecutor { r -> Thread(r, "chess").apply { isDaemon = true } }
+            .also { chessThreads = it }
+        val job = ChessEngine.Job()
+        thinking = job
+        val (position, earlier) = chessGame.snapshot()
+        val level = ChessEngine.LEVELS[chessLevel]
+        val version = chessVersion
+        threads.execute {
+            // (anything going wrong in the engine, even running out of memory, mustn't take the app down with it)
+            val move = try {
+                val engine = thinker ?: ChessEngine.Thinker().also { thinker = it }
+                engine.think(position, earlier, level, job)
+            } catch (e: Throwable) { null }
+            mainThread.post {
+                if (thinking === job) thinking = null
+                if (!job.stopped && version == chessVersion && computerToMove()) {
+                    // if the engine came back without a move (it failed), any allowed move keeps the game going
+                    // rather than leaving it stuck on "Thinking..."
+                    chessGame.play(move ?: chessGame.legalMoves().random())
+                    saveChess()
+                }
+                chessRefresh?.invoke()
+            }
+        }
+    }
+
+    // Lets the computer player go (about 2 MB), on its own thread, after any move it's still thinking about
+    private fun letThinkerGo() {
+        try { chessThreads?.execute { thinker = null } } catch (e: java.util.concurrent.RejectedExecutionException) { }
+    }
+
+    private fun stopThinking() {
+        thinking?.stop()
+        thinking = null
+    }
+
+    // A move in words, for the "Play ...?" question: "Knight g1 to f3", "Bishop c4 takes f7", "Castle kingside"
+    private fun describe(move: Move): String {
+        val game = chessGame
+        val piece = Piece.makeWhite(game.piece(move.from))
+        fun sq(s: Int) = "${'a' + ChessGame.file(s)}${ChessGame.rank(s) + 1}"
+        if (piece == Piece.WKING && kotlin.math.abs(ChessGame.file(move.to) - ChessGame.file(move.from)) == 2)
+            return if (ChessGame.file(move.to) > ChessGame.file(move.from)) "Castle kingside" else "Castle queenside"
+        val name = when (piece) {
+            Piece.WKING -> "King"; Piece.WQUEEN -> "Queen"; Piece.WROOK -> "Rook"
+            Piece.WBISHOP -> "Bishop"; Piece.WKNIGHT -> "Knight"; else -> "Pawn"
+        }
+        val takes = game.piece(move.to) != Piece.EMPTY ||
+            (piece == Piece.WPAWN && ChessGame.file(move.to) != ChessGame.file(move.from))   // (en passant)
+        return "$name ${sq(move.from)} ${if (takes) "takes" else "to"} ${sq(move.to)}"
+    }
+
+    // The board in its frame, with no window around it (like the Zen Garden's zen mode, see ChessScreen): the top
+    // bar says whose move it is, the bottom bar holds Play and Cancel while a move waits, and the arrow in the bottom
+    // left opens the controls over the bottom of the board. The board fills the window, so resizing resizes it.
+    private fun chess(): View {
+        val game = chessGame
+        lateinit var board: ChessView
+        lateinit var screen: ChessScreen
+        val size = dp(34)
+
+        // a rounded button with words, like the Zen Garden's Automatic
+        fun pill(text: String, color: Int = iconBack, onClick: () -> Unit) = TextView(context).apply {
+            this.text = text
+            textSize = 12f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setPadding(dp(12), 0, dp(12), 0)
+            background = GradientDrawable().apply { setColor(color); cornerRadius = dp(15).toFloat() }
+            setOnClickListener { onClick() }
+        }
+
+        // the waiting move: Play and Cancel, or the four pieces a pawn can become (in the bottom bar)
+        val confirm = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            visibility = View.INVISIBLE
+        }
+        var question: String? = null   // the waiting move's question, kept in the top bar while it waits
+        fun hideConfirm() { confirm.visibility = View.INVISIBLE; confirm.removeAllViews(); question = null }
+        fun row(v: View, w: Int = ViewGroup.LayoutParams.WRAP_CONTENT) =
+            confirm.addView(v, LinearLayout.LayoutParams(w, dp(30)).apply { if (confirm.isNotEmpty()) leftMargin = dp(6) })
+
+        // the controls: New game, Undo, Level, Options, Help (round icons and buttons, like the Zen Garden's)
+        lateinit var undo: ZenIcon
+        val level = pill("") { chooseChessLevel { chessRefresh?.invoke() } }.apply {
+            tag = 0f; layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, size)
+        }
+        val dock = FlowRow(context)
+
+        fun refresh() {
+            board.playerWhite = chessPlayerWhite
+            board.showMoves = prefs.getBoolean("chess_hints", true)
+            board.showCoordinates = prefs.getBoolean("chess_coords", true)
+            val end = game.end()
+            val mine = game.whiteToMove == chessPlayerWhite
+            board.allowInput = end == ChessGame.End.NONE && mine
+            if (!board.allowInput) hideConfirm()
+            val text = when (end) {
+                ChessGame.End.CHECKMATE -> if (mine) "Checkmate: you lost" else "Checkmate: you won!"
+                ChessGame.End.STALEMATE -> "Stalemate: a draw"
+                ChessGame.End.REPETITION -> "Draw: the same position three times"
+                ChessGame.End.FIFTY_MOVES -> "Draw: 50 moves with no capture or pawn move"
+                ChessGame.End.NOT_ENOUGH_PIECES -> "Draw: not enough pieces left to checkmate"
+                ChessGame.End.NONE -> if (!mine) "Thinking..." else if (game.inCheck) "Check! Your move" else "Your move"
+            }
+            val asking = question
+            if (asking != null && board.pending != null) screen.setStatus(asking, ChessScreen.TEXT) else screen.setStatus(text, when {
+                end == ChessGame.End.CHECKMATE && !mine -> ChessScreen.GOOD
+                end == ChessGame.End.CHECKMATE || (end == ChessGame.End.NONE && mine && game.inCheck) -> ChessScreen.BAD
+                else -> ChessScreen.TEXT
+            })
+            level.text = "Level: ${ChessEngine.LEVELS[chessLevel].name}"
+            undo.alpha = if (game.moveCount > (if (chessPlayerWhite) 0 else 1)) 1f else 0.45f
+            board.invalidate()
+        }
+
+        fun play(move: Move) {
+            hideConfirm()
+            board.clearSelection()
+            game.play(move)
+            saveChess()
+            startThinking()
+            refresh()
+        }
+
+        board = ChessView(context, game, onPicked = { moves ->
+            if (moves.size == 1 && !prefs.getBoolean("chess_confirm", true)) {
+                play(moves[0])
+            } else {
+                // show the move on the board, ask in the top bar, and wait for Play (a promotion always asks which piece)
+                val promotion = moves.size > 1
+                board.pending = if (promotion) moves.first { Piece.makeWhite(it.promoteTo) == Piece.WQUEEN } else moves[0]
+                question = if (promotion) "It becomes a..." else "${describe(moves[0])}?"
+                screen.setStatus(question!!, ChessScreen.TEXT)
+                confirm.removeAllViews()
+                if (promotion) {
+                    for (kind in listOf(Piece.WQUEEN, Piece.WROOK, Piece.WBISHOP, Piece.WKNIGHT)) {
+                        val m = moves.first { Piece.makeWhite(it.promoteTo) == kind }
+                        row(PieceButton(context, m.promoteTo, GO_GREEN).apply {
+                            contentDescription = when (kind) { Piece.WQUEEN -> "Queen"; Piece.WROOK -> "Rook"; Piece.WBISHOP -> "Bishop"; else -> "Knight" }
+                            setOnClickListener { play(m) }
+                        }, dp(30))
+                    }
+                } else {
+                    row(pill("Play", GO_GREEN) { play(moves[0]) })
+                }
+                row(pill("Cancel") { hideConfirm(); board.clearSelection(); refresh() })
+                confirm.visibility = View.VISIBLE
+            }
+        }, onPendingCancelled = { hideConfirm(); refresh() })
+
+        undo = ZenIcon(context, ZenIcon.UNDO, iconBack).apply {
+            tag = 0f; layoutParams = ViewGroup.LayoutParams(size, size)
+            contentDescription = "Undo"
+            setOnClickListener {
+                if (game.moveCount <= (if (chessPlayerWhite) 0 else 1)) return@setOnClickListener   // (faded: none of your moves yet)
+                stopThinking()
+                chessVersion++
+                hideConfirm()
+                board.clearSelection()
+                if (game.undo()) {
+                    // back to your turn: your last move goes, and the computer's reply after it
+                    while (game.moveCount > 0 && game.whiteToMove != chessPlayerWhite) game.undo()
+                    saveChess()
+                }
+                startThinking()   // (you play black and took back your first move: the computer moves first again)
+                refresh()
+            }
+        }
+        dock.apply {
+            addView(pill("New game", RED) {
+                newChessGame { stopThinking(); chessVersion++; hideConfirm(); board.clearSelection() }
+            }.apply { tag = 0f; layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, size) })
+            addView(undo)
+            addView(level)
+            addView(ZenIcon(context, ZenIcon.GEAR, iconBack).apply {
+                tag = 0f; layoutParams = ViewGroup.LayoutParams(size, size); contentDescription = "Options"
+                setOnClickListener { chessOptions { chessRefresh?.invoke() } }
+            })
+            addView(ZenIcon(context, ZenIcon.HELP, iconBack).apply {
+                tag = 0f; layoutParams = ViewGroup.LayoutParams(size, size); contentDescription = "Help"
+                setOnClickListener { showHelp("Chess", helpChess) }
+            })
+        }
+
+        screen = ChessScreen(context, board, confirm, dock).apply {
+            onExit = { goBack() }
+            onTrayPlaced = pinCorners                 // the window's move and resize corners go on the frame's corners
+        }
+        chessRefresh = { refresh() }
+        refresh()
+        startThinking()   // (it was the computer's turn when the game was saved)
+        return screen
+    }
+
+    // New game: which side you play (the level stays as it is: the Level button changes it any time)
+    private fun newChessGame(starting: () -> Unit) = showCard("New game") { close ->
+        addView(label("Play as", 11f).apply { setTextColor(FADED) }, full(4))
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            for ((name, side) in listOf("White" to true, "Black" to false, "Random" to null)) {
+                addView(button(name, BUTTON_BROWN) {
+                    val white = side ?: (Math.random() < 0.5)
+                    starting()
+                    prefs.edit { putBoolean("chess_white", white) }
+                    chessGame.newGame()
+                    saveChess()
+                    close()
+                    startThinking()   // (playing black: the computer moves first)
+                    chessRefresh?.invoke()
+                }.apply { textSize = 12f }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(4) })
+            }
+        }, full(3))
+        addView(label("Level: ${ChessEngine.LEVELS[chessLevel].name} (the Level button changes it, any time)", 11f)
+            .apply { setTextColor(FADED) }, full(8))
+    }
+
+    // How strong the computer plays (it applies from its next move)
+    private fun chooseChessLevel(changed: () -> Unit) = showCard("Level") { close ->
+        val about = listOf("Still learning the moves", "Makes plenty of mistakes", "A casual player",
+            "A good club player", "A strong player", "As strong as it gets")
+        ChessEngine.LEVELS.forEachIndexed { i, l ->
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(button(l.name, if (i == chessLevel) GO_GREEN else BUTTON_BROWN) {
+                    prefs.edit { putInt("chess_level", i) }
+                    close()
+                    changed()
+                }.apply { textSize = 12f }, LinearLayout.LayoutParams(dp(96), ViewGroup.LayoutParams.WRAP_CONTENT))
+                addView(label(about[i], 11f).apply { setTextColor(FADED) },
+                    LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(8) })
+            }, full(if (i == 0) 4 else 3))
+        }
+    }
+
+    private fun chessOptions(changed: () -> Unit) = showCard("Options") { close ->
+        addView(toggleRow("Confirm each move", "chess_confirm", true) { changed() }, full(6))
+        addView(toggleRow("Show where pieces can go", "chess_hints", true) { changed() }, full(4))
+        addView(toggleRow("Letters and numbers on the board", "chess_coords", true) { changed() }, full(4))
+        addView(button("Done", GO_GREEN) { close() }, full(10))
+    }
+
     // ---------------- Small building blocks ----------------
 
     private fun helpButton(title: String, help: String) = TextView(context).apply {
@@ -664,6 +969,7 @@ class GameIcon(context: Context, private val kind: Int) : View(context) {
         const val G2048 = 2
         const val FLYER = 3
         const val SAND = 4
+        const val CHESS = 5
     }
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -681,6 +987,7 @@ class GameIcon(context: Context, private val kind: Int) : View(context) {
             G2048 -> tiles(canvas, s)
             FLYER -> flyer(canvas, s)
             SAND -> sand(canvas, s)
+            CHESS -> chess(canvas, s)
         }
     }
 
@@ -719,6 +1026,18 @@ class GameIcon(context: Context, private val kind: Int) : View(context) {
         canvas.drawCircle(s * 0.6f, s * 0.64f, s * 0.1f, paint)
         paint.color = "#A39C92".toColorInt()
         canvas.drawCircle(s * 0.57f, s * 0.61f, s * 0.04f, paint)
+    }
+
+    // a corner of a chess board with a knight and a pawn
+    private fun chess(canvas: Canvas, s: Float) {
+        val inset = s * 0.08f
+        val cell = (s - inset * 2) / 4
+        for (r in 0 until 4) for (c in 0 until 4) {
+            paint.color = if ((r + c) % 2 == 0) ChessView.LIGHT_SQUARE else ChessView.DARK_SQUARE
+            canvas.drawRect(inset + c * cell, inset + r * cell, inset + (c + 1) * cell, inset + (r + 1) * cell, paint)
+        }
+        ChessPieces.draw(canvas, Piece.BKNIGHT, inset + cell * 0.2f, inset + cell * 0.1f, cell * 1.7f)
+        ChessPieces.draw(canvas, Piece.WPAWN, inset + cell * 2.1f, inset + cell * 2.1f, cell * 1.7f)
     }
 
     // a little bird between two pillars

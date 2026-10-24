@@ -20,7 +20,7 @@ Run it on a walks.txt WITHOUT joins (build_teleports_and_walks.py with an empty 
 then rebuild with the new extra_walks.txt. Cave entrances added by hand (CAVES in the build script) close
 some areas on their own, so a rerun gives somewhat fewer joins.
 
-Needs numpy and scipy, and several GB of memory. Takes a while (tens of minutes).
+Needs numpy and scipy, and several GB of memory. Takes about 20 seconds (October 2026).
 
 Usage: python3 find_closed_off_areas.py collision.bin walks.txt teleports.tsv obstacles.gz extra_walks.txt
 """

@@ -4,7 +4,12 @@ Scripts that build the app's data files. The app doesn't need them to run or bui
 updating the data (for example after a game update) and for showing how each bundled file was made.
 Run them on a computer with Python 3, then copy the results into `app/src/main/assets/`.
 
+`wiki_diff.py` shows what changed on an OSRS Wiki page since an older revision, as plain text (for the update
+checker's wiki edits): `python tools/wiki_diff.py "Page title" OLD_REVISION_NUMBER`.
+
 ## Teleport Finder (`teleport-finder/`)
+
+The full update routine, step by step, with the route check: `docs/teleport-finder.md`.
 
 Sources to download first:
 
@@ -19,7 +24,7 @@ git clone https://github.com/Varzeki/golems-dont-die        # obstacles.gz (BSD 
 | `build_collision.py` | `collision.bin` | `python3 build_collision.py shortest-path/src/main/resources/collision-map.zip collision.bin` |
 | `build_dungeons.py` | `dungeons.txt` | `python3 build_dungeons.py runelite/runelite-client/src/main/java/net/runelite/client/plugins/worldmap/DungeonLocation.java dungeons.txt` |
 | `build_teleports_and_walks.py` | `teleports.tsv`, `walks.txt` | `python3 build_teleports_and_walks.py shortest-path extra_walks.txt app/src/main/assets`. Its FIX, ADD, CAVES and GUESSED_WAYS lists hold the hand-checked corrections and additions: add new teleports and cave entrances there. |
-| `find_closed_off_areas.py` | `extra_walks.txt` | Joins areas no teleport reaches. Needs numpy and scipy, several GB of memory and tens of minutes. See the notes at the top of the script for the order to run things in. |
+| `find_closed_off_areas.py` | `extra_walks.txt` | Joins areas no teleport reaches. Needs numpy and scipy and several GB of memory; about 20 seconds. See the notes at the top of the script for the order to run things in. |
 
 `extra_walks.txt` is kept here so the build script works without rerunning the slow analysis.
 
@@ -37,6 +42,13 @@ No downloads needed first: the script reads the OSRS Wiki's item tables through 
 | --- | --- | --- |
 | `build_items.py` | `items/items.tsv`, `items/noted.tsv`, `items/icons/` | `python3 build_items.py app/src/main/assets` (from the project folder). Every item's ID, name, equipment slot and picture(s) from the OSRS Wiki, and noted IDs from RuneLite's item list. Skips pictures already there. About 8 minutes the first time (15,000 pictures), seconds after. |
 | `build_icons.py` | `items/canvas/`, `items/canvas.tsv`, `items/canvas.bin`, `items/shapes.bin` | `python3 build_icons.py app/src/main/assets`, **right after** `build_items.py`. Every item's icon exactly as the game draws it (RuneLite's, 36 x 32, noted ones on their note), for showing items and reading the inventory at each item's exact place. Then removes the wiki pictures no longer needed (keeps stack-size pictures like coins) and writes `shapes.bin` for those kept. About 15 minutes the first time (21,000 icons), seconds after. |
+
+## Quest Helper (`quest-helper/`)
+
+`quest_files.py` shows, adds and replaces quests in `QuestData.kt` and `QuestGuides.kt` (the app's code folder),
+from one JSON file per quest kept in `quest-helper/quests/`. Each file is written by hand from the Quest Helper
+plugin's Java, following `docs/quest-helper.md`. `python tools/quest-helper/quest_files.py` (from the project
+folder) lists its commands.
 
 ## DPS Calculator gear import (`dps/`)
 

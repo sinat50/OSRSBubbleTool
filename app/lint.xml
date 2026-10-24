@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Android's code check (lint). The chess engine in src/main/java/chess is CuckooChess, copied unchanged from
+     github.com/peterosterlund2/droidfish (GPL), so it isn't checked: its warnings are about the author's own style
+     (lined-up code, lower-casing text) and fixing them would mean changing someone else's code. See docs/chess.md. -->
+<lint>
+    <issue id="all">
+        <ignore path="src/main/java/chess/**" />
+    </issue>
+</lint>
