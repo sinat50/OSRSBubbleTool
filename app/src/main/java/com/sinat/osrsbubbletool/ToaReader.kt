@@ -21,12 +21,15 @@ object ToaReader {
     // Pictures are shrunk to about this many rows first: plenty to see the plates, and quick
     private const val WORK_ROWS = 540
 
+    // A colour's red, green and blue (0-255)
+    private fun red(c: Int) = (c shr 16) and 0xFF
+    private fun green(c: Int) = (c shr 8) and 0xFF
+    private fun blue(c: Int) = c and 0xFF
+
     // The yellow of the plates. Unlit plates are a flat yellow square (about 156,121,11 on the owner's
     // phone); lit ones are a paler yellow glow (about 195,165,80). Both pass this test; little else does.
     private fun yellowish(c: Int): Boolean {
-        val r = (c shr 16) and 0xFF
-        val g = (c shr 8) and 0xFF
-        val b = c and 0xFF
+        val r = red(c); val g = green(c); val b = blue(c)
         return r > 110 && g > 0.62f * r && g < 0.92f * r && b < 0.62f * r && r - b > 70
     }
 
@@ -37,38 +40,21 @@ object ToaReader {
         val w = p.width / step
         val h = p.height / step
         val mask = BooleanArray(w * h) { i -> yellowish(p.rgb((i % w) * step, (i / w) * step)) }
-        val seen = BooleanArray(w * h)
-        val stack = IntArray(w * h)
         val minArea = h * h * 0.0002f
         val maxArea = h * h * 0.004f
         val found = ArrayList<Blob>()
-
-        for (start in mask.indices) {
-            if (!mask[start] || seen[start]) continue
-            // Flood-fill this patch, adding up what we need as we go
-            var top = 0
-            stack[top++] = start
-            seen[start] = true
-            var count = 0; var sumX = 0L; var sumY = 0L; var sumR = 0L; var sumB = 0L
-            var minX = w; var maxX = 0; var minY = h; var maxY = 0
-            while (top > 0) {
-                val i = stack[--top]
-                val x = i % w; val y = i / w
-                count++; sumX += x; sumY += y
-                val c = p.rgb(x * step, y * step)
-                sumR += (c shr 16) and 0xFF; sumB += c and 0xFF
-                if (x < minX) minX = x
-                if (x > maxX) maxX = x
-                if (y < minY) minY = y
-                if (y > maxY) maxY = y
-                if (x > 0) { val j = i - 1; if (mask[j] && !seen[j]) { seen[j] = true; stack[top++] = j } }
-                if (x < w - 1) { val j = i + 1; if (mask[j] && !seen[j]) { seen[j] = true; stack[top++] = j } }
-                if (y > 0) { val j = i - w; if (mask[j] && !seen[j]) { seen[j] = true; stack[top++] = j } }
-                if (y < h - 1) { val j = i + w; if (mask[j] && !seen[j]) { seen[j] = true; stack[top++] = j } }
-            }
-            if (count < minArea * 0.4f || count > maxArea) continue
-            val bw = maxX - minX + 1
-            val bh = maxY - minY + 1
+        // each patch's redness and blueness, added up as its pixels are found
+        val colour = object : PatchSquare {
+            var sumR = 0L; var sumB = 0L
+            override fun at(i: Int) { val c = p.rgb((i % w) * step, (i / w) * step); sumR += red(c); sumB += blue(c) }
+        }
+        forEachPatch(mask, w, h, onSquare = colour) { patch ->
+            val sumR = colour.sumR; val sumB = colour.sumB
+            colour.sumR = 0L; colour.sumB = 0L
+            val count = patch.count
+            if (count < minArea * 0.4f || count > maxArea) return@forEachPatch true
+            val bw = patch.maxX - patch.minX + 1
+            val bh = patch.maxY - patch.minY + 1
             // How blue it is for its redness tells deep yellow (unlit) from pale yellow (lit)
             val blueness = sumB.toFloat() / sumR
             val lit = blueness in 0.3f..0.6f
@@ -76,7 +62,8 @@ object ToaReader {
                 bw.toFloat() / bh in 0.55f..1.8f &&                 // about square
                 count.toFloat() / (bw * bh) >= 0.42f &&             // solid (a square seen corner-on is a diamond, which fills half its box)
                 (blueness <= 0.12f || lit)
-            found.add(Blob(sumX.toFloat() / count, sumY.toFloat() / count, sqrt(count.toFloat()), lit, plate))
+            found.add(Blob(patch.sumX.toFloat() / count, patch.sumY.toFloat() / count, sqrt(count.toFloat()), lit, plate))
+            true
         }
         return found
     }
@@ -239,9 +226,7 @@ object ToaReader {
             val y = (cy + dy * radius / 3f).toInt()
             if (x < 0 || y < 0 || x >= p.width || y >= p.height) continue
             val c = p.rgb(x, y)
-            val r = (c shr 16) and 0xFF
-            val g = (c shr 8) and 0xFF
-            val b = c and 0xFF
+            val r = red(c); val g = green(c); val b = blue(c)
             all++
             if (r > 150 && g > 0.7f * r && b >= 0.25f * r) pale++
         }
@@ -274,9 +259,7 @@ object ToaReader {
 
     // The chat's red: about 186,35,51, darker at the edges
     private fun chatRed(c: Int): Boolean {
-        val r = (c shr 16) and 0xFF
-        val g = (c shr 8) and 0xFF
-        val b = c and 0xFF
+        val r = red(c); val g = green(c); val b = blue(c)
         return r > 120 && r > g * 1.8f && r > b * 1.8f
     }
 
@@ -290,36 +273,21 @@ object ToaReader {
         // The chat box is on the left; the health orb (which can be red too) is on the right
         val w = p.width * 6 / 10
         val h = p.height
+        val isRed = BooleanArray(w * h) { chatRed(p.rgb(it % w, it / w)) }
+        // which red shape each pixel is in (0: none), so each digit's shape can be read
         val labels = IntArray(w * h)
-        val stack = IntArray(w * h)
+        val label = object : PatchSquare {
+            var id = 1
+            override fun at(i: Int) { labels[i] = id }
+        }
         val glyphs = ArrayList<Glyph>()
         val minH = h * 0.012f
         val maxH = h * 0.03f
-        var next = 0
-        for (start in 0 until w * h) {
-            if (labels[start] != 0 || !chatRed(p.rgb(start % w, start / w))) continue
-            // Flood-fill this red shape (corners count as touching), noting where it reaches
-            val id = ++next
-            var top = 0
-            stack[top++] = start
-            labels[start] = id
-            var minX = w; var maxX = 0; var minY = h; var maxY = 0
-            while (top > 0) {
-                val i = stack[--top]
-                val x = i % w; val y = i / w
-                if (x < minX) minX = x
-                if (x > maxX) maxX = x
-                if (y < minY) minY = y
-                if (y > maxY) maxY = y
-                for (dy in -1..1) for (dx in -1..1) {
-                    val nx = x + dx; val ny = y + dy
-                    if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue
-                    val j = ny * w + nx
-                    if (labels[j] == 0 && chatRed(p.rgb(nx, ny))) { labels[j] = id; stack[top++] = j }
-                }
-            }
-            val g = Glyph(minX, minY, maxX, maxY, id)
+        // each red shape (corners count as touching), and where it reaches
+        forEachPatch(isRed, w, h, corners = true, onSquare = label) { patch ->
+            val g = Glyph(patch.minX, patch.minY, patch.maxX, patch.maxY, label.id++)
             if (g.h >= minH && g.h <= maxH && g.w >= g.h * 0.25f && g.w <= g.h) glyphs.add(g)
+            true
         }
 
         var best: Int? = null
@@ -389,87 +357,57 @@ object ToaReader {
         fun tileY(t: Int): Float { val b = t / 9; val c = t % 9; return cy[b] + (c % 3 - 1) * colY[b] + (c / 3 - 1) * rowY[b] }
     }
 
-    // What one tile shows: still grey, glowing (matched), a symbol (with how sure, 0 to 1), or can't tell
-    class MatchTile(val state: Int, val symbol: ToaPuzzles.Symbol? = null, val sure: Float = 0f)
-    const val TILE_HIDDEN = 0
-    const val TILE_MATCHED = 1
-    const val TILE_SYMBOL = 2
-    const val TILE_UNKNOWN = 3
+    // What one tile shows: still grey (HIDDEN), glowing (MATCHED), a symbol (with how sure, 0 to 1), or can't tell
+    enum class TileState { HIDDEN, MATCHED, SYMBOL, UNKNOWN }
+    class MatchTile(val state: TileState, val symbol: ToaPuzzles.Symbol? = null, val sure: Float = 0f)
 
     // A patch of one kind of pixel, in the shrunk picture
     private class Patch(val x: Float, val y: Float, val count: Int, val w: Int, val h: Int, var grey: Boolean = false)
 
     private fun hiddenGrey(c: Int): Boolean {
-        val r = (c shr 16) and 0xFF
-        val g = (c shr 8) and 0xFF
-        val b = c and 0xFF
+        val r = red(c); val g = green(c); val b = blue(c)
         return abs(r - 93) <= 7 && abs(g - 86) <= 7 && abs(b - 74) <= 7 && r - b in 12..26
     }
 
-    // Finds patches of pixels that pass `test` (and aren't in `skip`, e.g. the bubble's own window)
     // Where the app's own windows are, so their pixels are left out: "is (x, y) covered?". A plain interface
     // rather than a Kotlin function type, so asking it for every pixel makes no objects on the phone.
     fun interface Skip { fun at(x: Int, y: Int): Boolean }
 
-    // Working memory kept from one look to the next (Watch looks several times a second)
-    private var workKind = ByteArray(0)
-    private var workSeen = BooleanArray(0)
-    private var workStack = IntArray(0)
-
-    // Gives the working memory back once Watch stops (it's made again on the next look)
-    fun releaseWork() {
-        workKind = ByteArray(0); workSeen = BooleanArray(0); workStack = IntArray(0)
+    // Working memory for finding the boards, kept from one look to the next by whoever looks (Watch looks 3 times a
+    // second), and given back with release() once Watch stops (it's made again on the next look)
+    class MatchWork {
+        internal var grey = BooleanArray(0)
+        internal var yellow = BooleanArray(0)
+        internal var stack = IntArray(0)
+        fun release() { grey = BooleanArray(0); yellow = BooleanArray(0); stack = IntArray(0) }
     }
-    private const val GREY: Byte = 1
-    private const val YELLOW: Byte = 2
 
-    // Finds the patches of hidden-tile grey and of yellow, in one pass over the shrunk picture
-    private fun markPatches(p: LightBoxReader.PixelSource, step: Int, skip: Skip): Pair<List<Patch>, List<Patch>> {
+    // Finds the patches of hidden-tile grey and of yellow in the shrunk picture (all of it: searching only near the
+    // boards was tried, and was worse)
+    private fun markPatches(p: LightBoxReader.PixelSource, step: Int, skip: Skip, work: MatchWork): Pair<List<Patch>, List<Patch>> {
         val w = p.width / step
         val h = p.height / step
-        if (workKind.size < w * h) { workKind = ByteArray(w * h); workSeen = BooleanArray(w * h); workStack = IntArray(w * h) }
-        val kind = workKind; val seen = workSeen; val stack = workStack
-        val x0 = 0; val y0 = 0; val x1 = w; val y1 = h   // the whole picture (searching only near the boards was tried: worse)
-        for (y in y0 until y1) {
+        if (work.grey.size < w * h) { work.grey = BooleanArray(w * h); work.yellow = BooleanArray(w * h); work.stack = IntArray(w * h) }
+        val grey = work.grey; val yellow = work.yellow
+        for (y in 0 until h) {
             val row = y * w
-            for (x in x0 until x1) {
+            for (x in 0 until w) {
                 val i = row + x
-                seen[i] = false
                 val px = x * step; val py = y * step
-                kind[i] = if (skip.at(px, py)) 0 else {
-                    val c = p.rgb(px, py)
-                    if (hiddenGrey(c)) GREY else if (yellowish(c)) YELLOW else 0
-                }
+                if (skip.at(px, py)) { grey[i] = false; yellow[i] = false; continue }
+                val c = p.rgb(px, py)
+                val g = hiddenGrey(c)
+                grey[i] = g
+                yellow[i] = !g && yellowish(c)
             }
         }
-        val grey = ArrayList<Patch>()
-        val yellow = ArrayList<Patch>()
-        for (sy in y0 until y1) for (sx in x0 until x1) {
-            val start = sy * w + sx
-            val k = kind[start]
-            if (k == 0.toByte() || seen[start]) continue
-            var top = 0
-            stack[top++] = start
-            seen[start] = true
-            var count = 0; var sumX = 0L; var sumY = 0L
-            var minX = w; var maxX = 0; var minY = h; var maxY = 0
-            while (top > 0) {
-                val i = stack[--top]
-                val x = i % w; val y = i / w
-                count++; sumX += x; sumY += y
-                if (x < minX) minX = x
-                if (x > maxX) maxX = x
-                if (y < minY) minY = y
-                if (y > maxY) maxY = y
-                if (x > x0) { val j = i - 1; if (kind[j] == k && !seen[j]) { seen[j] = true; stack[top++] = j } }
-                if (x < x1 - 1) { val j = i + 1; if (kind[j] == k && !seen[j]) { seen[j] = true; stack[top++] = j } }
-                if (y > y0) { val j = i - w; if (kind[j] == k && !seen[j]) { seen[j] = true; stack[top++] = j } }
-                if (y < y1 - 1) { val j = i + w; if (kind[j] == k && !seen[j]) { seen[j] = true; stack[top++] = j } }
+        fun patches(mask: BooleanArray) = ArrayList<Patch>().also { out ->
+            forEachPatch(mask, w, h, work.stack) { pa ->
+                out.add(Patch(pa.sumX.toFloat() / pa.count, pa.sumY.toFloat() / pa.count, pa.count, pa.maxX - pa.minX + 1, pa.maxY - pa.minY + 1))
+                true
             }
-            val patch = Patch(sumX.toFloat() / count, sumY.toFloat() / count, count, maxX - minX + 1, maxY - minY + 1)
-            if (k == GREY) grey.add(patch) else yellow.add(patch)
         }
-        return grey to yellow
+        return patches(grey) to patches(yellow)
     }
 
     // One board found: its middle, its two steps, and which marks it used
@@ -481,16 +419,15 @@ object ToaReader {
 
     // Finds the boards. With `previous` (the last picture's boards), one board on screen is enough: the
     // other is assumed to have moved the same way. Without it, both must be seen. Null if they can't be.
-    fun findMatchBoards(p: LightBoxReader.PixelSource, skip: Skip, previous: MatchBoards? = null): MatchBoards? =
-        searchBoards(p, skip, previous)
-
-    private fun searchBoards(p: LightBoxReader.PixelSource, skip: Skip, previous: MatchBoards?): MatchBoards? {
+    // `work`: working memory to reuse from one look to the next (see MatchWork).
+    fun findMatchBoards(p: LightBoxReader.PixelSource, skip: Skip, previous: MatchBoards? = null,
+                        work: MatchWork = MatchWork()): MatchBoards? {
         val step = maxOf(1, p.height / WORK_ROWS)
         val h = p.height / step
         val hh = h.toFloat() * h
         // Marks: the grey squares of hidden tiles, and the yellow of symbols (dull or glowing)
         val marks = ArrayList<Patch>()
-        val (greyPatches, yellowPatches) = markPatches(p, step, skip)
+        val (greyPatches, yellowPatches) = markPatches(p, step, skip, work)
         greyPatches.filter {
             // (as small as they are at 25% zoom)
             it.count > hh * 0.0005f && it.count < hh * 0.012f && it.w.toFloat() / it.h in 0.6f..1.7f &&
@@ -782,9 +719,7 @@ object ToaReader {
 
     // The purple behind a revealed symbol
     private fun tilePurple(c: Int): Boolean {
-        val r = (c shr 16) and 0xFF
-        val g = (c shr 8) and 0xFF
-        val b = c and 0xFF
+        val r = red(c); val g = green(c); val b = blue(c)
         return r in 40..100 && b >= 0.6f * r && b <= r && r - g >= 8
     }
 
@@ -811,24 +746,23 @@ object ToaReader {
             when {
                 hiddenGrey(c) -> hidden++
                 yellowish(c) -> {
-                    val r = (c shr 16) and 0xFF
-                    if ((c and 0xFF) >= 0.25f * r) pale++ else { dull++; yellow[k] = true; seen[k] = true }
+                    if (blue(c) >= 0.25f * red(c)) pale++ else { dull++; yellow[k] = true; seen[k] = true }
                 }
                 tilePurple(c) -> { seen[k] = true; purple++ }
             }
         }
         val all = TILE_GRID * TILE_GRID
-        if (known < all / 2) return MatchTile(TILE_UNKNOWN)
+        if (known < all / 2) return MatchTile(TileState.UNKNOWN)
         // A real tile, glowing or showing a symbol, sits on its purple background. The minimap, orbs or
         // inventory can cover a tile with pale or yellow colours, but not with that purple.
         val onTile = purple >= all / 5
-        if (onTile && pale >= all * 6 / 100) return MatchTile(TILE_MATCHED)
+        if (onTile && pale >= all * 6 / 100) return MatchTile(TileState.MATCHED)
         if (onTile && dull >= all * 5 / 100) {
-            val (symbol, sure) = recogniseSymbol(yellow, seen, allowed) ?: return MatchTile(TILE_UNKNOWN)
-            return MatchTile(TILE_SYMBOL, symbol, sure)
+            val (symbol, sure) = recogniseSymbol(yellow, seen, allowed) ?: return MatchTile(TileState.UNKNOWN)
+            return MatchTile(TileState.SYMBOL, symbol, sure)
         }
-        if (hidden >= all * 3 / 10) return MatchTile(TILE_HIDDEN)
-        return MatchTile(TILE_UNKNOWN)
+        if (hidden >= all * 3 / 10) return MatchTile(TileState.HIDDEN)
+        return MatchTile(TileState.UNKNOWN)
     }
 
     // All 18 tiles, as Watch reads them from one picture. Tiles of a board not actually found in this picture are
@@ -836,9 +770,9 @@ object ToaReader {
     // found from 7 can be a tile out of place. Glows are checked in pairs anyway (MatchMemory).
     fun readMatchTiles(p: LightBoxReader.PixelSource, boards: MatchBoards, skip: Skip,
                        allowed: Collection<ToaPuzzles.Symbol>): List<MatchTile> = (0 until 18).map { t ->
-        if (!boards.seen[t / 9]) MatchTile(TILE_UNKNOWN) else {
+        if (!boards.seen[t / 9]) MatchTile(TileState.UNKNOWN) else {
             val r = readMatchTile(p, boards, t, skip, allowed)
-            if (r.state == TILE_SYMBOL && !boards.clear[t / 9]) MatchTile(TILE_UNKNOWN) else r
+            if (r.state == TileState.SYMBOL && !boards.clear[t / 9]) MatchTile(TileState.UNKNOWN) else r
         }
     }
 
@@ -889,7 +823,7 @@ object ToaReader {
         fun merge(tiles: List<MatchTile>, boards: MatchBoards, screenW: Int, now: Long): Boolean {
             // decided from the first clear look: solo raids start with four pairs matched
             // (exactly four pairs, 8 tiles, start matched; 7 if one is hidden. More can only be a group raid well on.)
-            if (soloRaid == null) soloRaid = (0 until 18).count { tiles[it].state == TILE_MATCHED } in 7..8
+            if (soloRaid == null) soloRaid = (0 until 18).count { tiles[it].state == TileState.MATCHED } in 7..8
             lastLook = now
             // The game's buttons down the right of the screen (orbs, minimap, inventory) and down the left can look
             // like a glowing tile; a glow seen there needs a partner to count
@@ -899,7 +833,7 @@ object ToaReader {
             // the tile you've just flipped (it shows its symbol while you stand on it). If two show one (another
             // player's, or the last one not faded yet), one that has just appeared is the one flipped; otherwise the
             // one already marked stays marked, so it doesn't flicker.
-            val showing = (0 until 18).filter { tiles[it].state == TILE_SYMBOL }
+            val showing = (0 until 18).filter { tiles[it].state == TileState.SYMBOL }
             val appeared = showing.filter { it !in lastShowing }
             val pick = if (appeared.isNotEmpty()) (if (active in appeared) active else appeared.first())
                        else if (active in showing) active else showing.firstOrNull()
@@ -911,12 +845,12 @@ object ToaReader {
                     // A glowing tile is only counted as matched once it has glowed steadily for a while and has a
                     // partner on the other board (see settlePairs). A matched tile then stays matched: one seen through
                     // the see-through inventory can look grey.
-                    TILE_MATCHED -> if (t !in done) {
+                    TileState.MATCHED -> if (t !in done) {
                         glowSince.getOrPut(t) { now }
                         if (nearUi(t)) glowNearUi.add(t)
                     }
-                    TILE_HIDDEN -> { glowSince.remove(t); glowNearUi.remove(t) }
-                    TILE_SYMBOL -> {
+                    TileState.HIDDEN -> { glowSince.remove(t); glowNearUi.remove(t) }
+                    TileState.SYMBOL -> {
                         glowSince.remove(t)
                         glowNearUi.remove(t)
                         val sym = tile.symbol ?: run { unsure = true; continue }
@@ -931,8 +865,7 @@ object ToaReader {
                         val chosen = ToaPuzzles.MATCHING_SYMBOLS[best]
                         if (symbols[t] == chosen) continue
                         // each board has each symbol once: keep whichever tile it was seen on more
-                        val board = if (t < 9) 0 until 9 else 9 until 18
-                        val rival = board.firstOrNull { it != t && symbols[it] == chosen }
+                        val rival = ToaPuzzles.matchBoardOf(t).firstOrNull { it != t && symbols[it] == chosen }
                         if (rival != null) {
                             if ((votes[rival]?.get(best) ?: 0) > v[best]) continue
                             symbols.remove(rival)
@@ -940,6 +873,7 @@ object ToaReader {
                         symbols[t] = chosen
                         changed = true
                     }
+                    TileState.UNKNOWN -> {}
                 }
             }
             if (settlePairs(now)) changed = true
@@ -952,7 +886,6 @@ object ToaReader {
         // tile (the orbs by the minimap can look like one), not a match. True if anything changed.
         private fun settlePairs(now: Long): Boolean {
             val steady = glowSince.filter { (t, since) -> t !in done && now - since >= MATCH_GLOW_MS }.keys.toMutableSet()
-            fun otherBoard(t: Int) = if (t < 9) 9 until 18 else 0 until 9
             var changed = false
             fun pair(a: Int, b: Int) {
                 done.add(a); done.add(b)
@@ -965,11 +898,11 @@ object ToaReader {
             for (t in steady.sorted()) {
                 if (t !in steady) continue
                 val sym = symbols[t] ?: continue
-                val partner = otherBoard(t).firstOrNull { symbols[it] == sym }
+                val partner = ToaPuzzles.otherMatchBoard(t).firstOrNull { symbols[it] == sym }
                 if (partner != null) {
                     if (partner in steady || partner in done) pair(t, partner)
                 } else {
-                    otherBoard(t).firstOrNull { it in steady && symbols[it] == null }?.let {
+                    ToaPuzzles.otherMatchBoard(t).firstOrNull { it in steady && symbols[it] == null }?.let {
                         symbols[it] = sym
                         pair(t, it)
                     }
@@ -993,8 +926,7 @@ object ToaReader {
         fun activePair(): Pair<Int, Int>? {
             val a = active ?: return null
             val sym = symbols[a] ?: return null
-            val other = if (a < 9) 9 until 18 else 0 until 9
-            val b = other.firstOrNull { symbols[it] == sym } ?: return null
+            val b = ToaPuzzles.otherMatchBoard(a).firstOrNull { symbols[it] == sym } ?: return null
             if (a in done && b in done) return null
             return a to b
         }

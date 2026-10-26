@@ -44,7 +44,7 @@ class HetReaderTest {
             val r = HetReader.read(Shot(f))
             val ms = (System.nanoTime() - start) / 1_000_000
             println("${f.name}: room ${want + 1}, read ${r?.let { it.room + 1 }} score ${r?.score} margin ${r?.margin} " +
-                "sure ${r?.sure} walls up ${"%.2f".format(HetReader.lastWallsUp)} cracked ${r?.cracked?.joinToString("")} brightness power ${"%.3f".format(HetReader.lastPower)} fixed mirrors ${r?.fixedMirrors?.map { "${it / ToaPuzzles.HET_SIZE},${it % ToaPuzzles.HET_SIZE}" + (r.facing[it]?.let { f -> " " + listOf("NE", "SE", "SW", "NW")[f] } ?: "") }} way ${r?.let { x -> ToaPuzzles.hetBestWay(ToaPuzzles.HET_ROOMS[x.room].wallsWith(BooleanArray(x.cracked.size) { x.cracked[it] == 1 }), seen = x.fixedMirrors) + 1 }} unseen on it ${r?.let { x -> val way = ToaPuzzles.hetBestWay(ToaPuzzles.HET_ROOMS[x.room].wallsWith(BooleanArray(x.cracked.size) { x.cracked[it] == 1 }), seen = x.fixedMirrors); if (way < 0) "-" else ToaPuzzles.hetBeam(ToaPuzzles.HET_ANSWERS[way]).filter { it in x.unseen }.map { "${it / ToaPuzzles.HET_SIZE},${it % ToaPuzzles.HET_SIZE}" } }} camera ${r?.camera?.joinToString(",")} ($ms ms)")
+                "sure ${r?.sure} walls up ${r?.wallsUp?.let { "%.2f".format(it) }} cracked ${r?.cracked?.joinToString("")} brightness power ${r?.brightness?.let { "%.3f".format(it) }} fixed mirrors ${r?.fixedMirrors?.map { "${it / ToaPuzzles.HET_SIZE},${it % ToaPuzzles.HET_SIZE}" + (r.facing[it]?.let { f -> " " + listOf("NE", "SE", "SW", "NW")[f.ordinal] } ?: "") }} way ${r?.let { x -> ToaPuzzles.hetBestWay(ToaPuzzles.HET_ROOMS[x.room].wallsWith(BooleanArray(x.cracked.size) { x.cracked[it] == 1 }), seen = x.fixedMirrors) + 1 }} unseen on it ${r?.let { x -> val way = ToaPuzzles.hetBestWay(ToaPuzzles.HET_ROOMS[x.room].wallsWith(BooleanArray(x.cracked.size) { x.cracked[it] == 1 }), seen = x.fixedMirrors); if (way < 0) "-" else ToaPuzzles.hetBeam(ToaPuzzles.HET_ANSWERS[way]).filter { it in x.unseen }.map { "${it / ToaPuzzles.HET_SIZE},${it % ToaPuzzles.HET_SIZE}" } }} camera ${r?.camera} ($ms ms)")
             // walls seen cracked in these raids, though usually smooth (noted from the screenshots by eye)
             crackedThatRaid[f.name.take(f.name.length)]?.let { (block) -> if (r != null && r.sure && r.room == want) assertEquals(f.name, 1, r.cracked[block]) }
             // never sure of the wrong room; sure of the right one for a camera like the owner's usual one
@@ -66,14 +66,14 @@ class HetReaderTest {
         val f =File(dir, "adb_20261024_133635_known.png")
         assumeTrue(f.isFile)
         val r = HetReader.read(Shot(f))!!
-        val nw = ToaPuzzles.Facing.NORTH_WEST.ordinal; val se = ToaPuzzles.Facing.SOUTH_EAST.ordinal
+        val nw = ToaPuzzles.Facing.NORTH_WEST; val se = ToaPuzzles.Facing.SOUTH_EAST
         assertEquals(mapOf(5 * 21 + 6 to nw, 5 * 21 + 13 to se, 19 * 21 + 7 to nw), r.facing.filterKeys { it != 2 * 21 + 10 })
         assertEquals(listOf(2 * 21 + 10, 5 * 21 + 6, 5 * 21 + 13, 19 * 21 + 7), r.fixedMirrors)
         val room = ToaPuzzles.HET_ROOMS[r.room]
-        assertEquals(6, ToaPuzzles.hetBestWay(room.walls, room.fixed, r.fixedMirrors, r.facing.mapValues { ToaPuzzles.Facing.entries[it.value] }))
+        assertEquals(6, ToaPuzzles.hetBestWay(room.walls, r.fixedMirrors, r.facing))
     }
 
-    // Watch's quick look (HetReader.follow) starting from a camera a little off, as after a second of walking: it
+    // Watch's quick look (HetReader.followLook) starting from a camera a little off, as after a second of walking: it
     // must land on the same room and the same fixed mirrors as a full read
     @Test
     fun followsTheCamera() {
@@ -84,10 +84,10 @@ class HetReaderTest {
             val shot = Shot(f)
             val r = HetReader.read(shot)?.takeIf { it.sure } ?: return@forEach
             val k = shot.height / 1080f
-            val c = r.camera
-            val moved = floatArrayOf(c[0] + 24 * k, c[1] - 16 * k, c[2] * 1.04f, c[3], c[4], c[5] + 0.06f)
+            val c = r.camera!!
+            val moved = HetReader.Camera(c.x + 24 * k, c.y - 16 * k, c.zoom * 1.04f, c.tilt, c.turn + 0.06f)
             val start = System.nanoTime()
-            val look = HetReader.follow(shot, r.room, moved)
+            val look = HetReader.followLook(shot, r.room, moved, 0f).reading
             val ms = (System.nanoTime() - start) / 1_000_000
             println("${f.name}: read ${r.fixedMirrors}, followed ${look?.fixedMirrors} ($ms ms)")
             assertTrue(f.name, look != null && look.room == r.room)
@@ -103,7 +103,7 @@ class HetReaderTest {
     fun watchSettlesSquares() {
         val m = HetReader.Memory()
         val mirror = 5 * 21 + 13; val placed = 12 * 21 + 13; val hidden = 5 * 21 + 10
-        fun look(fixed: List<Int>, unseen: List<Int>) = HetReader.Reading(0, 1f, 1f, IntArray(9), fixed, unseen, FloatArray(6))
+        fun look(fixed: List<Int>, unseen: List<Int>) = HetReader.Reading(0, 1f, 1f, IntArray(9), fixed, unseen)
         m.add(look(listOf(mirror), listOf(hidden)))
         assertTrue(mirror !in m.fixed && mirror in m.unseen)     // seen once: not sure yet
         assertTrue(placed in m.unseen && hidden in m.unseen)     // clear once: not sure yet either
@@ -125,7 +125,7 @@ class HetReaderTest {
     fun watchForgetsTheLayoutWhenTheWallsGoDown() {
         val m = HetReader.Memory()
         val mirror = 5 * 21 + 13
-        val look = HetReader.Look(HetReader.Reading(0, 1f, 1f, IntArray(9), listOf(mirror), emptyList(), FloatArray(6)), false)
+        val look = HetReader.Look(HetReader.Reading(0, 1f, 1f, IntArray(9), listOf(mirror)), false)
         val down = HetReader.Look(null, true)
         val lost = HetReader.Look(null, false)
         repeat(3) { m.use(look) }
@@ -151,7 +151,7 @@ class HetReaderTest {
         val oldCracks = intArrayOf(0, 1, 0, 0, 0, 0, 0, 1, 0)
         val newCracks = intArrayOf(0, 0, 0, 1, 0, 0, 0, 1, 0)
         fun look(fixed: List<Int>, cracked: IntArray) =
-            HetReader.Look(HetReader.Reading(0, 1f, 1f, cracked, fixed, emptyList(), FloatArray(6)), false)
+            HetReader.Look(HetReader.Reading(0, 1f, 1f, cracked, fixed), false)
         val lost = HetReader.Look(null, false)
         val m = HetReader.Memory()
         repeat(3) { m.use(look(old, oldCracks)) }
@@ -183,8 +183,8 @@ class HetReaderTest {
     fun watchKeepsWhatLooksAgreed() {
         val m = HetReader.Memory()
         val mirror = 5 * 21 + 10
-        val se = ToaPuzzles.Facing.SOUTH_EAST.ordinal; val ne = ToaPuzzles.Facing.NORTH_EAST.ordinal
-        fun look(room: Int, facing: Int) = HetReader.Reading(room, 1f, 1f, IntArray(9), listOf(mirror), emptyList(), FloatArray(6), mapOf(mirror to facing))
+        val se = ToaPuzzles.Facing.SOUTH_EAST; val ne = ToaPuzzles.Facing.NORTH_EAST
+        fun look(room: Int, facing: ToaPuzzles.Facing) = HetReader.Reading(room, 1f, 1f, IntArray(9), listOf(mirror), facing = mapOf(mirror to facing))
         m.add(look(0, se)); m.add(look(0, se))
         assertEquals(mapOf(mirror to se), m.facing)
         repeat(4) { m.add(look(0, ne)) }
@@ -222,6 +222,29 @@ class HetReaderTest {
         assertFalse(m.broken)
         m.use(bar(0f)); m.use(bar(0f))
         assertTrue(m.broken)
+        // a new Watch (the next raid) starts afresh: the broken seal is forgotten, and so a room read before the bar
+        // shows is again forgotten when it does
+        m.start()
+        assertFalse(m.broken)
+        assertEquals(-1f, m.seal)
+        repeat(3) { m.use(look(0, null)) }
+        assertFalse(m.broken)
+        m.use(look(1, 1f))
+        assertEquals(1, m.room)
+    }
+
+    // A cracked wall that later looks outvote tells the map, even when no square settles that look (worked out by
+    // hand: 4 looks smooth, then cracked ones: the 4th makes it a tie (not known), the 5th cracked)
+    @Test
+    fun watchReportsACrackChangingItsMind() {
+        fun look(crack: Int) = HetReader.Reading(0, 1f, 1f, IntArray(9).also { it[0] = crack }, emptyList(), focusZoom = 30f)
+        val m = HetReader.Memory()
+        repeat(4) { m.add(look(0)) }                              // every square settled by now
+        repeat(3) { assertFalse(m.add(look(1))) }
+        assertTrue(m.add(look(1)))
+        assertEquals(-1, m.cracked!![0])
+        assertTrue(m.add(look(1)))
+        assertEquals(1, m.cracked!![0])
     }
 
     // Once the room is settled, another room read at a different zoom (zoomed in close while solving) doesn't move

@@ -1,6 +1,7 @@
 package com.sinat.osrsbubbletool
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -140,8 +141,8 @@ class ToaPuzzlesTest {
     fun hetNoRoomNeedsMoreThanThreeMirrorsMoved() {
         // only three mirrors can be picked up (the plugin's rule), so every room's way has three; a way with four
         // corners would need a fixed mirror on one
-        assertEquals(listOf(3, 3, 3), ToaPuzzles.HET_ROOMS.map { ToaPuzzles.hetMirrorsToMove(it, it.way) })
-        assertEquals(4, ToaPuzzles.hetMirrorsToMove(null, 3))   // way 4 has four corners
+        assertEquals(listOf(3, 3, 3), ToaPuzzles.HET_ROOMS.map { ToaPuzzles.HET_ANSWERS[it.way].size })
+        assertEquals(4, ToaPuzzles.HET_ANSWERS[3].size)   // way 4 has four corners
     }
 
     @Test
@@ -150,14 +151,15 @@ class ToaPuzzlesTest {
         for (way in ToaPuzzles.HET_ANSWERS) for (sq in ToaPuzzles.hetBeam(way))
             assertTrue("$sq", ToaPuzzles.isHetFloor(sq / ToaPuzzles.HET_SIZE, sq % ToaPuzzles.HET_SIZE))
         // the floor is 21 squares across the middle and 5 at the south end
-        assertEquals(0 to 20, ToaPuzzles.hetFloorRow(10))
-        assertEquals(8 to 12, ToaPuzzles.hetFloorRow(0))
+        assertTrue(ToaPuzzles.isHetFloor(0, 10) && ToaPuzzles.isHetFloor(20, 10))
+        assertTrue(ToaPuzzles.isHetFloor(8, 0) && ToaPuzzles.isHetFloor(12, 0))
+        assertFalse(ToaPuzzles.isHetFloor(7, 0) || ToaPuzzles.isHetFloor(13, 0))
     }
 
     @Test
     fun hetEachRoomsWayIsWhatThePluginsRulesPick() {
         // fewest mirrors to carry (at most 3), then fewest walls to mine, then the first in the plugin's list
-        for (room in ToaPuzzles.HET_ROOMS) assertEquals(room.way, ToaPuzzles.hetBestWay(room.walls, room.fixed))
+        for (room in ToaPuzzles.HET_ROOMS) assertEquals(room.way, ToaPuzzles.hetBestWay(room.walls))
     }
 
     @Test

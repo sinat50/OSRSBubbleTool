@@ -10,7 +10,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 
-// Working with pictures of the screen, shared by the tools that read it (Puzzle Box, Light Box, DPS).
+// Working with pictures of the screen, shared by the tools that read it (Puzzle Box, Light Box, DPS, ToA Puzzle Helper).
 
 // One patch of touching marked squares: how many, their total position (for the middle) and the box around them
 class ScreenPatch {
@@ -18,13 +18,20 @@ class ScreenPatch {
     var minX = 0; var maxX = 0; var minY = 0; var maxY = 0
 }
 
+// Told about each square of a patch as it's found (square i is x = i % w, y = i / w), for what a reader needs beyond
+// ScreenPatch: the patch's colours, or which patch each square is in. A plain interface rather than a Kotlin function
+// type, as it's asked for every square (a function type would make an object for each one on the phone).
+fun interface PatchSquare { fun at(i: Int) }
+
 // Finds each patch of touching squares marked in `mask` (w by h, cleared as it goes) and hands it to `onPatch`,
-// which says whether to carry on. Shared by the Light Box and the Puzzle Box. (onPatch runs once per patch,
-// not per pixel, so it's fine as a function type here.)
-fun forEachPatch(mask: BooleanArray, w: Int, h: Int, onPatch: (ScreenPatch) -> Boolean) {
-    val stack = IntArray(w * h)
+// which says whether to carry on. Shared by the Light Box, the Puzzle Box and the ToA Puzzle Helper. (onPatch runs
+// once per patch, not per pixel, so it's fine as a function type here.) `stack`: working memory of at least w * h, to
+// reuse from one look to the next (else made here). `corners`: squares touching only at a corner count as touching.
+// `onSquare`: told each square as it's found (before onPatch hears about its patch).
+fun forEachPatch(mask: BooleanArray, w: Int, h: Int, stack: IntArray = IntArray(w * h), corners: Boolean = false,
+                 onSquare: PatchSquare? = null, onPatch: (ScreenPatch) -> Boolean) {
     val patch = ScreenPatch()
-    for (start in mask.indices) {
+    for (start in 0 until w * h) {
         if (!mask[start]) continue
         var top = 0
         stack[top++] = start
@@ -38,10 +45,17 @@ fun forEachPatch(mask: BooleanArray, w: Int, h: Int, onPatch: (ScreenPatch) -> B
             count++; sumX += x; sumY += y
             if (x < minX) minX = x; if (x > maxX) maxX = x
             if (y < minY) minY = y; if (y > maxY) maxY = y
+            onSquare?.at(i)
             if (x > 0 && mask[i - 1]) { mask[i - 1] = false; stack[top++] = i - 1 }
             if (x < w - 1 && mask[i + 1]) { mask[i + 1] = false; stack[top++] = i + 1 }
             if (y > 0 && mask[i - w]) { mask[i - w] = false; stack[top++] = i - w }
             if (y < h - 1 && mask[i + w]) { mask[i + w] = false; stack[top++] = i + w }
+            if (corners) {
+                if (x > 0 && y > 0 && mask[i - w - 1]) { mask[i - w - 1] = false; stack[top++] = i - w - 1 }
+                if (x < w - 1 && y > 0 && mask[i - w + 1]) { mask[i - w + 1] = false; stack[top++] = i - w + 1 }
+                if (x > 0 && y < h - 1 && mask[i + w - 1]) { mask[i + w - 1] = false; stack[top++] = i + w - 1 }
+                if (x < w - 1 && y < h - 1 && mask[i + w + 1]) { mask[i + w + 1] = false; stack[top++] = i + w + 1 }
+            }
         }
         patch.count = count; patch.sumX = sumX; patch.sumY = sumY
         patch.minX = minX; patch.maxX = maxX; patch.minY = minY; patch.maxY = maxY

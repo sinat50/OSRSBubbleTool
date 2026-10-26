@@ -31,6 +31,7 @@ object Palette {
     private val lightButton = shade("#B89A63", "#4E3D26") // an option that isn't picked
     // an option that is picked (Quest Helper tabs, calculator keys): darker than a button on light, lighter on dark
     private val pickedButton = shade("#5A4220", "#9A7843")
+    private val buttonNote = shade("#F2E3C0", "#F2E3C0")  // a second, quieter line of writing on a button
 
     // Used for both text and buttons, so the dark versions sit in between to read well both ways
     private val green = shade("#3E7A2E", "#4A8A36")
@@ -52,6 +53,7 @@ object Palette {
     val BUTTON_BROWN get() = button.now()
     val LIGHT_BUTTON get() = lightButton.now()
     val SELECTED_BROWN get() = pickedButton.now()
+    val BUTTON_NOTE get() = buttonNote.now()
     val GO_GREEN get() = green.now()
     val READY_GREEN get() = readyGreen.now()
     val RED get() = red.now()

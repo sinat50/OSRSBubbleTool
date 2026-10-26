@@ -1,6 +1,6 @@
 # ToA Puzzle Helper: how the screen reading works
 
-Read this before changing `ToaReader.kt`, `ToaPuzzles.kt`, `ToaPuzzleTool.kt` or `HetReader.kt`. Everything here was built from
+Read this before changing `ToaReader.kt`, `ToaPuzzles.kt`, `ToaPuzzleTool.kt`, `ToaMaps.kt` or `HetReader.kt`. Everything here was built from
 the owner's phone screenshots and live raids (October 2026), never guessed.
 
 ## The files
@@ -9,8 +9,11 @@ the owner's phone screenshots and live raids (October 2026), never guessed.
 - `ToaReader` = screen reading, plus `MatchMemory`, what matching Watch remembers between pictures. It has no
   Android parts, so it runs on the PC; the replay test uses the same `MatchMemory` as the app.
 - `ToaPuzzleTool` = the pages, the Watch loops and the map drawn at the bottom of the screen.
+- `ToaMaps` = how the maps look: the game's colours (`ToaColours`), the tiles, plates and symbols (`ToaPainter`) and
+  the Path of Het map (`HetMapView`, shown what to draw by `HetMapData`).
 - `HetReader` = the Path of Het reader (rooms, cracked walls, fixed mirrors and their facing, Het's seal) and
-  `HetReader.Memory`, what its Watch remembers between looks. No Android parts: `HetReaderTest` (screenshots, and
+  `HetReader.Memory`, what its Watch remembers between looks; the camera it fits to each picture is a
+  `HetReader.Camera`. No Android parts: `HetReaderTest` (screenshots, and
   the memory rules) and `HetReplayTest` (a recorded round, through exactly what the phone runs) use it on the PC.
 
 ## Each puzzle
@@ -27,16 +30,19 @@ the owner's phone screenshots and live raids (October 2026), never guessed.
   found 2 minutes excessive), with a countdown next to Stop (`sequenceSecondsLeft`), then 5 s for each next one.
 - **Obelisk**: tap-in only (the obelisks are small and hard to see from the safe spot).
 - **Path of Het (mirrors)**: the page is just Watch and its instructions (owner's choice, October 2026: the room
-  pictures, the nine ways to pick from, Read the room, Show and Turn were taken off; the small window has Stop or
-  Watch, ◀ ▶ through the nine ways, and Done; the map shows no rings for unseen squares and no colour key). The plugin's nine answers (`ToaPuzzles.HET_ANSWERS`) are kept as
+  pictures, the nine ways to pick from, Read the room, Show and Turn were taken off; the small window has just Rescan
+  (Watch afresh) and Done, with a note under them only once Watch has stopped, saying why (October 2026: the
+  Stop/Watch, ◀ ▶ through the nine ways and the "Watching room 3: 4 fixed mirrors found" line went, so the map can sit
+  at the bottom left beside it, clear of the game's menu when you tap a mirror); the map shows no rings for unseen squares and no colour key). The plugin's nine answers (`ToaPuzzles.HET_ANSWERS`) are kept as
   just their mirrors; `hetBeam` traces the beam from the caster (square 6,10, going west) to the shielded statue
   (squares 12-14, 9-11), and gives back exactly the plugin's lists of squares (checked against all nine;
   `ToaPuzzlesTest` checks one in full and every length). Rooms seen in raids are in `HET_ROOMS`: each one's smooth
   and cracked walls and the way that fits it (`hetMining` counts the cracked squares the beam crosses, -1 if it hits
   a smooth one; the test checks each room's way). (The player used to tap the room or one of
-  the nine ways; now Watch reads it.) Only 3 mirrors can be moved (the plugin's rule), so a room whose way has 4 corners
-  has a fixed mirror on one (`HetRoom.fixed`, drawn grey; no room uses one now: room 3 used way 4 with a fixed mirror
-  until its walls were measured from straight above, which opened way 5). Checked: our rooms' ways are what the plugin's
+  the nine ways; now Watch reads it.) Only 3 mirrors can be moved (the plugin's rule), so a way with 4 corners needs
+  a fixed mirror standing on one, facing the right way: every room's own way has 3 (room 3 used way 4 with a fixed
+  mirror until its walls were measured from straight above, which opened way 5; the rooms no longer list fixed
+  mirrors of their own, as Watch reads them each raid). Checked: our rooms' ways are what the plugin's
   rules would pick. The room is entered from the east, so you face west walking in (compass in the owner's
   screenshots): the maps start with west at the top (`het_top`, default 3; the Turn button is gone).
   The floor is drawn square for square as in the game (`isHetFloor`, from the Shortest Path collision map, region
@@ -51,7 +57,7 @@ the owner's phone screenshots and live raids (October 2026), never guessed.
   The plugin's rule (`HetTileState.conversionScoreTo`): a fixed mirror on a way's straight part, or on its corner
   facing the wrong way, rules the way out; on a corner facing the right way it saves carrying one.
   `hetBestWay(..., seen, facing)` follows that for mirrors whose facing was read; a corner mirror whose facing
-  couldn't be read is only used if no other way works (drawn grey, and the page asks you to check it faces as shown).
+  couldn't be read is only used if no other way works (drawn grey, facing the way the corner needs).
   Other seen ones are drawn facing as read, or as plain grey squares.
   How they're found (`HetReader.refine`, `readFixedMirrors`): the main search leaves the floor grid up to a square too
   far up the screen (walls' faces pull it), so a finer fit follows (16 points a square, a floor point hidden when a
@@ -69,8 +75,9 @@ the owner's phone screenshots and live raids (October 2026), never guessed.
   square, then a close one; about 65 ms on the PC against 150 for a full read, which uses every core), falling back
   to a full read when it loses the room. `HetReader.Memory` adds the looks up: a fixed mirror needs two looks to
   agree, a clear square two (three behind the caster, see below), and a settled square stays settled (so mirrors you carry or place don't count). The way
-  is picked again whenever something settles. Stops after 5 minutes, when you leave the game, close the window or
-  turn the phone; Done, ◀ and Stop stop it too (it keeps going through the round: see below). The app's window and the map are
+  is picked again whenever something settles. Stops after 10 minutes, when you leave the game (the map comes off the
+  screen and the full window comes back, saying why), close the window or
+  turn the phone; Done and ◀ stop it too, and Rescan starts it afresh (it keeps going through the round: see below). The app's window and the map are
   blanked out of each picture (`ReusablePixels.blank`). Tests: `HetReaderTest.followsTheCamera` (a camera nudged by
   a second's walk lands on the same room and mirrors) and `watchSettlesSquares`.
   The camera research is in `.scratch/toa-helper/het-camera-research.md`.
@@ -93,9 +100,11 @@ the owner's phone screenshots and live raids (October 2026), never guessed.
   what's settled (`Memory.compare`): `NEW_LAYOUT_LOOKS` (3) looks in a row with a wall settled smooth now cracked
   start afresh (a new layout of the same room; cracked walls mined away read smooth, and fixed mirrors are often
   missed from deep in the room, so neither counts). Cracked walls are voted on look by look (`Memory.cracked`): the
-  first look comes as the walls rise and misread four walls in the recording. Watch no longer stops when the way is
+  first look comes as the walls rise and misread four walls in the recording. A wall (or a fixed mirror's facing)
+  that later looks change counts as a change, so the map and the way are redone even when no square settles. Watch no longer stops when the way is
   seen (it looks every 2 s then, `HET_SETTLED_MS`, but every second while lost or with the walls down) nor when lost
-  (zoomed in close it can't see the room for half a minute); 5 minutes at most. Pixel counts alone (stone against floor) couldn't tell walls down from a close view. All three
+  (zoomed in close it can't see the room for half a minute); 10 minutes at most (`HET_WATCH_MAX_MS`: a round with
+  two or three layouts can take more than 5). Pixel counts alone (stone against floor) couldn't tell walls down from a close view. All three
   recordings replay right (`HetReplayTest`).
 - **Het's seal and the mirror behind the caster** (26 October 2026, the owner's recording
   `pathofhet/watch_20261026_cycle.mp4`, Watch's window moved to the bottom left so the game's top left shows): the
@@ -103,7 +112,9 @@ the owner's phone screenshots and live raids (October 2026), never guessed.
   over about 6 s) and stays there when the next layout rises. `HetReader.sealHealth` reads the bar (teal fill
   (0, 206, 166) on a track (0, 31, 31), a fresh hit (0, 150, 119); the longest run of bar colours across a row of the
   top left) and `Memory.use` clears the layout when it shows lower on two looks in a row (a beam or a hit splash can
-  misread it once); at nothing on two looks Watch stops ("broken"). The replay caught the mining at once and read the
+  misread it once); at nothing on two looks Watch stops ("broken"). A new Watch forgets the seal (`Memory.start`;
+  `reset` keeps it, as it's also used to clear a layout mid-round), or a seal broken in an earlier raid would stop
+  the next Watch on its first look. The replay caught the mining at once and read the
   new layout 2 s after the walls rose. Every layout seen has one fixed mirror on the beam's line just west of the
   caster (2,10 to 5,10), hidden behind it from the doorway, so its base scored 0.68-0.86 against `MIRROR_BASE` 0.85:
   behind the caster (`behindCaster`) a base from `SHADOW_BASE` 0.6 counts if a mirror's disc shows above it, the
@@ -179,7 +190,8 @@ the owner's phone screenshots and live raids (October 2026), never guessed.
   sand, or other (statues, mirrors, the near-black orbs, the player), starts from the middle of the biggest sand
   patches, and searches a simple camera (facing any way round, 8° steps at first, zoomed, tilted, the room's middle
   on screen; any direction so it works from beside the seal after a failed attempt, facing north or south).
-  Speed: the wide look checks every other floor square and is shared between the processor cores (`wideSearch`),
+  Speed: the wide look checks every other floor square and is shared between the processor cores (`wideSearch`, on
+  threads kept for the next look that end by themselves after 30 s without one),
   then two closer looks at every square; about 0.12 s a picture on the PC (was 0.75 s). Stages:
   a wide search, a closer one around the best room's camera (and the runner-up's, if that one doesn't hold up), then
   every room scored with that one camera (only a
@@ -268,7 +280,13 @@ second; the owner says "start" and "stop".
   `COMPACT_TOP_LEFT`, or `COMPACT_BOTTOM_LEFT` for addition so the chat stays clear, and for the Path of Het so Het's
   seal's bar at the top left shows), and the puzzle's map is
   drawn alone at the bottom of the screen in a separate untouchable overlay. Both areas are skipped when reading.
-- Each page: a tip line, main buttons, a `?` for instructions, and tap-in controls behind "Solve manually". The
+  The Path of Het's map sits just right of its small window (`placeHetMap`, run whenever the window's layout
+  changes), not in the middle, where the game opens a mirror's menu. Its overlay is measured from the screen's very
+  edge (cut-out included, like `GuideWindow`), so the window's place on screen can be used as it is; measuring the
+  map's own place instead made it jump back and forth, as it read the old place before a move had finished.
+- Each page: its name at the top (not on the shrunk window), a tip line, main buttons, a `?` for instructions, and tap-in controls behind "Solve manually" (for
+  the light, sequence and matching puzzles the map itself is behind it too, as the answer shows at the bottom of
+  the screen). The
   puzzle list shows a small picture of each board (`puzzleIcon`); the owner likes them as they are.
 - **Owner's preferences**: compact windows (few words, one row of buttons, `?` for instructions), maps kept
   straight (snapped to the nearest direction), green for "step here", symbols drawn like the game's (the owner

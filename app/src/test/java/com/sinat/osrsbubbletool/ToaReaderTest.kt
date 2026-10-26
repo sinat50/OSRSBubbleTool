@@ -47,9 +47,9 @@ class ToaReaderTest {
                 val tiles = (0 until 18).map { t ->
                     val r = ToaReader.readMatchTile(shot, boards, t, { _, _ -> false }, ToaPuzzles.MATCHING_SYMBOLS)
                     when (r.state) {
-                        ToaReader.TILE_HIDDEN -> "."
-                        ToaReader.TILE_MATCHED -> "*"
-                        ToaReader.TILE_SYMBOL -> r.symbol!!.label.take(2) + "%.2f".format(r.sure)
+                        ToaReader.TileState.HIDDEN -> "."
+                        ToaReader.TileState.MATCHED -> "*"
+                        ToaReader.TileState.SYMBOL -> r.symbol!!.label.take(2) + "%.2f".format(r.sure)
                         else -> "?"
                     }
                 }
@@ -68,6 +68,8 @@ class ToaReaderTest {
         var totalNanos = 0L; var frames = 0
         // the app's own memory (the same code as Watch uses), with each picture's time as the clock
         val memory = ToaReader.MatchMemory()
+        // and its working memory, kept from one picture to the next as Watch keeps it
+        val work = ToaReader.MatchWork()
         dir!!.listFiles { f -> f.name.startsWith("f_") && f.name.endsWith(".png") }!!.sortedBy { it.name }.forEachIndexed { n, f ->
             val shot = Shot(f)
             val w = shot.width; val h = shot.height
@@ -82,7 +84,7 @@ class ToaReaderTest {
                 override fun rgb(x: Int, y: Int) = pixels[y * width + x]
             }
             val started = System.nanoTime()
-            val boards = ToaReader.findMatchBoards(fast, skip, previous)
+            val boards = ToaReader.findMatchBoards(fast, skip, previous, work)
             val read = boards?.let { ToaReader.readMatchTiles(fast, it, skip, memory.allowed) }
             totalNanos += System.nanoTime() - started; frames++
             ToaReader.debugLog = null
@@ -91,9 +93,9 @@ class ToaReaderTest {
             // each tile as . grey, * glowing, ? can't tell, or the symbol's first letters; - for a board not read
             val tiles = (0 until 18).map { t ->
                 if (!boards.seen[t / 9] || !boards.clear[t / 9]) "-" else when (read[t].state) {
-                    ToaReader.TILE_HIDDEN -> "."
-                    ToaReader.TILE_MATCHED -> "*"
-                    ToaReader.TILE_SYMBOL -> read[t].symbol!!.label.take(2)
+                    ToaReader.TileState.HIDDEN -> "."
+                    ToaReader.TileState.MATCHED -> "*"
+                    ToaReader.TileState.SYMBOL -> read[t].symbol!!.label.take(2)
                     else -> "?"
                 }
             }

@@ -1,14 +1,24 @@
 package com.sinat.osrsbubbletool
 
+import java.util.concurrent.Callable
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.math.sqrt
 
-// Path of Het: which of the known rooms (ToaPuzzles.HET_ROOMS) is on screen, from one picture taken as you walk in.
-// Nothing here is Android, so it's tested on the PC with the owner's screenshots (HetReaderTest).
+// Path of Het: reads the room from pictures of the screen for the page's Watch: which of the known rooms
+// (ToaPuzzles.HET_ROOMS) is on screen, its cracked walls, the fixed mirrors and which way they face (`read`, and the
+// quicker `followLook` round the last camera); whether the walls are down; and Het's seal's health. `Memory` adds the
+// looks up. Nothing here is Android, so it's tested on the PC with the owner's screenshots and recordings
+// (HetReaderTest, HetReplayTest).
 //
 // How: every pixel is sorted into wall stone (dark slate blue), sandy floor, or something else (statues, mirrors,
 // the orbs, which are near black, the player). Then a simple camera (which way it faces, all the way round, zoomed,
@@ -20,15 +30,26 @@ import kotlin.math.sin
 object HetReader {
 
     // `cracked`: for each wall of the room (ToaPuzzles.HetRoom.blocks), 1 cracked, 0 smooth, -1 couldn't tell.
-    // `fixedMirrors`: the squares (x * HET_SIZE + y) where a fixed mirror stands out on the floor this raid.
+    // `fixedMirrors`: the squares (ToaPuzzles.hetSquare) where a fixed mirror stands out on the floor this raid.
     // `unseen`: open floor squares that couldn't be seen (behind a statue or a wall, or off screen), so a fixed mirror
-    // could stand there unnoticed. `facing`: which way each fixed mirror faces, where its disc could be made out
-    // (square -> 0 north-east, 1 south-east, 2 south-west, 3 north-west, as ToaPuzzles.Facing)
+    // could stand there unnoticed. `facing`: which way each fixed mirror faces, where its disc could be made out.
+    // `wallsUp` (how much of the room's walls stood, see wallsUp) and `brightness` (the brightness curve's power, 1 at
+    // the middle setting, see brightnessCurve) are for the tests.
     class Reading(val room: Int, val score: Float, val margin: Float, val cracked: IntArray, val fixedMirrors: List<Int>,
-                  val unseen: List<Int> = emptyList(), val camera: FloatArray = FloatArray(0),
-                  val facing: Map<Int, Int> = emptyMap(), val focusZoom: Float = 0f) {
+                  val unseen: List<Int> = emptyList(), val camera: Camera? = null,
+                  val facing: Map<Int, ToaPuzzles.Facing> = emptyMap(), val focusZoom: Float = 0f,
+                  val wallsUp: Float = 1f, val brightness: Double = 1.0) {
         // good enough to show without asking: the walls fit well, and much better than any other room's
         val sure get() = score >= MIN_SCORE && margin >= MIN_MARGIN
+    }
+
+    // Where the game's camera is, as the reader models it: the room's middle on screen (`x`, `y`, in pixels of the
+    // full-size picture), how big the room is drawn (`zoom`: times a square's usual width, BASE_SCALE, scaled for the
+    // screen's size), how flat it's seen (`tilt`: how much shorter a square looks up the screen than across) and which
+    // way it faces (`turn`, an angle). How much smaller squares further away look is the same for every camera
+    // (PERSPECTIVE).
+    class Camera(val x: Float, val y: Float, val zoom: Float, val tilt: Float, val turn: Float) {
+        override fun toString() = "%.1f,%.1f,%.3f,%.3f,%.4f".format(x, y, zoom, tilt, turn)
     }
 
     // What Watch has made out so far, look by look (the page's Watch; tested on the PC). Each look votes on every
@@ -50,7 +71,7 @@ object HetReader {
     class Memory {
         var room = -1
             private set
-        var camera: FloatArray? = null     // the last look's camera, for the next quick look (followLook)
+        var camera: Camera? = null          // the last look's camera, for the next quick look (followLook)
             private set
         var zoom = 0f                       // a square's width on screen at the first look of this layout
             private set
@@ -110,9 +131,8 @@ object HetReader {
                 // was first read at: zoomed in close or out far, part of the room can fit another room well (the owner's
                 // recording of 26 October 2026: room 1 read 3 times at 25-28% off while solving room 2, against 7% at most
                 // for room 2's own readings)
-                if (zoom > 0f && kotlin.math.abs(r.focusZoom / zoom - 1) > ROOM_CHANGE_ZOOM) { lostLooks++; return Outcome.LOST }
-                if (r.room == otherRoom) otherLooks++ else { otherRoom = r.room; otherLooks = 1 }
-                if (otherLooks < ROOM_CHANGE_LOOKS) { lostLooks++; return Outcome.LOST }
+                if (zoom > 0f && abs(r.focusZoom / zoom - 1) > ROOM_CHANGE_ZOOM) { lostLooks++; return Outcome.LOST }
+                if (!otherRoomAgreed(r.room)) { lostLooks++; return Outcome.LOST }
                 reset(); downLooks = 0; lostLooks = 0
                 add(r)
                 return Outcome.CHANGED
@@ -168,23 +188,39 @@ object HetReader {
             }
         }
 
+        // A new Watch: forgets everything, Het's seal too (a seal broken in an earlier raid this bubble session would
+        // otherwise stop the new Watch on its first look)
+        fun start() {
+            reset()
+            seal = -1f; broken = false; sealLow = 0; downLooks = 0; lostLooks = 0; otherRoom = -1; otherLooks = 0
+        }
+
         fun reset() {
             room = -1; camera = null; looks = 0; otherRoom = -1; otherLooks = 0; zoom = 0f; crackVotes.fill(0)
             gap = false; doubtLooks = 0
             fixedVotes.fill(0); clearVotes.fill(0); settled.fill(0); facingVotes.fill(0); facingSettled.fill(-1)
         }
 
+        // Another room made out (not this one): true once ROOM_CHANGE_LOOKS looks in a row have made it out
+        private fun otherRoomAgreed(other: Int): Boolean {
+            if (other == otherRoom) otherLooks++ else { otherRoom = other; otherLooks = 1 }
+            return otherLooks >= ROOM_CHANGE_LOOKS
+        }
+
         // Adds one look; true if what's settled changed
         fun add(r: Reading): Boolean {
             if (room >= 0 && r.room != room) {
                 if (locked) return false
-                if (r.room == otherRoom) otherLooks++ else { otherRoom = r.room; otherLooks = 1 }
-                if (otherLooks < ROOM_CHANGE_LOOKS) return false
+                if (!otherRoomAgreed(r.room)) return false
             }
             otherRoom = -1; otherLooks = 0
             if (r.room != room) { reset(); room = r.room; zoom = r.focusZoom }
             camera = r.camera
             looks++
+            // (a cracked wall or a fixed mirror's facing can change its mind without anything new settling: the map
+            // has to hear about that too)
+            val crackedBefore = cracked
+            val facingBefore = if (r.facing.isEmpty()) null else facing
             for (i in r.cracked.indices) if (r.cracked[i] >= 0 && i < crackVotes.size / 2) crackVotes[i * 2 + r.cracked[i]]++
             val wall = walls[room]
             var changed = false
@@ -194,7 +230,8 @@ object HetReader {
                 // off, and that would have settled its real square clear for good: the owner's recording, 18,6)
                 if (s in r.fixedMirrors) fixedVotes[s]++
                 else if (r.fixedMirrors.none { near(it, s) }) clearVotes[s]++
-                r.facing[s]?.let { f ->
+                r.facing[s]?.let { facing ->
+                    val f = facing.ordinal
                     facingVotes[s * 4 + f]++
                     val all = (0 until 4).sumOf { facingVotes[s * 4 + it] }
                     if (facingSettled[s] < 0 && facingVotes[s * 4 + f] >= 2 && facingVotes[s * 4 + f] == all) {
@@ -202,8 +239,10 @@ object HetReader {
                     }
                 }
                 if (settled[s].toInt() != 0) continue
+                // the looks that saw a mirror on this square or one beside it
                 var f = 0
-                for (o in 0 until N * N) if (near(o, s)) f += fixedVotes[o]
+                val x = s / N; val y = s % N
+                for (a in maxOf(0, x - 1)..minOf(N - 1, x + 1)) for (b in maxOf(0, y - 1)..minOf(N - 1, y + 1)) f += fixedVotes[a * N + b]
                 val c = clearVotes[s]
                 val need = if (behindCaster(s)) 3 else 2
                 val now = when {
@@ -213,6 +252,8 @@ object HetReader {
                 }
                 if (now != 0) { settled[s] = now.toByte(); changed = true }
             }
+            if (!changed && !cracked.contentEquals(crackedBefore)) changed = true
+            if (!changed && facingBefore != null && facing != facingBefore) changed = true
             return changed
         }
 
@@ -223,19 +264,25 @@ object HetReader {
         // (two side by side are one mirror read a square off now and then: the one seen more often is kept. Behind the
         // caster there's one fixed mirror in every layout, on the beam's line (the owner's recordings and the RuneLite-
         // known raid, October 2026), read anywhere from 2,10 to 5,10: only the one seen most is kept there)
-        val fixed get() = (0 until N * N).filter { s ->
-            settled[s].toInt() == 1 && (0 until N * N).none { o ->
-                o != s && settled[o].toInt() == 1 && (near(o, s) || (behindCaster(o) && behindCaster(s))) &&
-                    (fixedVotes[o] > fixedVotes[s] || (fixedVotes[o] == fixedVotes[s] && o < s))
-            }
+        val fixed get() = (0 until N * N).filter { s -> settled[s].toInt() == 1 && !outvoted(s) }
+
+        // Whether another settled fixed mirror beside this one (or behind the caster too, if this one is) was seen
+        // more often (or as often, on an earlier square): then that's the real one
+        private fun outvoted(s: Int): Boolean {
+            fun beats(o: Int) = o != s && settled[o].toInt() == 1 &&
+                (fixedVotes[o] > fixedVotes[s] || (fixedVotes[o] == fixedVotes[s] && o < s))
+            val x = s / N; val y = s % N
+            for (a in maxOf(0, x - 1)..minOf(N - 1, x + 1)) for (b in maxOf(0, y - 1)..minOf(N - 1, y + 1)) if (beats(a * N + b)) return true
+            if (behindCaster(s)) for (a in 2..5) for (b in 9..11) if (beats(a * N + b)) return true
+            return false
         }
         // ...and which way they face: the settled facing, or else the way at least two thirds of the looks saw (else
-        // not known: the page then asks you to check it)
-        val facing: Map<Int, Int> get() = fixed.mapNotNull { s ->
-            if (facingSettled[s] >= 0) return@mapNotNull s to facingSettled[s].toInt()
+        // not known: such a mirror is used only as a last resort, facing the way the map shows)
+        val facing: Map<Int, ToaPuzzles.Facing> get() = fixed.mapNotNull { s ->
+            if (facingSettled[s] >= 0) return@mapNotNull s to ToaPuzzles.Facing.entries[facingSettled[s].toInt()]
             val votes = (0 until 4).map { facingVotes[s * 4 + it] }
             val best = votes.indices.maxByOrNull { votes[it] }!!
-            if (votes[best] > 0 && votes[best] * 3 >= votes.sum() * 2) s to best else null
+            if (votes[best] > 0 && votes[best] * 3 >= votes.sum() * 2) s to ToaPuzzles.Facing.entries[best] else null
         }.toMap()
         // The open squares not settled yet (never seen, or seen only once with a mirror)
         val unseen get() = if (room < 0) emptyList() else (0 until N * N).filter { inside[it] && !walls[room][it] && settled[it].toInt() == 0 }
@@ -259,7 +306,7 @@ object HetReader {
     private const val ROOM_CHANGE_ZOOM = 0.15f  // ...each with the room's size on screen this close to the first read's
     const val MIN_WALLS_UP = 0.5f    // the share of the room's walls that must show standing (see wallsUp)
     const val MIN_SCORE = 0.75f     // the right room scored 0.84-0.94 on the owner's screenshots; a 35° turned camera 0.60
-    const val MIN_MARGIN = 0.12f    // ... and beat the next best by 0.4 or more
+    const val MIN_MARGIN = 0.12f    // ... and beat the next best by 0.12 or more
     private const val N = ToaPuzzles.HET_SIZE
     private const val BASE_SCALE = 28.8f    // a square's width in pixels at the room's middle (standard camera, 1080 tall)
     private const val PERSPECTIVE = 0.018f  // how much smaller each square further away looks
@@ -298,24 +345,26 @@ object HetReader {
         val x = s / N; val y = s % N
         ToaPuzzles.isHetFloor(x, y) && !(x in 6..14 && y in 9..11)
     }
-    private val walls = ToaPuzzles.HET_ROOMS.map { r -> BooleanArray(N * N) { r.walls[it] != 0 } }
+    private val walls = ToaPuzzles.HET_ROOMS.map { r -> BooleanArray(N * N) { r.walls[it] != ToaPuzzles.HET_NO_WALL } }
     // the squares just west of the caster, hidden behind it from the doorway, where every way starts
     private fun behindCaster(s: Int) = s / N in 2..5 && s % N in 9..11
     // two squares side by side or corner to corner (or the same one)
-    private fun near(a: Int, b: Int) = kotlin.math.abs(a / N - b / N) <= 1 && kotlin.math.abs(a % N - b % N) <= 1
+    private fun near(a: Int, b: Int) = abs(a / N - b / N) <= 1 && abs(a % N - b % N) <= 1
     // the squares under the caster and the shielded statue (their slate plinths; Het's seal between them is pale)
     private fun isStatue(s: Int) = (s / N in 6..8 || s / N in 12..14) && s % N in 9..11
 
     // A picture, sorted: each pixel's kind (stone, sand, other), wall shade and gold, at half size
     // (and the picture itself, with its brightness curve, for the mirrors' discs, which are read at full size)
+    // (`power`: the brightness curve's, for the tests)
     private class Picture(val kind: ByteArray, val shade: ByteArray, val gold: BooleanArray, val w: Int, val h: Int, val k: Float,
-                          val px: LightBoxReader.PixelSource, val tone: IntArray)
+                          val px: LightBoxReader.PixelSource, val tone: IntArray, val power: Double)
 
     private fun sort(px: LightBoxReader.PixelSource): Picture {
         val k = px.height / 1080f   // pictures from other screen sizes
         val w = px.width / 2; val h = px.height / 2
         // Half size is plenty: every other pixel, sorted
-        val tone = brightnessCurve(px)
+        val power = brightnessPower(px)
+        val tone = brightnessCurve(power)
         val kind = ByteArray(w * h)
         // and for telling cracked walls from smooth ones: any wall stone (0 not stone, 1 stone, 2 very dark stone, as
         // in the cracks of a cracked wall)
@@ -335,7 +384,7 @@ object HetReader {
             // gold, lit or shaded (the mirrors' cones are shaded down to about (114, 81, 8))
             gold[y * w + x] = r >= 90 && b * 10 <= r * 4 && g * 2 >= r && g * 100 <= r * 85
         }
-        return Picture(kind, shade, gold, w, h, k, px, tone)
+        return Picture(kind, shade, gold, w, h, k, px, tone, power ?: 1.0)
     }
 
     // `room`: only this room is looked for (Watch, once it knows the room, after a quick look lost it: the camera turned
@@ -364,9 +413,9 @@ object HetReader {
     private fun readAs(pic: Picture, search: Search, first: Int, only: Boolean): Reading? {
         val kind = pic.kind; val w = pic.w; val h = pic.h; val k = pic.k
         val g = search.bestGuess[first] ?: return null
-        search.run(steps(g[0] - 20 * k, g[0] + 20 * k, 5 * k), steps(g[1] - 20 * k, g[1] + 20 * k, 5 * k),
-            steps(g[5] - 0.0524f, g[5] + 0.0524f, 0.0262f), steps(g[2] - 0.06f, g[2] + 0.06f, 0.03f),
-            listOf(g[3] - 0.05f, g[3], g[3] + 0.05f), only = first)
+        search.run(steps(g.x - 20 * k, g.x + 20 * k, 5 * k), steps(g.y - 20 * k, g.y + 20 * k, 5 * k),
+            steps(g.turn - 0.0524f, g.turn + 0.0524f, 0.0262f), steps(g.zoom - 0.06f, g.zoom + 0.06f, 0.03f),
+            listOf(g.tilt - 0.05f, g.tilt, g.tilt + 0.05f), only = first)
         // and a finer one still (the crack check needs the camera close: its points are through each wall)
         fineSearch(search, search.bestGuess[first]!!, k, first)
         if (only) {
@@ -377,22 +426,19 @@ object HetReader {
         // room find its own camera let a wrong room shift it until a few of its thin walls lined up with real ones.
         val c = search.bestGuess[first]!!
         val final = Search(kind, w, h, BASE_SCALE * k)
-        final.run(steps(c[0] - 5 * k, c[0] + 5 * k, 5 * k), steps(c[1] - 5 * k, c[1] + 5 * k, 5 * k),
-            listOf(c[5] - 0.0131f, c[5], c[5] + 0.0131f), listOf(c[2] - 0.015f, c[2], c[2] + 0.015f), listOf(c[3]))
+        final.run(steps(c.x - 5 * k, c.x + 5 * k, 5 * k), steps(c.y - 5 * k, c.y + 5 * k, 5 * k),
+            listOf(c.turn - 0.0131f, c.turn, c.turn + 0.0131f), listOf(c.zoom - 0.015f, c.zoom, c.zoom + 0.015f), listOf(c.tilt))
         val order = walls.indices.sortedByDescending { final.best[it] }
         val g2 = final.bestGuess[order[0]] ?: return null
         return finish(pic, order[0], g2, final.best[order[0]], final.best[order[0]] - final.best[order[1]])
     }
 
-    // How well the room and the same room with no walls fitted the last followLook that lost the room (for the tests)
-    var lastEmptyFit = 0f
-        private set
-    var lastRoomFit = 0f
-        private set
-
     // One of Watch's looks: what it read (null if nothing), and if not, whether the walls are down (and where the
-    // camera was found then, to keep following it); and how much health Het's seal has left (0-1, null: not on screen)
-    class Look(val reading: Reading?, val wallsDown: Boolean, val camera: FloatArray? = null, val seal: Float? = null)
+    // camera was found then, to keep following it); and how much health Het's seal has left (0-1, null: not on screen).
+    // `bareFit`, `walledFit`: how well the room with no walls and with its walls fitted, when followLook lost the room
+    // (for the tests)
+    class Look(val reading: Reading?, val wallsDown: Boolean, val camera: Camera? = null, val seal: Float? = null,
+               val bareFit: Float = 0f, val walledFit: Float = 0f)
 
     // Watch's look at one picture (on any thread), from what Watch knew when it took it (Memory's room, camera, locked
     // and lostLooks): the quick look round the last camera (which also tells when the walls are down). If that lost it:
@@ -404,17 +450,20 @@ object HetReader {
     // seen): while it's lower now, you're mining the obelisk and the walls are down, so there's nothing to read and the
     // look ends there (a search with the room lost took several seconds on the owner's phone, which made Watch slow to
     // see you mining, the owner's recording of 26 October 2026)
-    fun watchLook(px: LightBoxReader.PixelSource, room: Int, camera: FloatArray?, locked: Boolean, lost: Int, zoom: Float = 0f,
+    fun watchLook(px: LightBoxReader.PixelSource, room: Int, camera: Camera?, locked: Boolean, lost: Int, zoom: Float = 0f,
                   sealBefore: Float = -1f): Look {
         val seal = sealHealth(px)
         if (seal != null && sealBefore >= 0f && seal < sealBefore - SEAL_DROP) return Look(null, false, seal = seal)
+        var bare = 0f; var walled = 0f
         if (room >= 0 && camera != null) {
             val f = followLook(px, room, camera, zoom)
             if (f.reading != null || f.wallsDown) return Look(f.reading, f.wallsDown, f.camera, seal)
+            bare = f.bareFit; walled = f.walledFit
         }
-        if (!locked) return Look(read(px)?.takeIf { it.sure }, false, seal = seal)
-        read(px, room)?.let { return Look(it, false, seal = seal) }
-        return Look(if (lost >= 2) read(px)?.takeIf { it.sure } else null, false, seal = seal)
+        fun look(r: Reading?) = Look(r, false, seal = seal, bareFit = bare, walledFit = walled)
+        if (!locked) return look(read(px)?.takeIf { it.sure })
+        read(px, room)?.let { return look(it) }
+        return look(if (lost >= 2) read(px)?.takeIf { it.sure } else null)
     }
 
     // How much health Het's seal has left (0-1), from its bar at the top left of the game's screen ("Het's Seal",
@@ -453,7 +502,7 @@ object HetReader {
     // clearly better than the room with its walls, which still fits its floor, and enough of the room's wall squares
     // are on screen, nearly all showing floor (with only a wall or two in view, the bare room fits nearly as well with
     // them up)
-    private fun wallsDown(pic: Picture, room: Int, g: FloatArray, bare: Float, walled: Float): Boolean {
+    private fun wallsDown(pic: Picture, room: Int, g: Camera, bare: Float, walled: Float): Boolean {
         if (bare < EMPTY_FIT || bare - walled < EMPTY_MARGIN || walled < WALLED_FIT) return false
         val (stone, sand) = wallPoints(room, g, BASE_SCALE * pic.k, pic.kind, pic.w, pic.h)
         return stone + sand >= DOWN_WALL_POINTS && stone * 100 < (stone + sand) * DOWN_STONE_PERCENT
@@ -461,10 +510,8 @@ object HetReader {
 
     // While watching (the page's Watch): the room is known and the camera was found a moment ago, so only a small
     // search round it is needed (the camera follows you smoothly as you walk), several times quicker than read.
-    // `camera` is the last Reading's. Null if the room doesn't fit well any more (lost: read it afresh next time).
-    fun follow(px: LightBoxReader.PixelSource, room: Int, camera: FloatArray): Reading? = followLook(px, room, camera, 0f).reading
-
-    // The same, also telling when the room's walls are down: after the beam reaches the statue the walls and mirrors
+    // `camera` is the last Reading's. No reading if the room doesn't fit well any more (lost: read it afresh next time).
+    // It also tells when the room's walls are down: after the beam reaches the statue the walls and mirrors
     // sink away while you mine the obelisk, and if it isn't destroyed a new layout rises. Round the last camera the
     // room is tried as it is and with no walls at all: the walls are down when the bare one fits well and clearly
     // better (with the walls up, the wall squares show stone). Only round the last camera: searched freely, a bare
@@ -472,32 +519,31 @@ object HetReader {
     // October 2026). While they're down the camera is followed on the bare floor. `firstZoom`: a square's width on screen
     // when the room was first read (0: not known); the bare room must be seen at about that size (squeezed smaller, it
     // fits the bare patches of floor between the walls)
-    fun followLook(px: LightBoxReader.PixelSource, room: Int, camera: FloatArray, firstZoom: Float): Look {
+    fun followLook(px: LightBoxReader.PixelSource, room: Int, camera: Camera, firstZoom: Float): Look {
         val pic = sort(px)
         val k = pic.k
         // a rough look first (every other square), then a close one
         val rough = Search(pic.kind, pic.w, pic.h, BASE_SCALE * k, everyOther = true, rooms = listOf(walls[room], NO_WALLS), statues = true)
-        val zoom = camera[2] / (BASE_SCALE * k)
-        rough.run(steps(camera[0] - 40 * k, camera[0] + 40 * k, 10 * k), steps(camera[1] - 40 * k, camera[1] + 40 * k, 10 * k),
-            steps(camera[5] - 0.07f, camera[5] + 0.07f, 0.035f), listOf(zoom - 0.05f, zoom, zoom + 0.05f),
-            listOf(camera[3] - 0.04f, camera[3], camera[3] + 0.04f))
+        val zoom = camera.zoom
+        rough.run(steps(camera.x - 40 * k, camera.x + 40 * k, 10 * k), steps(camera.y - 40 * k, camera.y + 40 * k, 10 * k),
+            steps(camera.turn - 0.07f, camera.turn + 0.07f, 0.035f), listOf(zoom - 0.05f, zoom, zoom + 0.05f),
+            listOf(camera.tilt - 0.04f, camera.tilt, camera.tilt + 0.04f))
         rough.bestGuess[0]?.let { g0 -> followRoom(pic, room, g0)?.let { return Look(it, false) } }
         val bare = rough.best[1]; val walled = rough.best[0]
-        lastEmptyFit = bare; lastRoomFit = walled
         val g = rough.bestGuess[1]
-        val sameZoom = firstZoom <= 0f || g == null || kotlin.math.abs(focusZoom(g, BASE_SCALE * k, pic.px.height) / firstZoom - 1) <= DOWN_ZOOM
+        val sameZoom = firstZoom <= 0f || g == null || abs(focusZoom(g, BASE_SCALE * k, pic.px.height) / firstZoom - 1) <= DOWN_ZOOM
         if (g != null && sameZoom && wallsDown(pic, room, g, bare, walled))
-            return Look(null, true, floatArrayOf(g[0], g[1], BASE_SCALE * k * g[2], g[3], PERSPECTIVE, g[5]))
-        return Look(null, false)
+            return Look(null, true, g, bareFit = bare, walledFit = walled)
+        return Look(null, false, bareFit = bare, walledFit = walled)
     }
 
     // The close look of follow, from the rough one's camera
-    private fun followRoom(pic: Picture, room: Int, g0: FloatArray): Reading? {
+    private fun followRoom(pic: Picture, room: Int, g0: Camera): Reading? {
         val k = pic.k
         val search = Search(pic.kind, pic.w, pic.h, BASE_SCALE * k)
-        search.run(steps(g0[0] - 10 * k, g0[0] + 10 * k, 5 * k), steps(g0[1] - 10 * k, g0[1] + 10 * k, 5 * k),
-            listOf(g0[5] - 0.0175f, g0[5], g0[5] + 0.0175f), listOf(g0[2] - 0.025f, g0[2], g0[2] + 0.025f),
-            listOf(g0[3] - 0.02f, g0[3], g0[3] + 0.02f), only = room)
+        search.run(steps(g0.x - 10 * k, g0.x + 10 * k, 5 * k), steps(g0.y - 10 * k, g0.y + 10 * k, 5 * k),
+            listOf(g0.turn - 0.0175f, g0.turn, g0.turn + 0.0175f), listOf(g0.zoom - 0.025f, g0.zoom, g0.zoom + 0.025f),
+            listOf(g0.tilt - 0.02f, g0.tilt, g0.tilt + 0.02f), only = room)
         fineSearch(search, search.bestGuess[room] ?: return null, k, room)
         val g2 = search.bestGuess[room] ?: return null
         if (search.best[room] < MIN_SCORE) return null
@@ -505,14 +551,14 @@ object HetReader {
     }
 
     // The last, finest step of the camera search round `g`, for one room
-    private fun fineSearch(search: Search, g: FloatArray, k: Float, room: Int) =
-        search.run(steps(g[0] - 6 * k, g[0] + 6 * k, 2 * k), steps(g[1] - 6 * k, g[1] + 6 * k, 2 * k),
-            steps(g[5] - 0.0175f, g[5] + 0.0175f, 0.00873f), steps(g[2] - 0.02f, g[2] + 0.02f, 0.01f),
-            listOf(g[3] - 0.02f, g[3], g[3] + 0.02f), only = room)
+    private fun fineSearch(search: Search, g: Camera, k: Float, room: Int) =
+        search.run(steps(g.x - 6 * k, g.x + 6 * k, 2 * k), steps(g.y - 6 * k, g.y + 6 * k, 2 * k),
+            steps(g.turn - 0.0175f, g.turn + 0.0175f, 0.00873f), steps(g.zoom - 0.02f, g.zoom + 0.02f, 0.01f),
+            listOf(g.tilt - 0.02f, g.tilt, g.tilt + 0.02f), only = room)
 
     // The rest of a reading, once the room and its camera are found: cracked walls, the finer camera, the fixed
     // mirrors and the squares that can't be seen
-    private fun finish(pic: Picture, room: Int, g2: FloatArray, score: Float, margin: Float): Reading {
+    private fun finish(pic: Picture, room: Int, g2: Camera, score: Float, margin: Float): Reading {
         val scale = BASE_SCALE * pic.k
         val cracked = readCracks(ToaPuzzles.HET_ROOMS[room], g2, scale, pic.shade, pic.w, pic.h)
         val g3 = refine(pic.kind, pic.w, pic.h, scale, room, g2)
@@ -521,10 +567,8 @@ object HetReader {
         // the room's walls must be standing: with them down (before they rise, or after the beam reached the statue),
         // the bare floor fits the room with the fewest walls well
         val up = wallsUp(room, g3, scale, pic.kind, pic.w, pic.h)
-        lastWallsUp = up
-        return Reading(room, if (up < MIN_WALLS_UP) 0f else score, margin, cracked, fixed, unseen,
-            floatArrayOf(g3[0], g3[1], scale * g3[2], g3[3], PERSPECTIVE, g3[5]), readFacings(g3, scale, fixed, pic),
-            focusZoom(g3, scale, pic.px.height))
+        return Reading(room, if (up < MIN_WALLS_UP) 0f else score, margin, cracked, fixed, unseen, g3,
+            readFacings(g3, scale, fixed, pic), focusZoom(g3, scale, pic.px.height), up, pic.power)
     }
 
     // A finer fit of the floor, once the room is known. The search above looks only at each square's middle and
@@ -533,9 +577,9 @@ object HetReader {
     // in every square are looked at, and a floor point counts as hidden when a wall stands within FLOOR_HIDDEN squares
     // in front of it (towards the camera): walls are about two squares tall. Only the floor's position, zoom, tilt
     // and a hair of turn are adjusted, a few at a time.
-    private fun refine(kind: ByteArray, w: Int, h: Int, scale: Float, room: Int, g: FloatArray): FloatArray {
+    private fun refine(kind: ByteArray, w: Int, h: Int, scale: Float, room: Int, g: Camera): Camera {
         val wall = walls[room]
-        val fx = cos(g[5]); val fy = sin(g[5])
+        val fx = cos(g.turn); val fy = sin(g.turn)
         // (plain number arrays: they're gone through hundreds of times)
         val count = inside.count { it } * 16
         val px = FloatArray(count); val py = FloatArray(count); val want = BooleanArray(count)
@@ -554,15 +598,15 @@ object HetReader {
                 px[n] = x; py[n] = y; want[n] = stone; n++
             }
         }
-        fun score(c: FloatArray): Float {
-            val cf = cos(c[5]); val sf = sin(c[5])
-            val s = scale * c[2]
+        fun score(c: Camera): Float {
+            val cf = cos(c.turn); val sf = sin(c.turn)
+            val s = scale * c.zoom
             var sum = 0; var seen = 0
             for (i in px.indices) {
                 val dx = px[i] - 10.5f; val dy = py[i] - 10.5f
                 val f = dx * cf + dy * sf; val r = dx * sf - dy * cf
                 val d = 1 + PERSPECTIVE * f
-                val ix = floor((c[0] + s * r / d) / 2).toInt(); val iy = floor((c[1] - s * c[3] * f / d) / 2).toInt()
+                val ix = floor((c.x + s * r / d) / 2).toInt(); val iy = floor((c.y - s * c.tilt * f / d) / 2).toInt()
                 if (ix < 0 || iy < 0 || ix >= w || iy >= h) continue
                 val kd = kind[iy * w + ix]
                 if (kd == OTHER) continue
@@ -572,11 +616,11 @@ object HetReader {
             return if (seen < MIN_SEEN * 8) -9f else sum.toFloat() / seen
         }
         val k = h * 2 / 1080f
-        var best = g.copyOf(); var bestScore = score(best)
+        var best = g; var bestScore = score(best)
         fun tryAll(cxs: List<Float>, cys: List<Float>, zooms: List<Float>, tilts: List<Float>, phis: List<Float>) {
-            val c0 = best.copyOf()
+            val c0 = best
             for (cx in cxs) for (cy in cys) for (zoom in zooms) for (tilt in tilts) for (phi in phis) {
-                val c = floatArrayOf(c0[0] + cx, c0[1] + cy, c0[2] * zoom, tilt, PERSPECTIVE, c0[5] + phi)
+                val c = Camera(c0.x + cx, c0.y + cy, c0.zoom * zoom, tilt, c0.turn + phi)
                 val sc = score(c)
                 if (sc > bestScore) { bestScore = sc; best = c }
             }
@@ -584,9 +628,9 @@ object HetReader {
         val none = listOf(0f)
         // up and down, tilt and zoom together (they trade off against each other), then sideways and the turn, then
         // all of them a little
-        tryAll(none, steps(-12 * k, 24 * k, 2 * k), listOf(0.96f, 0.98f, 1f, 1.02f), steps(g[3] - 0.09f, g[3] + 0.09f, 0.03f), none)
-        tryAll(steps(-9 * k, 9 * k, 3 * k), none, none.map { 1f }, listOf(best[3]), listOf(-0.01f, 0f, 0.01f))
-        tryAll(steps(-2 * k, 2 * k, 1 * k), steps(-3 * k, 3 * k, 1 * k), listOf(0.99f, 1f, 1.01f), listOf(best[3] - 0.01f, best[3], best[3] + 0.01f), none)
+        tryAll(none, steps(-12 * k, 24 * k, 2 * k), listOf(0.96f, 0.98f, 1f, 1.02f), steps(g.tilt - 0.09f, g.tilt + 0.09f, 0.03f), none)
+        tryAll(steps(-9 * k, 9 * k, 3 * k), none, none.map { 1f }, listOf(best.tilt), listOf(-0.01f, 0f, 0.01f))
+        tryAll(steps(-2 * k, 2 * k, 1 * k), steps(-3 * k, 3 * k, 1 * k), listOf(0.99f, 1f, 1.01f), listOf(best.tilt - 0.01f, best.tilt, best.tilt + 0.01f), none)
         return best
     }
 
@@ -601,7 +645,7 @@ object HetReader {
     // Behind the caster (seen from the doorway, the squares just west of it, where every way starts) a mirror's base is
     // half hidden by the statue: there a weaker base counts too (SHADOW_BASE), if a mirror's disc shows above it (the
     // caster's own gold has none). The owner's recording of 26 October 2026: a fixed mirror there scored 0.68-0.86.
-    private fun readFixedMirrors(room: Int, g: FloatArray, scale: Float, pic: Picture): List<Int> {
+    private fun readFixedMirrors(room: Int, g: Camera, scale: Float, pic: Picture): List<Int> {
         val gold = pic.gold; val w = pic.w; val h = pic.h
         val wall = walls[room]
         // running totals, so any box's gold count is four lookups
@@ -621,13 +665,13 @@ object HetReader {
             val n = sum[d * (w + 1) + b] - sum[c * (w + 1) + b] - sum[d * (w + 1) + a] + sum[c * (w + 1) + a]
             return n.toFloat() / ((b - a) * (d - c))
         }
-        val fx = cos(g[5]); val fy = sin(g[5])
+        val fx = cos(g.turn); val fy = sin(g.turn)
         val found = HashMap<Int, Float>()   // each square found, and how clearly
         for (s in 0 until N * N) {
             if (!inside[s] || wall[s]) continue
             val (mx, my) = project(g, scale, s / N + 0.5f, s % N + 0.5f, 0f)
             val (ex, _) = project(g, scale, s / N + 0.5f + fy, s % N + 0.5f - fx, 0f)
-            val sq = kotlin.math.abs(ex - mx)     // a square's width on screen here
+            val sq = abs(ex - mx)     // a square's width on screen here
             var best = 0f; var bx = 0f; var by = 0f
             for (oy in -6..6) for (ox in -4..4) {
                 val x = mx + ox * 0.1f * sq; val y = my + oy * 0.075f * sq
@@ -679,17 +723,17 @@ object HetReader {
     // would look from where the camera is, and the closer one is the answer, when it fits well and clearly better.
     // Checked against a raid whose answer RuneLite showed (October 2026), and against the same mirrors seen again from
     // other places and from the north side.
-    private fun readFacings(g: FloatArray, scale: Float, fixed: List<Int>, pic: Picture): Map<Int, Int> {
+    private fun readFacings(g: Camera, scale: Float, fixed: List<Int>, pic: Picture): Map<Int, ToaPuzzles.Facing> {
         val px = pic.px
-        val out = HashMap<Int, Int>()
-        val fx = cos(g[5]); val fy = sin(g[5])
+        val out = HashMap<Int, ToaPuzzles.Facing>()
+        val fx = cos(g.turn); val fy = sin(g.turn)
         val focus = floorPoint(g, scale, px.width / 2f, px.height / 2f) ?: return out
         val camX = focus.first - fx * CAMERA_BACK; val camY = focus.second - fy * CAMERA_BACK
         for (s in fixed) {
             val x = s / N + 0.5f; val y = s % N + 0.5f
             val (mx, _) = project(g, scale, x, y, 0f)
             val (ex, _) = project(g, scale, x + fy, y - fx, 0f)
-            val sq = kotlin.math.abs(ex - mx)     // a square's width on screen here
+            val sq = abs(ex - mx)     // a square's width on screen here
             // the disc is looked for well above and below where it should be (the camera here is simpler than the
             // game's, which puts tall things further up the screen far away, and less near)
             val top = project(g, scale, x, y, 4.5f).second; val bottom = project(g, scale, x, y, 0.9f).second
@@ -697,10 +741,10 @@ object HetReader {
                 (0.04f * sq * sq).toInt()) ?: continue
             // which way the camera is, from the mirror, and how steeply it looks down at the disc
             var vx = camX - x; var vy = camY - y
-            val dist = kotlin.math.sqrt(vx * vx + vy * vy)
+            val dist = sqrt(vx * vx + vy * vy)
             if (dist < 0.5f) continue
             vx /= dist; vy /= dist
-            val down = kotlin.math.atan2(CAMERA_UP - DISC_HEIGHT, dist)
+            val down = atan2(CAMERA_UP - DISC_HEIGHT, dist)
             var best = -1; var bestFit = 9f; var nextFit = 9f
             for (f in 0 until 4) {
                 // the way it faces: north-east, south-east, south-west, north-west
@@ -713,11 +757,11 @@ object HetReader {
                 val away = -(ux * vx + uy * vy) * sin(down)
                 val upright = cos(down)
                 val xx = across * across; val yy = away * away + upright * upright; val xy = -across * away
-                val lean = -xy / kotlin.math.sqrt(xx * yy + 1e-9f)
-                val fit = kotlin.math.abs(lean - disc.lean) + 1.5f * kotlin.math.abs(thinness(xx, yy, xy) - disc.thin)
+                val lean = -xy / sqrt(xx * yy + 1e-9f)
+                val fit = abs(lean - disc.lean) + 1.5f * abs(thinness(xx, yy, xy) - disc.thin)
                 if (fit < bestFit) { nextFit = bestFit; bestFit = fit; best = f } else if (fit < nextFit) nextFit = fit
             }
-            if (best >= 0 && bestFit < FACING_FIT && nextFit - bestFit > FACING_MARGIN) out[s] = best
+            if (best >= 0 && bestFit < FACING_FIT && nextFit - bestFit > FACING_MARGIN) out[s] = ToaPuzzles.Facing.entries[best]
         }
         return out
     }
@@ -730,8 +774,8 @@ object HetReader {
     // How thin a shape with these spreads (across, up, and the two together) looks: its narrowest over its widest
     private fun thinness(xx: Float, yy: Float, xy: Float): Float {
         val half = (xx + yy) / 2
-        val d = kotlin.math.sqrt(maxOf(0f, half * half - (xx * yy - xy * xy)))
-        return kotlin.math.sqrt(maxOf(0f, half - d) / (half + d + 1e-9f))
+        val d = sqrt(maxOf(0f, half * half - (xx * yy - xy * xy)))
+        return sqrt(maxOf(0f, half - d) / (half + d + 1e-9f))
     }
 
     // The biggest patch of a mirror disc's glass or back colour in this part of the full-size picture, if it's at least
@@ -744,6 +788,7 @@ object HetReader {
         if (w < 3 || h < 3) return null
         // 0 neither, 1 glass, 2 back
         val kind = ByteArray(w * h)
+        val either = BooleanArray(w * h)
         for (y in 0 until h) for (x in 0 until w) {
             val c = px.rgb(x0 + x, y0 + y)
             val r = tone[c shr 16 and 0xFF]; val g = tone[c shr 8 and 0xFF]; val b = tone[c and 0xFF]
@@ -755,26 +800,16 @@ object HetReader {
                 r in 50..175 && r * 25 <= b * 100 && b * 100 <= r * 50 && r * 65 <= g * 100 && g * 100 <= r * 88 -> 2
                 else -> 0
             }
+            either[y * w + x] = kind[y * w + x].toInt() != 0
         }
-        // the patches (pixels touching side by side), keeping the biggest
+        // the patches of either (pixels touching side by side), keeping the biggest
         val patch = IntArray(w * h)
-        val stack = IntArray(w * h)
+        val label = PatchLabels(patch)
         var bestSize = 0; var bestId = 0
-        var id = 0
-        for (start in kind.indices) {
-            if (kind[start].toInt() == 0 || patch[start] != 0) continue
-            id++
-            var n = 0; var top2 = 0
-            stack[top2++] = start; patch[start] = id
-            while (top2 > 0) {
-                val p = stack[--top2]; n++
-                val x = p % w; val y = p / w
-                if (x > 0 && kind[p - 1].toInt() != 0 && patch[p - 1] == 0) { patch[p - 1] = id; stack[top2++] = p - 1 }
-                if (x < w - 1 && kind[p + 1].toInt() != 0 && patch[p + 1] == 0) { patch[p + 1] = id; stack[top2++] = p + 1 }
-                if (y > 0 && kind[p - w].toInt() != 0 && patch[p - w] == 0) { patch[p - w] = id; stack[top2++] = p - w }
-                if (y < h - 1 && kind[p + w].toInt() != 0 && patch[p + w] == 0) { patch[p + w] = id; stack[top2++] = p + w }
-            }
-            if (n > bestSize) { bestSize = n; bestId = id }
+        forEachPatch(either, w, h, onSquare = label) { p ->
+            if (p.count > bestSize) { bestSize = p.count; bestId = label.id }
+            label.id++
+            true
         }
         if (bestSize < maxOf(least, 4)) return null
         // its shape: how its pixels spread across, up, and the two together
@@ -788,20 +823,20 @@ object HetReader {
         }
         if (xx <= 0 || yy <= 0) return null
         // (the picture's y runs down the screen, so a "/" lean has x and y going opposite ways)
-        return Disc(glass * 2 > n, (-xy / kotlin.math.sqrt(xx * yy)).toFloat(), thinness((xx / n).toFloat(), (yy / n).toFloat(), (xy / n).toFloat()),
+        return Disc(glass * 2 > n, (-xy / sqrt(xx * yy)).toFloat(), thinness((xx / n).toFloat(), (yy / n).toFloat(), (xy / n).toFloat()),
             (x0 + mx).toFloat(), (y0 + my).toFloat())
     }
 
     // How much of the room's walls stands: the middle of each wall square, a square up (on the wall's face or top), is
     // looked up in the picture, and this is the share of those that show stone rather than sandy floor (the owner's
     // screenshots with the walls up: 0.8-1; the bare floor before they rise: about 0)
-    private fun wallsUp(room: Int, g: FloatArray, scale: Float, kind: ByteArray, w: Int, h: Int): Float {
+    private fun wallsUp(room: Int, g: Camera, scale: Float, kind: ByteArray, w: Int, h: Int): Float {
         val (stone, sand) = wallPoints(room, g, scale, kind, w, h)
         return if (stone + sand < 8) 0f else stone.toFloat() / (stone + sand)
     }
 
     // ...as counts: the wall squares that show stone, and those that show sandy floor
-    private fun wallPoints(room: Int, g: FloatArray, scale: Float, kind: ByteArray, w: Int, h: Int): Pair<Int, Int> {
+    private fun wallPoints(room: Int, g: Camera, scale: Float, kind: ByteArray, w: Int, h: Int): Pair<Int, Int> {
         var stone = 0; var sand = 0
         for (s in 0 until N * N) {
             if (!walls[room][s] || !inside[s]) continue
@@ -816,7 +851,7 @@ object HetReader {
     // The open floor squares that can't be seen: where less than half of the square's middle shows as sand or gold
     // (a mirror's plate). From the doorway the squares just west of the caster are always hidden by it, and every way
     // starts there, so the page asks for a second look from another side when one of these is on the way.
-    private fun unseenSquares(room: Int, g: FloatArray, scale: Float, kind: ByteArray, gold: BooleanArray, w: Int, h: Int): List<Int> {
+    private fun unseenSquares(room: Int, g: Camera, scale: Float, kind: ByteArray, gold: BooleanArray, w: Int, h: Int): List<Int> {
         val wall = walls[room]
         val out = ArrayList<Int>()
         for (s in 0 until N * N) {
@@ -835,28 +870,28 @@ object HetReader {
 
     // A square's width on screen at the middle of the screen, where the camera looks (at you): the game's camera
     // always stands the same way back from you, so this stays the same until you zoom, whichever way it faces
-    private fun focusZoom(g: FloatArray, scale: Float, height: Int): Float {
-        val t = (g[1] - height / 2f) / (scale * g[2] * g[3])
+    private fun focusZoom(g: Camera, scale: Float, height: Int): Float {
+        val t = (g.y - height / 2f) / (scale * g.zoom * g.tilt)
         if (1 - PERSPECTIVE * t <= 0) return 0f
         val f = t / (1 - PERSPECTIVE * t)
-        return scale * g[2] / (1 + PERSPECTIVE * f)
+        return scale * g.zoom / (1 + PERSPECTIVE * f)
     }
 
     // The point of the floor under a point of the full-size picture (the camera's sums run backwards)
-    private fun floorPoint(g: FloatArray, scale: Float, sx: Float, sy: Float): Pair<Float, Float>? {
-        val s = scale * g[2]
-        val t = (g[1] - sy) / (s * g[3])                 // f / (1 + PERSPECTIVE f)
+    private fun floorPoint(g: Camera, scale: Float, sx: Float, sy: Float): Pair<Float, Float>? {
+        val s = scale * g.zoom
+        val t = (g.y - sy) / (s * g.tilt)                 // f / (1 + PERSPECTIVE f)
         if (1 - PERSPECTIVE * t <= 0) return null
         val f = t / (1 - PERSPECTIVE * t)
-        val r = (sx - g[0]) * (1 + PERSPECTIVE * f) / s
-        val fx = cos(g[5]); val fy = sin(g[5])
+        val r = (sx - g.x) * (1 + PERSPECTIVE * f) / s
+        val fx = cos(g.turn); val fy = sin(g.turn)
         return (10.5f + f * fx + r * fy) to (10.5f + f * fy - r * fx)
     }
 
     // Each wall of the room, cracked or smooth: points all through the wall (27 to a square: across it, and from
     // near the floor to near its top) are looked up in the picture, and a wall whose stone is more than CRACK_SHARE
     // very dark is cracked (the cracks are near black; smooth walls have none that dark)
-    private fun readCracks(room: ToaPuzzles.HetRoom, g: FloatArray, scale: Float, shade: ByteArray, w: Int, h: Int) =
+    private fun readCracks(room: ToaPuzzles.HetRoom, g: Camera, scale: Float, shade: ByteArray, w: Int, h: Int) =
         IntArray(room.blocks.size) { i ->
             val r = room.blocks[i]
             var stone = 0; var dark = 0
@@ -877,16 +912,16 @@ object HetReader {
         }
 
     // Where a point of the room (x, y in squares, z up from the floor in squares) is in the full-size picture, for
-    // the camera g (the room's middle on screen, zoom, tilt, perspective, facing angle)
-    private fun project(g: FloatArray, scale: Float, x: Float, y: Float, z: Float): Pair<Float, Float> {
-        val fx = cos(g[5]); val fy = sin(g[5])
+    // the camera g
+    private fun project(g: Camera, scale: Float, x: Float, y: Float, z: Float): Pair<Float, Float> {
+        val fx = cos(g.turn); val fy = sin(g.turn)
         val dx = x - 10.5f; val dy = y - 10.5f
         val f = dx * fx + dy * fy
         val r = dx * fy - dy * fx
         val d = 1 + PERSPECTIVE * f
-        val s = scale * g[2]
-        val up = kotlin.math.sqrt(maxOf(0f, 1 - g[3] * g[3]))
-        return (g[0] + s * r / d) to (g[1] - s * g[3] * f / d - s * up * z / d)
+        val s = scale * g.zoom
+        val up = sqrt(maxOf(0f, 1 - g.tilt * g.tilt))
+        return (g.x + s * r / d) to (g.y - s * g.tilt * f / d - s * up * z / d)
     }
 
     // The game's brightness setting bends every colour along one curve (colour = 255 * (colour / 255) ^ power: the
@@ -896,7 +931,8 @@ object HetReader {
     // warm shifts a little as the curve squashes the colours together, so the curve is found in a few rounds: bend,
     // measure the floor again, adjust (it lands within 0.005 of the true power). A table: colour in -> colour as at
     // the middle setting.
-    private fun brightnessCurve(px: LightBoxReader.PixelSource): IntArray {
+    // (The power, or null if there isn't enough floor to tell)
+    private fun brightnessPower(px: LightBoxReader.PixelSource): Double? {
         val ys = px.height / 10 until px.height * 9 / 10 step 4
         val xs = px.width / 4 until px.width * 72 / 100 step 4
         val samples = IntArray(ys.count() * xs.count())
@@ -912,26 +948,28 @@ object HetReader {
                 val r = bend[c shr 16 and 0xFF]; val g = bend[c shr 8 and 0xFF]; val b = bend[c and 0xFF]
                 if (r > b + 10 && r >= g && r > 25) { count[((3 * r + 6 * g + b) / 10).coerceIn(0, 255)]++; n++ }
             }
-            if (n < 500) return IntArray(256) { it }   // not enough floor to tell: leave the colours as they are
+            if (n < 500) return null   // not enough floor to tell: the colours are left as they are
             var seen = 0; var median = 0
             while (median < 255 && seen + count[median] < n / 2) { seen += count[median]; median++ }
-            if (median < 8 || median > 247) return IntArray(256) { it }
+            if (median < 8 || median > 247) return null
             power = (power * ln(FLOOR_SHADE / 255.0) / ln(median / 255.0)).coerceIn(0.4, 2.5)
         }
-        lastPower = power
-        // (at the middle setting the picture is left exactly as it is; the setting doesn't change the game's side
-        // panels and buttons, which get bent too, so they're kept out of the floor search, floorMiddle)
-        if (kotlin.math.abs(power - 1) < 0.05) return IntArray(256) { it }
+        return power
+    }
+
+    // ...and the table for it
+    // (at the middle setting the picture is left exactly as it is; the setting doesn't change the game's side
+    // panels and buttons, which get bent too, so they're kept out of the floor search, floorMiddle)
+    private fun brightnessCurve(power: Double?): IntArray {
+        if (power == null || abs(power - 1) < 0.05) return IntArray(256) { it }
         return IntArray(256) { v -> (255 * (v / 255.0).pow(power)).roundToInt().coerceIn(0, 255) }
     }
 
-    // The brightness curve found for the last picture read (for the tests: 1 at the middle setting)
-    var lastPower = 1.0
-        private set
-
-    // ...and how much of the last room read's walls stood (for the tests)
-    var lastWallsUp = 1f
-        private set
+    // Writes which patch each pixel is in (1, 2, ...: `id` is moved on after each patch), for forEachPatch
+    private class PatchLabels(private val patch: IntArray) : PatchSquare {
+        var id = 1
+        override fun at(i: Int) { patch[i] = id }
+    }
 
     private fun steps(from: Float, to: Float, step: Float): List<Float> {
         val out = ArrayList<Float>()
@@ -951,22 +989,8 @@ object HetReader {
         }
         val patch = IntArray(fw * fh)   // which patch each spot belongs to (0 = none)
         val sizes = ArrayList<Int>().apply { add(0) }
-        val stack = IntArray(fw * fh)
-        for (start in sand.indices) {
-            if (!sand[start] || patch[start] != 0) continue
-            val id = sizes.size
-            var top = 0; var size = 0
-            stack[top++] = start; patch[start] = id
-            while (top > 0) {
-                val p = stack[--top]; size++
-                val x = p % fw; val y = p / fw
-                if (x > 0 && sand[p - 1] && patch[p - 1] == 0) { patch[p - 1] = id; stack[top++] = p - 1 }
-                if (x < fw - 1 && sand[p + 1] && patch[p + 1] == 0) { patch[p + 1] = id; stack[top++] = p + 1 }
-                if (y > 0 && sand[p - fw] && patch[p - fw] == 0) { patch[p - fw] = id; stack[top++] = p - fw }
-                if (y < fh - 1 && sand[p + fw] && patch[p + fw] == 0) { patch[p + fw] = id; stack[top++] = p + fw }
-            }
-            sizes.add(size)
-        }
+        val label = PatchLabels(patch)
+        forEachPatch(sand, fw, fh, onSquare = label) { p -> sizes.add(p.count); label.id++; true }
         val biggest = sizes.maxOrNull() ?: 0
         if (biggest < 50) return null
         var sx = 0.0; var sy = 0.0; var n = 0
@@ -974,18 +998,24 @@ object HetReader {
         return (sx / n * 8).toFloat() to (sy / n * 8).toFloat()
     }
 
-    // The search, keeping each room's best score and the camera that gave it (middle x, middle y, scale, tilt,
-    // perspective, facing angle)
     // The wide look, split by camera direction between the processor cores (each part has its own Search), then the
-    // best of each room from all of them. The phone is only busy for the moment it takes.
+    // best of each room from all of them. The phone is only busy for the moment it takes. The threads are kept for
+    // the next look (Watch looks every second or two) and end by themselves after WIDE_THREADS_IDLE_S without one.
+    private val wideThreads by lazy {
+        ThreadPoolExecutor(WIDE_PARTS, WIDE_PARTS, WIDE_THREADS_IDLE_S, TimeUnit.SECONDS, LinkedBlockingQueue()) { r ->
+            Thread(r, "HetSearch").apply { isDaemon = true }
+        }.apply { allowCoreThreadTimeOut(true) }
+    }
+    private val WIDE_PARTS = Runtime.getRuntime().availableProcessors().coerceIn(1, 8)
+    private const val WIDE_THREADS_IDLE_S = 30L
+
     private fun wideSearch(kind: ByteArray, w: Int, h: Int, scale: Float, cxs: List<Float>, cys: List<Float>,
                            phis: List<Float>, zooms: List<Float>, tilts: List<Float>): Search {
-        val parts = Runtime.getRuntime().availableProcessors().coerceIn(1, 8).coerceAtMost(phis.size)
+        val parts = WIDE_PARTS.coerceAtMost(phis.size)
         val searches = List(parts) { Search(kind, w, h, scale, everyOther = true) }
-        val threads = List(parts) { i ->
-            Thread { searches[i].run(cxs, cys, phis.filterIndexed { j, _ -> j % parts == i }, zooms, tilts) }.apply { start() }
-        }
-        threads.forEach { it.join() }
+        wideThreads.invokeAll(List(parts) { i ->
+            Callable { searches[i].run(cxs, cys, phis.filterIndexed { j, _ -> j % parts == i }, zooms, tilts) }
+        }).forEach { it.get() }
         val all = Search(kind, w, h, scale)
         for (s in searches) for (room in walls.indices) {
             if (s.best[room] > all.best[room]) {
@@ -995,6 +1025,7 @@ object HetReader {
         return all
     }
 
+    // The search, keeping each room's best score and the camera that gave it
     // (`rooms`: each room's walls, normally the three rooms; Watch also tries a room with no walls, see followLook.
     // `statues`: the caster's and the shielded statue's squares are looked at too, and must show their slate plinths:
     // that pins the camera when there are no walls to go by)
@@ -1007,7 +1038,7 @@ object HetReader {
         }.toIntArray()
         private val minSeen = if (everyOther) MIN_SEEN / 2 else MIN_SEEN
         val best = FloatArray(rooms.size) { -9f }
-        val bestGuess = arrayOfNulls<FloatArray>(rooms.size)
+        val bestGuess = arrayOfNulls<Camera>(rooms.size)
         private val rx = FloatArray(N * N)
         private val ry = FloatArray(N * N)
         private val use = Array(rooms.size) { BooleanArray(N * N) }
@@ -1071,7 +1102,7 @@ object HetReader {
                             val score = sum[room].toFloat() / seen[room]
                             if (score > best[room]) {
                                 best[room] = score
-                                bestGuess[room] = floatArrayOf(cx, cy, zoom, tilt, PERSPECTIVE, phi)
+                                bestGuess[room] = Camera(cx, cy, zoom, tilt, phi)
                             }
                         }
                     }

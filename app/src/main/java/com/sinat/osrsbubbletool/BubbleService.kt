@@ -230,7 +230,7 @@ class BubbleService : Service() {
         WIKI("OSRS Wiki"),
         PUZZLE_BOX("Puzzle Box Solver"),
         LIGHT_BOX("Light Box Solver"),
-        TOA_PUZZLES("ToA Puzzle Helper (Beta)"),
+        TOA_PUZZLES("ToA Puzzle Helper"),
         INVENTORY_SETUPS("Gear Loadouts"),   // (named Inventory Setups before; the name stays, it's saved in settings)
         XP_CALCULATOR("XP Calculator"),
         DPS_CALCULATOR("DPS Calculator"),

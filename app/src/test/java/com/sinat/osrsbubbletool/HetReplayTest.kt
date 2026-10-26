@@ -49,9 +49,9 @@ class HetReplayTest {
             val look = w.reading
             val outcome = m.use(w)
             println("${f.name}: $outcome seal ${w.seal?.let { "%.2f".format(it) }} room ${look?.let { it.room + 1 }} " +
-                "fixed ${look?.fixedMirrors?.map { sq(it) + (look.facing[it]?.let { x -> " " + names[x] } ?: "") }} " +
-                (if (look == null) "bare %.2f walled %.2f ".format(HetReader.lastEmptyFit, HetReader.lastRoomFit) else "") + "| " +
-                "cracks ${look?.cracked?.joinToString("") { if (it < 0) "?" else "$it" }} voted ${m.cracked?.joinToString("") { if (it < 0) "?" else "$it" }} | Watch: room ${m.room + 1} fixed ${m.fixed.map { sq(it) + (m.facing[it]?.let { x -> " " + names[x] } ?: "") }}")
+                "fixed ${look?.fixedMirrors?.map { sq(it) + (look.facing[it]?.let { x -> " " + names[x.ordinal] } ?: "") }} " +
+                (if (look == null) "bare %.2f walled %.2f ".format(w.bareFit, w.walledFit) else "") + "| " +
+                "cracks ${look?.cracked?.joinToString("") { if (it < 0) "?" else "$it" }} voted ${m.cracked?.joinToString("") { if (it < 0) "?" else "$it" }} | Watch: room ${m.room + 1} fixed ${m.fixed.map { sq(it) + (m.facing[it]?.let { x -> " " + names[x.ordinal] } ?: "") }}")
         }
         assertEquals(room, m.room)
     }

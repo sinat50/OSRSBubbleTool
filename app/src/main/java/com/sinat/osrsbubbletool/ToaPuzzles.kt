@@ -183,6 +183,10 @@ object ToaPuzzles {
     // Two 3×3 boards (tiles 0-8 on the left, 9-17 on the right). Each board has each symbol once; step on
     // the two tiles with the same symbol to match them. (Watch's memory of the boards is ToaReader.MatchMemory.)
 
+    // The tiles of the board tile t is on, and of the other board
+    fun matchBoardOf(t: Int) = if (t < 9) 0 until 9 else 9 until 18
+    fun otherMatchBoard(t: Int) = if (t < 9) 9 until 18 else 0 until 9
+
     // ---------------- Path of Het (the mirror puzzle before Akkha) ----------------
     // The room is a 21×21 square of floor, counted from its south-west corner (x east, y north). Across the
     // middle stand the caster statue (west), Het's seal and the shielded statue (east), each 3×3. Every 9 ticks
@@ -192,6 +196,9 @@ object ToaPuzzles {
 
     const val HET_SIZE = 21
 
+    // A square of the room as one number (x * HET_SIZE + y), as every list of squares here and in HetReader keeps them
+    fun hetSquare(x: Int, y: Int) = x * HET_SIZE + y
+
     // The room's floor, from the game's own walking map (the Shortest Path plugin's collision map, region 57,82;
     // square 0,0 is game tile 3670,5270): for each row y, south to north, the first and last floor square x. It's
     // a stepped circle, 21 squares across the middle and 4-5 at the north and south ends.
@@ -199,7 +206,6 @@ object ToaPuzzles {
         8 to 12, 5 to 15, 3 to 17, 2 to 18, 2 to 18, 1 to 19, 1 to 19, 1 to 19, 0 to 20, 0 to 20, 0 to 20,
         0 to 20, 0 to 20, 1 to 19, 1 to 19, 1 to 19, 2 to 18, 2 to 18, 3 to 17, 5 to 15, 8 to 11
     )
-    fun hetFloorRow(y: Int) = HET_FLOOR_ROWS[y]
 
     // The room's outline, traced from the OSRS Wiki's map of the room (maps.runescape.wiki, map -1, region 57,82):
     // straight runs and one-square diagonal wall pieces, as the room's outer wall is in the game, with the alcoves
@@ -227,7 +233,9 @@ object ToaPuzzles {
     // sides: a north-east mirror sends a beam going west up north, and one going south off east.
     enum class Facing { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST }
 
-    class HetMirror(val x: Int, val y: Int, val facing: Facing)
+    class HetMirror(val x: Int, val y: Int, val facing: Facing) {
+        val square get() = hetSquare(x, y)
+    }
 
     private fun m(x: Int, y: Int, f: Facing) = HetMirror(x, y, f)
 
@@ -243,24 +251,29 @@ object ToaPuzzles {
         listOf(m(5, 10, Facing.SOUTH_EAST), m(5, 3, Facing.NORTH_EAST), m(13, 3, Facing.NORTH_WEST))
     )
 
+    // What's on a square of a room's walls (HetRoom.walls)
+    const val HET_NO_WALL = 0
+    const val HET_SMOOTH_WALL = 1
+    const val HET_CRACKED_WALL = 2
+
     // A room layout seen in a raid: its stone walls, each a block of squares (x from, x to, y from, y to), smooth
-    // ones and cracked ones (which can be mined), the way through that fits it, and the corners of that way where a
-    // fixed mirror already stands (x * HET_SIZE + y). Only 3 mirrors can be moved, so a way with 4 corners needs one.
+    // ones and cracked ones (which can be mined), and the way through that fits it. (The fixed mirrors standing about
+    // differ from raid to raid, so Watch reads them each time: HetReader.)
     // Read from the owner's screenshots (October 2026): every wall is one square thick, fitted by drawing the walls
     // as solid blocks over each picture of the room. A wall's end may be a square off (the ends of walls running away
     // from the camera are hard to see; every room was also seen from the north, which pins them); the ways' mirrors are exact.
-    class HetRoom(val way: Int, smooth: List<IntArray>, cracked: List<IntArray>, val fixed: List<Int> = emptyList()) {
+    class HetRoom(val way: Int, smooth: List<IntArray>, cracked: List<IntArray>) {
         // Each wall (x from, x to, y from, y to), and whether it's usually cracked. Which walls are cracked changes from
         // raid to raid (the game's "break sets"), so the room reader looks at each one (HetReader).
         val blocks: List<IntArray> = smooth + cracked
         val usuallyCracked = BooleanArray(blocks.size) { it >= smooth.size }
-        // what's on each square (x * HET_SIZE + y): 0 floor, 1 smooth wall, 2 cracked wall
+        // what's on each square (hetSquare): HET_NO_WALL, HET_SMOOTH_WALL or HET_CRACKED_WALL
         val walls = wallsWith(usuallyCracked)
 
         // The squares with these walls cracked (one true/false for each of `blocks`)
         fun wallsWith(cracked: BooleanArray) = IntArray(HET_SIZE * HET_SIZE).also { w ->
             blocks.forEachIndexed { i, r ->
-                for (x in r[0]..r[1]) for (y in r[2]..r[3]) if (isHetFloor(x, y)) w[x * HET_SIZE + y] = if (cracked[i]) 2 else 1
+                for (x in r[0]..r[1]) for (y in r[2]..r[3]) if (isHetFloor(x, y)) w[hetSquare(x, y)] = if (cracked[i]) HET_CRACKED_WALL else HET_SMOOTH_WALL
             }
         }
     }
@@ -297,50 +310,41 @@ object ToaPuzzles {
             cracked = listOf(b(15, 19, 14, 14), b(1, 5, 7, 7)))
     )
 
-    // How many mirrors have to be carried to the way's corners in this room (the ones without a fixed mirror)
-    fun hetMirrorsToMove(room: HetRoom?, way: Int) = HET_ANSWERS[way].count { m ->
-        room == null || room.way != way || (m.x * HET_SIZE + m.y) !in room.fixed
-    }
-
     // How many cracked walls the beam crosses in this room (squares to mine), or -1 if it hits a smooth one
     fun hetMining(room: HetRoom, way: Int) = hetMining(room.walls, way)
     fun hetMining(walls: IntArray, way: Int): Int {
         var mine = 0
-        for (s in hetBeam(HET_ANSWERS[way])) when (walls[s]) { 1 -> return -1; 2 -> mine++ }
+        for (s in hetBeam(HET_ANSWERS[way])) when (walls[s]) { HET_SMOOTH_WALL -> return -1; HET_CRACKED_WALL -> mine++ }
         return mine
     }
 
     // The best way through these walls, by the plugin's rules: no smooth wall in the way and at most 3 mirrors to
-    // carry (the corners without a fixed mirror), then the fewest mirrors to carry, then the fewest walls to mine,
+    // carry (the corners without a fixed mirror seen), then the fewest mirrors to carry, then the fewest walls to mine,
     // then the first in the list. -1 if none works.
     // `seen`: fixed mirrors spotted on screen this raid (HetReader), and `facing` which way the ones it could make out
     // face. A fixed mirror on the beam's path stops it (the plugin's rule: it can't be moved or turned), so ways past
     // one are left out. One on a way's corner works only if it faces the right way: then it's a mirror already in place
     // (one fewer to carry); facing wrong, that way is left out. If which way it faces isn't known, that way is left out
     // too, unless nothing else works.
-    fun hetBestWay(walls: IntArray, fixed: List<Int> = emptyList(), seen: List<Int> = emptyList(),
-                   facing: Map<Int, Facing> = emptyMap()): Int {
-        if (seen.isNotEmpty()) {
-            val clear = bestWayAvoiding(walls, fixed, seen, facing, guess = false)
-            return if (clear >= 0) clear else bestWayAvoiding(walls, fixed, seen, facing, guess = true)
-        }
-        return bestWayAvoiding(walls, fixed, emptyList(), facing, false)
+    fun hetBestWay(walls: IntArray, seen: List<Int> = emptyList(), facing: Map<Int, Facing> = emptyMap()): Int {
+        val clear = bestWayAvoiding(walls, seen, facing, guess = false)
+        return if (clear >= 0 || seen.isEmpty()) clear else bestWayAvoiding(walls, seen, facing, guess = true)
     }
 
     // the same, leaving out ways that cross a seen fixed mirror on a straight part or one facing wrong on a corner
     // (and one whose facing isn't known on a corner, unless `guess`, when it's taken to face right)
-    private fun bestWayAvoiding(walls: IntArray, fixed: List<Int>, seen: List<Int>, facing: Map<Int, Facing>, guess: Boolean): Int {
+    private fun bestWayAvoiding(walls: IntArray, seen: List<Int>, facing: Map<Int, Facing>, guess: Boolean): Int {
         var best = -1; var bestCarry = 0; var bestMine = 0
         for (way in HET_ANSWERS.indices) {
             val usable = hetBeam(HET_ANSWERS[way]).all { s ->
                 if (s !in seen) return@all true
-                val corner = HET_ANSWERS[way].firstOrNull { it.x * HET_SIZE + it.y == s } ?: return@all false
+                val corner = HET_ANSWERS[way].firstOrNull { it.square == s } ?: return@all false
                 facing[s]?.let { it == corner.facing } ?: guess
             }
             if (!usable) continue
             val mine = hetMining(walls, way)
             if (mine < 0) continue
-            val carry = HET_ANSWERS[way].count { (it.x * HET_SIZE + it.y).let { s -> s !in fixed && s !in seen } }
+            val carry = HET_ANSWERS[way].count { it.square !in seen }
             if (carry > 3) continue
             if (best < 0 || carry < bestCarry || (carry == bestCarry && mine < bestMine)) { best = way; bestCarry = carry; bestMine = mine }
         }
@@ -350,14 +354,14 @@ object ToaPuzzles {
     fun isHetTarget(x: Int, y: Int) = x in HET_TARGET_X until HET_TARGET_X + 3 && y in HET_MIDDLE_Y until HET_MIDDLE_Y + 3
 
     // The squares the beam crosses with these mirrors, in order from the caster (which fires from square 6,10
-    // going west), up to the shielded statue. Each is x * HET_SIZE + y. Empty if the beam never gets there.
+    // going west), up to the shielded statue. Each is a hetSquare. Empty if the beam never gets there.
     fun hetBeam(mirrors: List<HetMirror>): List<Int> {
         var x = HET_CASTER_X - 1; var y = HET_MIDDLE_Y + 1
         var dx = -1; var dy = 0
         val squares = mutableListOf<Int>()
         while (x in 0 until HET_SIZE && y in 0 until HET_SIZE && squares.size < HET_SIZE * HET_SIZE) {
             if (isHetTarget(x, y)) return squares
-            squares.add(x * HET_SIZE + y)
+            squares.add(hetSquare(x, y))
             when (mirrors.firstOrNull { it.x == x && it.y == y }?.facing) {
                 Facing.NORTH_EAST, Facing.SOUTH_WEST -> { val t = dx; dx = -dy; dy = -t }
                 Facing.SOUTH_EAST, Facing.NORTH_WEST -> { val t = dx; dx = dy; dy = t }
