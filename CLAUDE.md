@@ -214,8 +214,8 @@ Each release is worked on in its own branch (named like `v1.0.9`), then merged i
 
 Tags use the "v" form (`1.0.3` is the one exception). A published release's tag stays as it is: renaming it on
 GitHub creates the new tag on the latest master (that happened to v1.0.5 and was fixed by force-pushing the tag
-back to its commit from Android Studio's terminal, which has the GitHub login). Latest release: v1.0.9 (11 October
-2026, versionCode 10). Being worked on: v1.1.0 (branch `v1.1.0`; chess, new quests and gear, October 2026).
+back to its commit from Android Studio's terminal, which has the GitHub login). Latest release: v1.1.0 (26 October
+2026, versionCode 11; chess, new quests and gear, WikiSync removed). The next release's branch is made when work on it starts.
 
 ## Plans, to-dos and things to test
 
