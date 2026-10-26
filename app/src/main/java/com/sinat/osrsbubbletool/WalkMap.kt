@@ -98,8 +98,8 @@ class WalkMap(collision: ByteArray, walks: String, dungeons: String = "") {
     private class Walk(val from: Int, val cost: Int, val far: Boolean, val name: Int, val req: Int, val guess: Boolean)
     private val walksTo = HashMap<Int, MutableList<Walk>>()   // by where they come out
     private val names = ArrayList<String>()                   // walk names, then dungeon names
-    // What shortcuts, doors and boats need, like "70 Agility" or a quest. The Teleport Finder checks these
-    // against your WikiSync levels and quests, and the search leaves out the ones you can't use yet.
+    // What shortcuts, doors and boats need, like "70 Agility" or a quest (the search can leave out ones
+    // marked as locked).
     val requirements = ArrayList<String>()
 
     private class Dungeon(val x: Int, val y: Int, val name: Int)

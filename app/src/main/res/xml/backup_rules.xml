@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?><!--
    What Android backs up to your Google account (Android 11 and older; newer phones use
    data_extraction_rules.xml, which says the same). Only what's listed here is backed up:
-   - the app's settings, notes, timers, WikiSync name and so on (shared preferences)
+   - the app's settings, notes, timers and so on (shared preferences)
    - your Inventory Setups pictures
    Nothing else needs it (the game pictures come with the app). Keeping the backup small also matters:
    past Android's 25 MB limit, nothing gets backed up at all.

@@ -8,11 +8,11 @@ saved, so `tools/quest-helper/` is what replaces it.
 
 | File | What it holds | Made by |
 | --- | --- | --- |
-| `QuestData.kt` | Every quest's type, difficulty, quest points, requirements and enemies, plus the 12 achievement diaries. Read by `QuestBook` for the quest list and the WikiSync ✓/✗ checks | Generated (JSON split into pieces of about 13,000 characters) |
+| `QuestData.kt` | Every quest's type, difficulty, quest points, requirements and enemies, plus the 12 achievement diaries. Read by `QuestBook` for the quest list and the requirement lists | Generated (JSON split into pieces of about 13,000 characters) |
 | `QuestGuides.kt` | The step-by-step guides: a `names` set and a `when` with one JSON string per quest (long ones split with `arrayOf(...).joinToString("")`). Only the opened quest's guide is decoded | Generated |
 | `QuestHelperTool.kt` | The tool's pages; `parseGuide` reads a guide's JSON. Also a few **hand-written guides** (`guides` list, e.g. Scrambled!), which win over the generated ones | Hand-written |
 | `QuestPuzzles.kt`, `QuestSolvers.kt`, `QuestSolverViews.kt`, `PuzzleDiagramView.kt` | Puzzle answers, linked to a quest by its name and to steps by `section` or `stepText` | Hand-written |
-| `QuestBook.kt` | Reads `QuestData`, checks requirements against WikiSync (quest names must match WikiSync's exactly) | Hand-written |
+| `QuestBook.kt` | Reads `QuestData` and writes out each requirement (a required quest's name must match its name in the list, or its ▸ can't open its own requirements) | Hand-written |
 
 The plugin is github.com/Zoinkwiz/quest-helper (BSD 2-Clause). Each quest is a Java file in
 `src/main/java/com/questhelper/helpers/quests/<name>/`; its type and difficulty are in
@@ -42,7 +42,7 @@ Java file, write its JSON by the rules below, `put` it, `check`, build, then upd
 {"n":"Crab Quest","t":"P","d":"Intermediate","qp":1,"r":[{"s":"Sailing","l":40},{"s":"Fishing","l":30}],"e":["..."]}
 ```
 
-- `n`: the quest's name as WikiSync and the wiki spell it.
+- `n`: the quest's name as the wiki spells it.
 - `t`: `F` free, `P` members, `M` miniquest (from `QuestHelperQuest`'s `Type` and whether it sits under `//Miniquests`).
 - `d`: the `Difficulty`, written like `Novice`, `Intermediate`, `Experienced`, `Master`, `Grandmaster`.
 - `qp`: `getQuestPointReward()` (0 or left out for miniquests).
@@ -90,6 +90,6 @@ Sections (`sec`) come from `getPanels()`, one per `PanelDetails`, in order:
 ## Checking
 
 `./gradlew.bat assembleDebug testDebugUnitTest` (`QuestChecksTest` covers requirement checks). On the phone,
-open Quest Helper, search the quest, open its guide and check the sections, dialogue and the WikiSync ✓/✗ ticks.
+open Quest Helper, search the quest, open its guide and check the sections, dialogue and the requirements.
 Quests in `QuestData` without a guide (`check` lists them: The Enchanted Key, Lair of Tarn Razorlor, The Path of
 Glouphrie) show requirements only; that's expected.

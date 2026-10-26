@@ -53,7 +53,6 @@ Code: `app/src/main/java/com/sinat/osrsbubbletool/` (one file per tool, roughly)
 | `RegionOverlay.kt`, `PuzzleAreaOverlay.kt` | The "set area by hand" frames |
 | `TeleportFinderTool.kt`, `TeleportData.kt`, `WalkMap.kt` | Teleport Finder (Beta): wiki lookup, teleport list, walking-route search |
 | `QuestHelperTool.kt`, `QuestData.kt`, `QuestGuides.kt`, `QuestBook.kt`, `QuestPuzzles.kt`, `QuestSolvers.kt`, `QuestSolverViews.kt`, `PuzzleDiagramView.kt` | Quest Helper (Beta), from the Quest Helper RuneLite plugin (`PuzzleDiagramView` draws the puzzle answer maps). **Read `docs/quest-helper.md` before adding or changing quests**: `QuestData.kt` and `QuestGuides.kt` are changed only with `tools/quest-helper/quest_files.py` |
-| `WikiSync.kt`, `WikiSyncTool.kt` | WikiSync account data, and the ✓/✗ WikiSync tag other tools show |
 | `HunterRumourTool.kt`, `HunterRumours.kt` | Hunter Rumours |
 | `ZulrahTool.kt` | Zulrah Helper |
 | `FarmingTool.kt`, `FarmingTimers.kt`, `FarmingTimerReceiver.kt` | Timers (one exact alarm per timer, no background work) |
@@ -138,8 +137,8 @@ trailer and the ToA demo video; how to update them is in `trailer/README.md`), `
 - **Battery**: web pages in hidden windows are paused; Wing It only animates while you're playing; the Zen
   Garden's rules are in `docs/zen-garden.md`.
 - **Teleport Finder routes**: `WalkMap` spreads out from the target (reverse Dijkstra over the collision map
-  plus `walks.txt`). Walks can carry requirements ("70 Agility; Regicide"); with WikiSync set up, ones you can't
-  use are skipped. Closed-off areas fall back to dungeon-entrance estimates ("guess" results). Joins into
+  plus `walks.txt`). Walks can carry requirements ("70 Agility; Regicide"), shown but not checked (the app has no
+  account data: WikiSync was removed in October 2026, as the OSRS Wiki doesn't allow it in other apps). Closed-off areas fall back to dungeon-entrance estimates ("guess" results). Joins into
   closed-off areas are precomputed (`find_closed_off_areas.py`).
 - **Wiki links** from the game open in the bubble's Wiki window via `WikiLinkActivity`, only if the owner turns
   on "Open by default" for the wiki (it can't be auto-verified: not our website). `WikiLinkActivity` is exported, so any app
@@ -168,7 +167,7 @@ trailer and the ToA demo video; how to update them is in `trailer/README.md`), `
   `app/build/reports/lint-results-debug.sarif`). Expected warnings: 92 "SetTextI18n" (text written in the code,
   see `.scratch/lint-text-warnings/`) and 2 "IconXmlAndPng" (the app icon).
 - PC tests: `./gradlew.bat testDebugUnitTest`, in `app/src/test/`: chess (rules and the computer player), the Puzzle Box and Light Box solvers, the ToA
-  answers, farming growth times, quest requirement checks, the Zen Garden's save file, placed things and auto rake patterns, keeping windows clear of the bars, and Gear Loadouts (items, loadouts and the RuneLite format; the
+  answers, farming growth times, how quest requirements read, the Zen Garden's save file, placed things and auto rake patterns, keeping windows clear of the bars, and Gear Loadouts (items, loadouts and the RuneLite format; the
   screen readers on the owner's screenshots at other screen sizes and brightness, skipped without them; amounts
   drawn from the game's font) (expected answers worked out by hand or from the game, never copied from the code); `ToaReaderTest` needs recordings, `HetReaderTest` the owner's Path of Het screenshots and `HetReplayTest` pictures cut from a recorded Watch run (see `docs/toa-helper.md`). The real
   `org.json` is added for tests only (Android's own isn't on the PC). Code with Android parts gets a pure version

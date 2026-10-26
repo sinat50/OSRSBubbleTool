@@ -24,10 +24,9 @@ import com.sinat.osrsbubbletool.Palette.WARN
 
 // Hunters' Rumours: pick your tier (and guild hunter), pick the rumour you're on, and see where the
 // creature is, how to get there and what to bring. Everything is built in, so it works offline.
-class HunterRumourTool(private val context: Context, private val openWikiSync: () -> Unit = {}) {
+class HunterRumourTool(private val context: Context) {
 
     private val prefs = context.getSharedPreferences("hunter_rumours", Context.MODE_PRIVATE)
-    private val sync = WikiSync(context)   // only what's already saved: your Hunter level, if you've set up WikiSync
     private lateinit var holder: FrameLayout
 
     // What you picked, remembered for next time
@@ -51,11 +50,6 @@ class HunterRumourTool(private val context: Context, private val openWikiSync: (
         holder = FrameLayout(context).apply { setBackgroundColor(PARCHMENT) }
         showing = null
         show()
-        // back from the WikiSync tool: redraw so the tag and faded rumours are up to date
-        holder.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
-            override fun onViewAttachedToWindow(v: View) { if (syncState() != shownSyncState) show() }
-            override fun onViewDetachedFromWindow(v: View) {}
-        })
         return holder
     }
 
@@ -64,27 +58,16 @@ class HunterRumourTool(private val context: Context, private val openWikiSync: (
         if (showing != null) { showing = null; show() }
     }
 
-    private var shownSyncState: String? = null
-    private fun syncState() = sync.username + "|" + (sync.cached?.fetchedAt ?: 0)
-
     private fun show() {
-        shownSyncState = syncState()
         holder.removeAllViews()
         val r = showing
         holder.addView(if (r == null) list() else detail(r))
     }
 
-    private fun hunterLevel(): Int? = sync.cached?.level("Hunter")
-
     // ---------------- The list ----------------
 
     private fun list(): View = scrolling {
-        addView(LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            addView(label("Hunters' Rumours", 15f, bold = true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(WikiSyncBadge.view(context, sync) { openWikiSync() })
-        }, full())
+        addView(label("Hunters' Rumours", 15f, bold = true), full())
 
         // Your current rumour, one tap away
         current?.let { cur ->
@@ -111,7 +94,6 @@ class HunterRumourTool(private val context: Context, private val openWikiSync: (
             }, full(3))
         }
         val h = hunter
-        val level = hunterLevel()
         addView(label("${h.label} · needs ${h.level} Hunter" +
             (if (h.tier == "Master") " and At First Light" else "") +
             (if (h == HunterRumours.Hunter.GILMAN) " · can give every rumour" else ""), 11f).apply { setTextColor(FADED) }, full(4))
@@ -119,7 +101,6 @@ class HunterRumourTool(private val context: Context, private val openWikiSync: (
         addView(label("Tap the rumour you're on:", 12f, bold = true), full(10))
         val cur = current   // (read out here: inside the row's background below, "current" is the drawable's own)
         for (r in HunterRumours.ALL.filter { h in it.hunters }) {
-            val tooHigh = level != null && level < r.level
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -128,7 +109,6 @@ class HunterRumourTool(private val context: Context, private val openWikiSync: (
                     setColor(ROW_BROWN); cornerRadius = dp(6).toFloat()
                     if (r == cur) setStroke(dp(2), GO_GREEN)
                 }
-                if (tooHigh) alpha = 0.5f
                 addView(LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
                     addView(label(r.name, 13f, bold = true))
@@ -142,8 +122,6 @@ class HunterRumourTool(private val context: Context, private val openWikiSync: (
                 }
             }, full(4))
         }
-        if (level != null) addView(label("Faded rumours need a higher Hunter level than your $level (from WikiSync).", 10f)
-            .apply { setTextColor(FADED) }, full(6))
         addView(label("Rumour lists, travel and equipment from the OSRS Wiki.", 9f).apply { setTextColor(FADED) }, full(10))
     }
 
@@ -175,10 +153,8 @@ class HunterRumourTool(private val context: Context, private val openWikiSync: (
         addView(card {
             addView(label("Required", 12f, bold = true))
             for (item in r.method.required) addView(label("•  $item", 12f), full(2))
-            val level = hunterLevel()
-            if (r.method in listOf(HunterRumours.BOX_TRAP, HunterRumours.BIRD_SNARE, HunterRumours.NET_TRAP) && level != null) {
-                val n = HunterRumours.trapsAt(level)
-                addView(label("At level $level you can lay $n trap${if (n == 1) "" else "s"} (one more in the Wilderness).", 11f)
+            if (r.method in listOf(HunterRumours.BOX_TRAP, HunterRumours.BIRD_SNARE, HunterRumours.NET_TRAP)) {
+                addView(label("You can lay 1 trap, and one more at levels 20, 40, 60 and 80 Hunter (one more again in the Wilderness).", 11f)
                     .apply { setTextColor(FADED) }, full(3))
             }
         }, full(5))

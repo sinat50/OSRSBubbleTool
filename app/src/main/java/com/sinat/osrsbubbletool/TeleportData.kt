@@ -213,7 +213,6 @@ object TeleportData {
     private val TEMPLATE_RE = Regex("""\{\{[^}]*\}\}""")
     private val TAG_RE = Regex("<[^>]*>")
     private val SPACES_RE = Regex("\\s+")
-    private val SKILL_REQ = Regex("""^(\d+)\s+([A-Za-z]+)$""")   // "70 Agility" (made once: checked very often)
     private val YEAR = Regex("""\b(19|20)\d\d\b""")   // "Santa (2019)": a holiday event from that year
 
     // The suggestions worth showing: pages that are places, one line per place. "Black dragon" already
@@ -370,26 +369,5 @@ object TeleportData {
     fun describe(tiles: Int): String = when {
         tiles <= 6 -> "right there"
         else -> "~$tiles tiles · ${maxOf(1, (tiles * 0.3).roundToInt())} s run"
-    }
-
-    // ---------------- What you can use ----------------
-
-    // Quests and skill levels the teleport needs, from its requirement text ("25 Magic; Priest in Peril")
-    fun unmet(t: Teleport, levels: (String) -> Int?, questDone: (String) -> Boolean?): List<String> =
-        unmet(t.requirements, levels, questDone)
-
-    // The same for any list of requirements ("70 Agility; Regicide"), such as a shortcut's
-    fun unmet(requirements: String, levels: (String) -> Int?, questDone: (String) -> Boolean?): List<String> {
-        if (requirements.isBlank()) return emptyList()
-        val missing = ArrayList<String>()
-        for (part in requirements.split(';').map { it.trim() }.filter { it.isNotEmpty() }) {
-            val skill = SKILL_REQ.find(part)
-            if (skill != null) {
-                val need = skill.groupValues[1].toIntOrNull() ?: continue
-                val have = levels(skill.groupValues[2])
-                if (have != null && have < need) missing.add(part)
-            } else if (questDone(part) == false) missing.add(part)
-        }
-        return missing
     }
 }

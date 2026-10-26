@@ -55,7 +55,7 @@ class MainActivity : Activity() {
         // turning the phone rebuilds the screen; stay on the same page
         val saved = savedInstanceState?.getString("screen")
         show(Screen.entries.firstOrNull { it.name == saved } ?: Screen.MAIN)
-        if (savedInstanceState == null) Thread { removeOldDownloads() }.start()
+        if (savedInstanceState == null) Thread { removeOldDownloads(); removeWikiSyncData() }.start()
     }
 
     // Test versions of the app downloaded the game pictures instead of coming with them. Those copies
@@ -70,6 +70,12 @@ class MainActivity : Activity() {
         } catch (_: Exception) {
             // try again next time
         }
+    }
+
+    // Older versions read your quests and levels from WikiSync, which the OSRS Wiki doesn't allow other
+    // apps to use. The RuneScape name and data they saved are deleted (nothing happens if there are none).
+    private fun removeWikiSyncData() {
+        try { deleteSharedPreferences("wikisync") } catch (_: Exception) {}
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -443,8 +449,7 @@ class MainActivity : Activity() {
             "\u2022 Quest Helper: solved puzzle pictures and some puzzle answers from the wiki's quick guides\n" +
             "\u2022 Hunter Rumours: rumour lists, locations, travel and equipment from the Hunters' Rumours pages\n" +
             "\u2022 Teleport Finder: search suggestions, where NPCs, monsters and places are on the map, monster levels, and descriptions of some teleport destinations\n" +
-            "\u2022 ToA Puzzle Helper: the outline of the Path of Het room, traced from the wiki's map\n\n" +
-            "Your quests and levels are read from WikiSync, a service of the OSRS Wiki.")
+            "\u2022 ToA Puzzle Helper: the outline of the Path of Het room, traced from the wiki's map")
 
         section("OSRS Wiki DPS calculator",
             "DPS Calculator gear import: the item list and item pictures come from the OSRS Wiki DPS calculator's " +

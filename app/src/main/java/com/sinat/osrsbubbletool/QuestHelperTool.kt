@@ -53,22 +53,17 @@ import com.sinat.osrsbubbletool.Palette.CURRENT
 import com.sinat.osrsbubbletool.Palette.DARK_BROWN
 import com.sinat.osrsbubbletool.Palette.FADED
 import com.sinat.osrsbubbletool.Palette.GO_GREEN
-import com.sinat.osrsbubbletool.Palette.ORANGE
 import com.sinat.osrsbubbletool.Palette.PARCHMENT
 import com.sinat.osrsbubbletool.Palette.RED
 import com.sinat.osrsbubbletool.Palette.ROW_BROWN
 import com.sinat.osrsbubbletool.Palette.SELECTED_BROWN
-import com.sinat.osrsbubbletool.QuestBook.Met
 import com.sinat.osrsbubbletool.QuestBook.Req
-import com.sinat.osrsbubbletool.QuestBook.Status
 
-// Quest Helper: every quest's requirements (checked against your account with WikiSync),
-// step-by-step guides for some quests, and the achievement diaries.
+// Quest Helper: every quest's requirements, step-by-step guides for some quests, and the achievement diaries.
 class QuestHelperTool(
     private val context: Context,
     private val openWiki: (String) -> Unit,  // shows a wiki page in the Wiki window
-    private val hideWindow: () -> Unit = {},  // gets the window out of the way (e.g. before opening the browser)
-    private val openWikiSync: () -> Unit = {} // the WikiSync tool, where you set your name
+    private val hideWindow: () -> Unit = {}  // gets the window out of the way (e.g. before opening the browser)
 ) {
     companion object {
         private const val MAX_DEPTH = 8
@@ -255,18 +250,10 @@ class QuestHelperTool(
     private fun position(q: Quest) = prefs.getInt(q.key, 0).coerceIn(0, q.steps.size)
     private fun setPosition(q: Quest, i: Int) = prefs.edit { putInt(q.key, i.coerceIn(0, q.steps.size)) }
 
-    private val sync = WikiSync(context)
-    private var shownSyncState: String? = null   // what the WikiSync tag showed last redraw
 
     private enum class Tab { QUESTS, DIARIES }
     private var tab = Tab.QUESTS
     private var search = ""
-    private var hideFinished: Boolean
-        get() = prefs.getBoolean("hide_finished", false)
-        set(v) { prefs.edit { putBoolean("hide_finished", v) } }
-    private var hideDoneTasks: Boolean
-        get() = prefs.getBoolean("hide_done_tasks", false)
-        set(v) { prefs.edit { putBoolean("hide_done_tasks", v) } }
 
     private var openQuest: String? = null      // a quest's page (guide or requirements)
     private var openDiary: String? = null      // a diary region's page
@@ -287,14 +274,6 @@ class QuestHelperTool(
     fun buildView(): View {
         holder = FrameLayout(context).apply { setBackgroundColor(PARCHMENT) }
         show()
-        // fetch fresh data whenever the window is opened, if it's been a while
-        holder.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
-            override fun onViewAttachedToWindow(v: View) {
-                // back from the WikiSync tool with a new name or fresh data: redraw with it
-                if (sync.needsRefresh) refresh() else if (syncState() != shownSyncState) show()
-            }
-            override fun onViewDetachedFromWindow(v: View) {}
-        })
         return holder
     }
 
@@ -308,17 +287,10 @@ class QuestHelperTool(
         }
     }
 
-    private fun refresh() {
-        sync.refresh { _, _ -> show() }
-    }
-
-    private fun syncState() = sync.username + "|" + (sync.cached?.fetchedAt ?: 0)
-
     // Rebuilds the window. keepScroll keeps your place when something on the same page changes.
     private fun show(keepScroll: Boolean = true) {
         val oldScroll = (holder.getChildAt(0) as? ScrollView)?.scrollY ?: 0
         holder.removeAllViews()
-        shownSyncState = syncState()
         val quest = openQuest
         val diary = openDiary
         val puzzle = openPuzzle
@@ -341,26 +313,17 @@ class QuestHelperTool(
     // ---------------- The main list: quests or diaries ----------------
 
     private fun listScreen(): View = page {
-        addView(syncBadge())
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(tabButton("Quests", tab == Tab.QUESTS) { tab = Tab.QUESTS; show(keepScroll = false) },
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { rightMargin = dp(3) })
             addView(tabButton("Diaries", tab == Tab.DIARIES) { tab = Tab.DIARIES; show(keepScroll = false) },
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(3) })
-        }, full(8))
+        })
         if (tab == Tab.QUESTS) questList(this) else diaryList(this)
     }
 
     private fun questList(column: LinearLayout) {
-        val data = sync.cached
-        if (data != null) {
-            val quests = QuestBook.quests.filter { !it.miniquest }
-            val done = quests.count { data.questState(it.name) == WikiSync.FINISHED }
-            column.addView(label("Quest points: ${QuestBook.questPoints(data)}   ·   Quests done: $done of ${quests.size}",
-                12f, bold = true), full(8))
-        }
-
         val field = EditText(context).apply {
             setTextColor(DARK_BROWN)
             setHintTextColor(FADED)
@@ -370,13 +333,7 @@ class QuestHelperTool(
             setSingleLine()
             imeOptions = EditorInfo.IME_ACTION_DONE
         }
-        column.addView(field, full(4))
-        if (data != null) {
-            column.addView(smallButton(if (hideFinished) "☑ Hide finished quests" else "☐ Hide finished quests") {
-                hideFinished = !hideFinished
-                show()
-            }, full(2))
-        }
+        column.addView(field, full(8))
 
         // Only the list below is rebuilt while you type, so the search box keeps the keyboard
         val list = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
@@ -397,64 +354,35 @@ class QuestHelperTool(
 
     private fun fillQuestList(list: LinearLayout) {
         list.removeAllViews()
-        val data = sync.cached
         val term = search.trim()
         val matches = QuestBook.quests.filter { term.isEmpty() || it.name.contains(term, ignoreCase = true) }
-        // where you stand with each quest, worked out once per list (it checks every requirement)
-        val standing = matches.associateWith { QuestBook.standing(it, data) }   // (status, how many missing)
-        val statusOf = standing.mapValues { it.value.first }
 
         fun group(title: String, quests: List<QuestBook.QuestInfo>) {
             if (quests.isEmpty()) return
             list.addView(label("$title (${quests.size})", 13f, bold = true), full(10))
-            quests.forEach { q -> standing.getValue(q).let { (status, missing) -> list.addView(questRow(q, status, missing), full(3)) } }
+            quests.forEach { list.addView(questRow(it), full(3)) }
         }
 
-        if (data == null) {
-            group("Quests", matches.filter { !it.miniquest })
-            group("Miniquests", matches.filter { it.miniquest })
-            return
-        }
-        val by = matches.groupBy { statusOf.getValue(it) }
-        group("Started", by[Status.STARTED].orEmpty())
-        group("Ready to start", by[Status.READY].orEmpty())
-        group("Missing requirements", by[Status.MISSING].orEmpty())
-        group("Not on WikiSync yet", by[Status.UNKNOWN].orEmpty())
-        if (!hideFinished) group("Finished", by[Status.DONE].orEmpty())
+        group("Quests", matches.filter { !it.miniquest })
+        group("Miniquests", matches.filter { it.miniquest })
         if (list.isEmpty()) list.addView(label("No quests match \"$term\".", 12f), full(8))
     }
 
-    private fun questRow(q: QuestBook.QuestInfo, status: Status, missing: Int): View {
-        val (mark, color) = when (status) {
-            Status.DONE -> "✓" to GO_GREEN
-            Status.STARTED -> "◐" to ORANGE
-            Status.READY -> "●" to GO_GREEN
-            Status.MISSING -> "✗" to RED
-            Status.UNKNOWN -> "•" to DARK_BROWN
-        }
-        val note = when {
-            status == Status.MISSING -> "$missing missing"
-            q.miniquest -> "Miniquest"
-            else -> ""
-        }
-        return LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(7), dp(8), dp(7))
-            background = GradientDrawable().apply { setColor(ROW_BROWN); cornerRadius = dp(5).toFloat() }
-            addView(label(mark, 13f, bold = true).apply { setTextColor(color); minWidth = dp(20) })
-            addView(label(q.name, 13f).apply { if (status == Status.DONE) setTextColor(FADED) },
-                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            if (note.isNotEmpty()) addView(label(note, 10f).apply { setTextColor(if (status == Status.MISSING) RED else FADED) })
-            setOnClickListener { openQuestPage(q.name) }
-        }
+    private fun questRow(q: QuestBook.QuestInfo): View = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(8), dp(7), dp(8), dp(7))
+        background = GradientDrawable().apply { setColor(ROW_BROWN); cornerRadius = dp(5).toFloat() }
+        addView(label("•", 13f, bold = true).apply { minWidth = dp(20) })
+        addView(label(q.name, 13f), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        if (q.miniquest) addView(label("Miniquest", 10f).apply { setTextColor(FADED) })
+        setOnClickListener { openQuestPage(q.name) }
     }
 
     // ---------------- A quest without a guide: what you need ----------------
 
     private fun questInfoScreen(name: String): View = page {
         val info = QuestBook.quest(name)
-        val data = sync.cached
         // miniquests don't have quick guides, so open their main page
         addView(titleRow(name, "Wiki guide") {
             openWiki(QuestBook.wikiUrl(if (info?.miniquest == true) name else "$name/Quick_guide"))
@@ -462,12 +390,10 @@ class QuestHelperTool(
         if (info == null) return@page
         helpButton(name)?.let { addView(it, full(6)) }
         addView(questFacts(info), full(2))
-        addView(syncBadge(), full(6))
-        addView(summary(name, info.requirements), full(6))
         addView(card(ROW_BROWN) {
             addView(label("Requirements", 12f, bold = true))
             if (info.requirements.isEmpty()) addView(label("None", 12f), full(2))
-            reqRows(this, info.requirements, data, 0, name)
+            reqRows(this, info.requirements, 0, name)
             if (info.requirements.any { it is Req.QuestDone }) {
                 addView(label("Tap a quest with ▸ to see what it needs.", 10f).apply { setTextColor(FADED) }, full(6))
             }
@@ -684,8 +610,6 @@ class QuestHelperTool(
         column.addView(titleRow(q.name, "Wiki guide") { openWiki(q.wikiPage) })
         helpButton(q.name)?.let { column.addView(it, full(6)) }
         QuestBook.quest(q.name)?.let { column.addView(questFacts(it), full(2)) }
-        column.addView(syncBadge(), full(6))
-        column.addView(summary(q.name, requirements), full(6))
 
         // Before you start
         column.addView(smallButton(if (showDetails) "Hide requirements ▴" else "Requirements & rewards ▾") {
@@ -816,7 +740,7 @@ class QuestHelperTool(
             lines.forEach { addView(label("• $it", 12f), full(1)) }
         }
         addView(label("Requirements", 12f, bold = true), full(2))
-        reqRows(this, requirements, sync.cached, 0, q.name)
+        reqRows(this, requirements, 0, q.name)
         group("Items", q.items)
         group("Recommended", q.recommended)
         group("Enemies", q.enemies)
@@ -828,10 +752,6 @@ class QuestHelperTool(
     private val tierShort = mapOf("Easy" to "E", "Medium" to "M", "Hard" to "H", "Elite" to "El")
 
     private fun diaryList(column: LinearLayout) {
-        val data = sync.cached
-        if (data == null) {
-            column.addView(label("Enable WikiSync to see which tasks you've done.", 12f, bold = true), full(8))
-        }
         for (diary in QuestBook.diaries) {
             column.addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
@@ -840,32 +760,15 @@ class QuestHelperTool(
                 addView(label(diary.region, 13f, bold = true))
                 addView(LinearLayout(context).apply {
                     orientation = LinearLayout.HORIZONTAL
+                    // each tier and how many tasks it has
                     for (tier in diary.tiers) {
-                        val done = data?.diaryTasks(diary.region, tier.tier)
-                        val count = done?.count { it } ?: 0
-                        val total = tier.tasks.size
-                        val text = when {
-                            done == null -> "${tierShort[tier.tier]} $total"
-                            count >= total -> "${tierShort[tier.tier]} ✓"
-                            else -> "${tierShort[tier.tier]} $count/$total"
-                        }
-                        addView(label(text, 11f, bold = done != null && count >= total).apply {
-                            setTextColor(when {
-                                done == null -> FADED
-                                count >= total -> GO_GREEN
-                                count > 0 -> ORANGE
-                                else -> DARK_BROWN
-                            })
-                        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                        addView(label("${tierShort[tier.tier]} ${tier.tasks.size}", 11f).apply { setTextColor(FADED) },
+                            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                     }
                 }, full(2))
                 setOnClickListener {
                     openDiary = diary.region; openQuest = null; expanded.clear(); showDetails = false
-                    // open at the first tier you haven't finished
-                    openTier = diary.tiers.indexOfFirst { t ->
-                        val done = data?.diaryTasks(diary.region, t.tier)
-                        done == null || done.count { it } < t.tasks.size
-                    }.coerceAtLeast(0)
+                    openTier = 0
                     show(keepScroll = false)
                 }
             }, full(4))
@@ -875,17 +778,13 @@ class QuestHelperTool(
 
     private fun diaryScreen(region: String): View = page {
         val diary = QuestBook.diaries.firstOrNull { it.region == region } ?: return@page
-        val data = sync.cached
         addView(titleRow("$region Diary", "Wiki page") { openWiki(QuestBook.wikiUrl("${region}_Diary")) })
-        addView(syncBadge(), full(6))
 
         // Tier buttons
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             diary.tiers.forEachIndexed { i, tier ->
-                val done = data?.diaryTasks(region, tier.tier)
-                val finished = done != null && done.count { it } >= tier.tasks.size
-                addView(tabButton(tier.tier + if (finished) " ✓" else "", i == openTier) {
+                addView(tabButton(tier.tier, i == openTier) {
                     openTier = i; expanded.clear(); showDetails = false; show(keepScroll = false)
                 }.apply { textSize = 11f },
                     LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
@@ -895,15 +794,7 @@ class QuestHelperTool(
         }, full(8))
 
         val tier = diary.tiers[openTier.coerceIn(0, diary.tiers.size - 1)]
-        val done = data?.diaryTasks(region, tier.tier)
-        val count = done?.count { it } ?: 0
-        addView(label(when {
-            done == null -> "${tier.tasks.size} tasks"
-            count >= tier.tasks.size -> "${tier.tier} diary complete ✓"
-            else -> "$count of ${tier.tasks.size} tasks done"
-        }, 13f, bold = true).apply {
-            setTextColor(if (done != null && count >= tier.tasks.size) GO_GREEN else DARK_BROWN)
-        }, full(8))
+        addView(label("${tier.tasks.size} tasks", 13f, bold = true), full(8))
 
         // Everything the tier needs, and its rewards
         addView(smallButton(if (showDetails) "Hide requirements ▴" else "All requirements & rewards ▾") {
@@ -914,7 +805,7 @@ class QuestHelperTool(
             addView(card(ROW_BROWN) {
                 addView(label("To do every ${tier.tier} task you need", 12f, bold = true))
                 if (tier.requirements.isEmpty()) addView(label("Nothing special", 12f), full(2))
-                reqRows(this, tier.requirements, data, 0, "$region/${tier.tier}")
+                reqRows(this, tier.requirements, 0, "$region/${tier.tier}")
                 if (tier.rewards.isNotEmpty()) {
                     addView(label("Rewards", 12f, bold = true), full(10))
                     tier.rewards.forEach { addView(label("• $it", 12f), full(1)) }
@@ -922,35 +813,21 @@ class QuestHelperTool(
             }, full(4))
         }
 
-        if (done != null) {
-            addView(smallButton(if (hideDoneTasks) "☑ Hide finished tasks" else "☐ Hide finished tasks") {
-                hideDoneTasks = !hideDoneTasks
-                show()
-            }, full(6))
-        }
-
         tier.tasks.forEachIndexed { i, task ->
-            val isDone = done?.getOrNull(i) == true
-            if (isDone && hideDoneTasks) return@forEachIndexed
-            addView(card(if (isDone) ROW_BROWN else CURRENT) {
+            addView(card(CURRENT) {
                 addView(LinearLayout(context).apply {
                     orientation = LinearLayout.HORIZONTAL
-                    addView(label(if (isDone) "✓" else "${i + 1}.", 13f, bold = true).apply {
-                        setTextColor(if (isDone) GO_GREEN else DARK_BROWN)
-                        minWidth = dp(24)
-                    })
-                    addView(label(task.name, 13f, bold = true).apply { if (isDone) setTextColor(FADED) },
+                    addView(label("${i + 1}.", 13f, bold = true).apply { minWidth = dp(24) })
+                    addView(label(task.name, 13f, bold = true),
                         LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                 })
-                if (!isDone) {
-                    task.steps.forEach { addView(label(it, 12f), full(3)) }
-                    if (task.requirements.isNotEmpty()) {
-                        addView(label("Needs:", 11f, bold = true), full(6))
-                        reqRows(this, task.requirements, data, 0, "$region/${tier.tier}/$i")
-                    }
-                    if (task.items.isNotEmpty()) {
-                        addView(label("Bring: " + task.items.joinToString(", "), 11f), full(6))
-                    }
+                task.steps.forEach { addView(label(it, 12f), full(3)) }
+                if (task.requirements.isNotEmpty()) {
+                    addView(label("Needs:", 11f, bold = true), full(6))
+                    reqRows(this, task.requirements, 0, "$region/${tier.tier}/$i")
+                }
+                if (task.items.isNotEmpty()) {
+                    addView(label("Bring: " + task.items.joinToString(", "), 11f), full(6))
                 }
             }, full(5))
         }
@@ -958,61 +835,29 @@ class QuestHelperTool(
 
     // ---------------- Requirements, with the quests they need in turn ----------------
 
-    // Adds a ✓/✗ row for each requirement. Quests you haven't finished show ▸: tap to see
-    // their own requirements underneath, and so on down the chain.
-    private fun reqRows(parent: LinearLayout, reqs: List<Req>, data: WikiSync.Data?, depth: Int, path: String) {
+    // Adds a row for each requirement. Quests with requirements of their own show ▸: tap to see
+    // them underneath, and so on down the chain.
+    private fun reqRows(parent: LinearLayout, reqs: List<Req>, depth: Int, path: String) {
         for (req in reqs) {
-            val c = QuestBook.check(req, data)
-            val (mark, color) = when (c.met) {
-                Met.YES -> "✓" to GO_GREEN
-                Met.NO -> "✗" to RED
-                Met.PARTLY -> "✗" to ORANGE
-                Met.UNKNOWN -> "•" to DARK_BROWN
-            }
             val key = "$path>${(req as? Req.QuestDone)?.quest}"
             val sub = (req as? Req.QuestDone)?.let { QuestBook.quest(it.quest) }?.requirements.orEmpty()
-            val canOpen = req is Req.QuestDone && c.met != Met.YES && sub.isNotEmpty() && depth < MAX_DEPTH &&
+            val canOpen = req is Req.QuestDone && sub.isNotEmpty() && depth < MAX_DEPTH &&
                 !path.split(">").contains(req.quest)
             val isOpen = canOpen && key in expanded
             parent.addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 setPadding(dp(12) * depth, dp(1), 0, dp(1))
                 addView(label(if (canOpen) (if (isOpen) "▾" else "▸") else "", 12f, bold = true).apply { minWidth = dp(12) })
-                addView(label("$mark ${c.text}", 12f, bold = c.met == Met.NO).apply { setTextColor(color) },
+                addView(label("• ${QuestBook.describe(req)}", 12f),
                     LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                 if (canOpen) setOnClickListener {
                     if (isOpen) expanded.remove(key) else expanded.add(key)
                     show()
                 }
             }, full(1))
-            if (isOpen) reqRows(parent, sub, data, depth + 1, "$path>${(req as Req.QuestDone).quest}")
+            if (isOpen) reqRows(parent, sub, depth + 1, "$path>${(req as Req.QuestDone).quest}")
         }
     }
-
-    // A one-line verdict: can you do this quest?
-    private fun summary(name: String, requirements: List<Req>): View {
-        val data = sync.cached
-        val state = data?.questState(name)
-        val (text, color) = when {
-            data == null -> (if (sync.username.isEmpty()) "Enable WikiSync to check your requirements."
-                             else "No WikiSync data yet.") to DARK_BROWN
-            state == WikiSync.FINISHED -> "You've already finished this quest ✓" to GO_GREEN
-            // a quest WikiSync doesn't list yet (a new one): you may have done it already
-            state == null -> "WikiSync doesn't know this quest yet, so it can't tell if you've done it." to DARK_BROWN
-            else -> {
-                val missing = QuestBook.missing(requirements, data).map { QuestBook.check(it, data).text.substringBefore(" (") }
-                if (missing.isEmpty()) "You meet every requirement ✓" +
-                    (if (state == WikiSync.IN_PROGRESS) " (quest started)" else "") to GO_GREEN
-                else "Missing ${missing.size}: ${missing.joinToString(", ")}" to RED
-            }
-        }
-        return label(text, 13f, bold = true).apply { setTextColor(color) }
-    }
-
-    // ---------------- Your account (WikiSync) ----------------
-
-    // The little ✓/✗ WikiSync tag; tapping it opens the WikiSync tool
-    private fun syncBadge(): View = WikiSyncBadge.row(context, sync) { openWikiSync() }
 
     // ---------------- Small building blocks ----------------
 

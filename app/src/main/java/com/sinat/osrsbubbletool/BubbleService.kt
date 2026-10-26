@@ -226,7 +226,9 @@ class BubbleService : Service() {
     // apart from the tools, at the bottom.
     // inMenu = false: not one of the tools (left out of the tool list in the menu and in Settings → Tools in the menu)
     enum class Tool(val label: String, val inMenu: Boolean = true) {
-        WIKISYNC("WikiSync"),
+        // (WikiSync was removed: the OSRS Wiki doesn't allow it in other apps. Its menu line stays for one
+        // version with a note saying so; take it out, and wikiSyncNotice below, in the next update.)
+        WIKISYNC("WikiSync (Disabled)"),
         WIKI("OSRS Wiki"),
         PUZZLE_BOX("Puzzle Box Solver"),
         LIGHT_BOX("Light Box Solver"),
@@ -251,7 +253,6 @@ class BubbleService : Service() {
     private lateinit var bubble: ImageView
     private lateinit var bubbleParams: WindowManager.LayoutParams
     private lateinit var capture: CaptureManager   // screen capture shared by all tools
-    private var syncReturnTo: Tool? = null   // the tool that opened WikiSync, for the back button
 
     // What the bubble needs from one tool: what goes in its window, and what to do when things happen.
     // (Tools that don't care about something leave it out.)
@@ -613,16 +614,9 @@ class BubbleService : Service() {
 
     private fun openTool(tool: Tool) {
         if (tool != Tool.WIKI) wikiReturnTo = null   // went somewhere else: forget the way back
-        if (tool != Tool.WIKISYNC) syncReturnTo = null
         hideToolWindow()
         currentTool = tool
         showToolWindow()
-    }
-
-    // A tool's WikiSync tag was tapped: open WikiSync, with ◀ going back to that tool
-    private fun openWikiSync(from: Tool) {
-        openTool(Tool.WIKISYNC)
-        syncReturnTo = from
     }
 
     private fun toggleToolWindow() {
@@ -1018,23 +1012,36 @@ class BubbleService : Service() {
         Tool.FARMING -> FarmingTool(toolContext).let { t ->
             ToolParts(t::buildView, onBack = null, onClosed = t::onWindowClosed, onDestroy = t::destroy)
         }
-        Tool.WIKISYNC -> ToolParts(WikiSyncTool(toolContext)::buildView, onBack = { syncReturnTo?.let { openTool(it) } })
         Tool.QUESTS -> QuestHelperTool(toolContext, openWiki = { url -> openWikiLink(url, returnTo = Tool.QUESTS) },
-            hideWindow = { hideToolWindow() }, openWikiSync = { openWikiSync(Tool.QUESTS) }).let { t ->
+            hideWindow = { hideToolWindow() }).let { t ->
             ToolParts(t::buildView, t::goBack)
         }
+        Tool.WIKISYNC -> ToolParts(::wikiSyncNotice, onBack = null)
         Tool.CALCULATOR -> ToolParts(CalculatorTool(toolContext)::buildView, onBack = null)
         Tool.NOTES -> NotesTool(toolContext).let { t -> ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed) }
         Tool.GAMES -> GameRoomTool(toolContext, ::setGamesFrameless, ::pinGamesCorners).let { t ->
             ToolParts(t::buildView, t::goBack, onDestroy = t::destroy)
         }
-        Tool.HUNTER -> HunterRumourTool(toolContext, openWikiSync = { openWikiSync(Tool.HUNTER) }).let { t ->
+        Tool.HUNTER -> HunterRumourTool(toolContext).let { t ->
             ToolParts(t::buildView, t::goBack)
         }
-        Tool.TELEPORTS -> TeleportFinderTool(toolContext, openWikiSync = { openWikiSync(Tool.TELEPORTS) }).let { t ->
+        Tool.TELEPORTS -> TeleportFinderTool(toolContext).let { t ->
             ToolParts(t::buildView, t::goBack, onDestroy = t::destroy)
         }
         Tool.SETTINGS -> ToolParts(SettingsTool(toolContext)::buildView, onBack = null)
+    }
+
+    // The WikiSync window: just a note that it was removed (for one version only)
+    private fun wikiSyncNotice(): View = ScrollView(toolContext).apply {
+        setBackgroundColor(Palette.PARCHMENT)
+        addView(TextView(toolContext).apply {
+            text = "Due to WikiSync's policy on third-party use, WikiSync features have been removed from the app. " +
+                "This window will be deleted in the next update."
+            textSize = 14f
+            setTextColor(Palette.DARK_BROWN)
+            gravity = Gravity.CENTER
+            setPadding(dp(16), dp(24), dp(16), dp(24))
+        })
     }
 
     // A tool that's just a web page, with ◀ going back a page
@@ -1514,7 +1521,6 @@ class BubbleService : Service() {
         wikiWeb = null
         pendingWikiUrl = wikiPage
         wikiReturnTo = null
-        syncReturnTo = null
         gamesFrameless = false
         reopen?.let { openTool(it) }
     }
