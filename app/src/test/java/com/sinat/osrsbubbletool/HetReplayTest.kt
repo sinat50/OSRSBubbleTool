@@ -15,7 +15,8 @@ import javax.imageio.ImageIO
 // starting as the walls rise, room 3 (2); watch_20261025c_cycle.mp4 from 7 s, a whole round: room 2, the walls down
 // while mining (cleared about 76 s in), then a new layout, room 1 (0). From 26 October 2026 Watch's window sits bottom
 // left (set HET_REPLAY_BOTTOM=1): watch_20261026_cycle.mp4 from 10 s, room 3, mined about 183 s in, then room 2 (1);
-// watch_20261026b.mp4 from 8 s, room 3, mined about 62 s in, then room 2 (1).
+// watch_20261026b.mp4 from 8 s, room 3, mined about 62 s in, then room 2 (1); watch_20261026c.mp4 from 15 s, room 2
+// (zoomed in close while solving), mined about 90 s in, then room 1 (0).
 class HetReplayTest {
     private class Shot(file: File, private val barShows: Boolean, private val map: Boolean = true) : LightBoxReader.PixelSource {
         private val image = ImageIO.read(file)

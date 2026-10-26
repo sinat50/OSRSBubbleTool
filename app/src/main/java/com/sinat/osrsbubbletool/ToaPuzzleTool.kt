@@ -782,8 +782,9 @@ class ToaPuzzleTool(
             "The map at the bottom of the screen shows where to put each mirror (gold), its shiny side facing as drawn " +
             "(the beam comes in and goes out on that side), and the cracked walls to mine (orange border). A grey " +
             "mirror is a fixed one already standing there. ◀ ▶ change the way, Done brings this window back.\n\n" +
-            "Keep it on while you mine the obelisk: when the walls fall it clears the map, and if the seal isn't " +
-            "broken it reads the new layout as soon as its walls rise. It stops after 5 minutes, or tap Stop.")
+            "Keep it on while you mine the obelisk: it watches Het's seal's health bar (top left), clears the map as " +
+            "soon as the seal starts losing health, and if it isn't broken reads the new layout as soon as its walls " +
+            "rise. It stops once the seal is broken, after 5 minutes, or when you tap Stop.")
         hetNote?.let { addView(label(it, 11f).apply { setTextColor(WARN) }, full(4)) }
     }
 

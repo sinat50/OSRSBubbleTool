@@ -184,6 +184,10 @@ trailer and the ToA demo video; how to update them is in `trailer/README.md`), `
   sideways; stop it with `kill -INT` on the `screenrecord` process (`pkill` hits the wrong one) so the file is
   finished properly, then copy it off and delete it from the phone. In Git Bash, set `MSYS_NO_PATHCONV=1` or phone
   paths get mangled.
+- Speed: the debug build (▶) is debuggable, and the screen readers run 7-8 times slower in it than in a release
+  (measured on the owner's phone, October 2026). To judge or tune a reader's speed, install a build with
+  `debug { isDebuggable = false }` added to `buildTypes` for a moment (debug key, so it installs over), then put the
+  file back.
 - Battery: read the app's processor time from `/proc/<pid>/stat` (fields 14+15, in 1/100 s) at the start and end
   of a minute with the feature on and off, plus `dumpsys meminfo com.sinat.osrsbubbletool`.
 - Emulator: "Phone Emulator" (`emulator -avd Phone_Emulator`, Android 16, 2340×1080 like the owner's phone;
