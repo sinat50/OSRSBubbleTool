@@ -441,7 +441,8 @@ class MainActivity : Activity() {
             "\u2022 Gear Loadouts: every item's name, ID, equipment slot and picture, from the wiki's item pages\n" +
             "\u2022 Quest Helper: solved puzzle pictures and some puzzle answers from the wiki's quick guides\n" +
             "\u2022 Hunter Rumours: rumour lists, locations, travel and equipment from the Hunters' Rumours pages\n" +
-            "\u2022 Teleport Finder: search suggestions, where NPCs, monsters and places are on the map, monster levels, and descriptions of some teleport destinations\n\n" +
+            "\u2022 Teleport Finder: search suggestions, where NPCs, monsters and places are on the map, monster levels, and descriptions of some teleport destinations\n" +
+            "\u2022 ToA Puzzle Helper: the outline of the Path of Het room, traced from the wiki's map\n\n" +
             "Your quests and levels are read from WikiSync, a service of the OSRS Wiki.")
 
         section("OSRS Wiki DPS calculator",
@@ -486,7 +487,7 @@ class MainActivity : Activity() {
             size = 11f)
 
         section("ToA Puzzle Helper",
-            "Path of Scabaras puzzle rules and the addition puzzle's answers adapted from the Tombs of Amascut RuneLite plugin " +
+            "Path of Scabaras puzzle rules, the addition puzzle's answers and the Path of Het's mirror answers adapted from the Tombs of Amascut RuneLite plugin " +
             "(github.com/LlemonDuck/tombs-of-amascut).\n\n" +
             "Copyright (c) 2022, LlemonDuck\nAll rights reserved.\n\n" +
             BSD_TERMS,

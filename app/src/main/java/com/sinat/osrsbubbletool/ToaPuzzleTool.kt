@@ -15,6 +15,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.util.Log
 import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
@@ -27,6 +28,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.edit
 import androidx.core.graphics.toColorInt
+import androidx.core.graphics.withClip
 import androidx.core.graphics.withRotation
 import androidx.core.graphics.withTranslation
 import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
@@ -42,7 +44,8 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
-// ToA Puzzle Helper: the five Path of Scabaras puzzles in the Tombs of Amascut. You tap in what you see
+// ToA Puzzle Helper: the five Path of Scabaras puzzles in the Tombs of Amascut, and the Path of Het's mirror
+// puzzle (Watch reads the room and its mirrors, and a map shows the way through). For the others, you tap in what you see
 // on a small map of the room, and the answer is marked on the same map. What you've entered is kept while
 // the bubble is running, so you can close the window between puzzles. "Read the screen" fills a map in by
 // itself from one picture of the screen (ToaReader); you can still tap to correct it.
@@ -58,11 +61,16 @@ class ToaPuzzleTool(
         private const val MAP_CELL_DP = 26        // a square of the boards drawn at the bottom while watching
         private const val ICON_W_DP = 64          // the little board pictures on the list of puzzles
         private const val ICON_H_DP = 44
+        private const val HET_MAP_DP = 147        // the Path of Het map drawn at the bottom of the screen (7 dp a square)
         private const val MATCH_INTERVAL_MS = 333L        // how often Watch looks at the matching boards (3 times a second)
         private const val MATCH_QUICK_MS = 40L            // …or this soon after a look that saw a symbol not settled yet
         private const val MATCH_QUICK_LOOKS = 3           // at most this many quick looks in a row (a symbol you stand on
                                                           // that can't be made out mustn't keep it looking flat out)
         private const val MATCH_WATCH_MAX_MS = 300_000L   // Watch stops by itself after 5 minutes
+        private const val HET_INTERVAL_MS = 1000L         // how often the Path of Het's Watch looks (once a second)
+        private const val HET_SETTLED_MS = 2000L          // ...every 2 seconds once the whole way has been seen
+        private const val HET_WATCH_MAX_MS = 300_000L     // ...and stops by itself after 5 minutes
+        private const val HET_BAR_WAIT_MS = 10_000L       // how long it waits for Het's seal's bar before showing a room
         private const val CAPTURE_DELAY_MS = 500L  // wait after hiding the bubble before the screenshot
         private const val WATCH_INTERVAL_MS = 80L         // how often the sequence tiles are checked
         private const val WATCH_FIRST_FLASH_MS = 20_000L  // how long to wait for you to press the button
@@ -82,6 +90,18 @@ class ToaPuzzleTool(
         private val GLOW_CORE = "#FFFCEE".toColorInt()     // a lit plate's bright middle
         private val MISS_GREY = "#B0A8B0".toColorInt()
         private val INK = "#3E2C12".toColorInt()          // writing on a lit tile (the same in dark mode)
+        // The Path of Het map: the sandy floor, the grey statues, Het's pale seal, the white beam and gold mirrors
+        private val HET_FLOOR = "#C2B28C".toColorInt()
+        private val HET_LINES = "#AD9D78".toColorInt()     // the squares on the floor
+        private val HET_STONE = "#5E6372".toColorInt()
+        private val HET_SEAL = "#DCD6E8".toColorInt()
+        private val HET_GLOW = "#B0FFF1B8".toColorInt()    // the beam's glow (see-through)
+        private val HET_SHINE = "#FFF8E0".toColorInt()     // a mirror's shiny side
+        private val HET_WALL = "#8A8F9C".toColorInt()      // a smooth stone wall (light)
+        private val HET_CRACKED = "#3C414E".toColorInt()   // a cracked wall, which can be mined (dark)
+        private val HET_FIXED = "#7A7F8E".toColorInt()     // a fixed mirror (grey, with a dark border)
+        private val HET_RIM = "#9C96AC".toColorInt()       // the room's outer wall (pale lavender stone)
+        private val HET_MINE = "#E8702A".toColorInt()      // the border on a cracked wall to mine
     }
 
     private enum class Page(val title: String, val about: String) {
@@ -90,7 +110,8 @@ class ToaPuzzleTool(
         ADDITION("Addition puzzle", "Symbols on the floor that add up to the tablet's number"),
         SEQUENCE("Sequence puzzle", "Tiles light up in turn: step on them in the same order"),
         OBELISK("Obelisk puzzle", "Hit the obelisks in the right order"),
-        MATCHING("Matching puzzle", "Two boards of symbols: step on matching pairs")
+        MATCHING("Matching puzzle", "Two boards of symbols: step on matching pairs"),
+        HET("Path of Het: mirrors", "Mirrors turn the beam onto the statue")
     }
 
     private val prefs = context.getSharedPreferences("toa_puzzles", Context.MODE_PRIVATE)
@@ -126,6 +147,17 @@ class ToaPuzzleTool(
     private var sequenceManual = false
     private var matchWatching = false                 // Watch is on
     private var matchNote: String? = null             // what Watch last said
+    private var hetAnswer = -1                        // the Path of Het way picked (0-8), -1 = none yet
+    private var hetRoom = -1                          // the room picked (ToaPuzzles.HET_ROOMS), -1 = none
+    private var hetCracked: BooleanArray? = null      // which of its walls are cracked this raid, as read (null: as usual)
+    private var hetSeen: List<Int> = emptyList()       // fixed mirrors read on screen this raid (squares, x * 21 + y)
+    private var hetUnseen: List<Int> = emptyList()     // open squares no read could see yet (behind a statue or wall)
+    private var hetFacing: Map<Int, ToaPuzzles.Facing> = emptyMap()   // which way the seen ones face, where it was read
+    private var hetWatching = false                    // the Path of Het's Watch is on
+    private val hetMemory = HetReader.Memory()         // what its looks have made out so far
+    private var hetWatchStarted = 0L
+    private var hetTracking = false                    // Watch's last look saw the room (else lost, or the walls down)
+    private var hetNote: String? = null               // what the last screen reading found
 
     // Which way the obelisk map is turned, in quarter turns clockwise (0 = the walls at the top and bottom)
     private var obeliskTurns: Int
@@ -138,6 +170,12 @@ class ToaPuzzleTool(
         get() = prefs.getInt("addition_turns", 1)
         set(v) { prefs.edit { putInt("addition_turns", v) } }
 
+    // Which way the Path of Het maps face, the same way: 0 north at the top, 1 east, 2 south, 3 west (as you walk
+    // in: the room is entered from the east, so the caster is at the far end)
+    private var hetTop: Int
+        get() = prefs.getInt("het_top", 3)
+        set(v) { prefs.edit { putInt("het_top", v) } }
+
     private val handler = Handler(Looper.getMainLooper())
     private var destroyed = false
     private var reading = 0   // counts screen readings, so an old one that finishes late is ignored
@@ -147,6 +185,7 @@ class ToaPuzzleTool(
     // The bubble is closing
     fun destroy() {
         matchWatching = false
+        hetWatching = false
         onScreen = false
         hideMapOverlay()
         destroyed = true
@@ -166,12 +205,13 @@ class ToaPuzzleTool(
 
     // The window's ◀ button: from a puzzle back to the list
     fun goBack() {
-        if (page != Page.MENU) { stopMatchWatch(null); cancelReading(); leaveOnScreen(); page = Page.MENU; helpOpen = false; show(keepScroll = false) }
+        if (page != Page.MENU) { stopMatchWatch(null); stopHetWatch(null); cancelReading(); leaveOnScreen(); page = Page.MENU; helpOpen = false; show(keepScroll = false) }
     }
 
     // The window was closed: stop watching and reading (nothing can be seen to update) and take the map off the screen
     fun onWindowClosed() {
         stopMatchWatch(null)
+        stopHetWatch(null)
         cancelReading()
         // (and the full page back, since the window opens at its full size again; the small row's Done would do nothing)
         if (onScreen) { onScreen = false; hideMapOverlay(); show() }
@@ -181,7 +221,11 @@ class ToaPuzzleTool(
     fun onRotated() {
         if (watchingSequence) endWatch("Screen rotated. Tap Watch to start again.") else cancelReading()
         stopMatchWatch("Screen rotated. Tap Watch to start again.")
+        stopHetWatch("Screen rotated. Tap Watch to start again.")
     }
+
+    // Watching a puzzle (with the window shrunk to a corner): a dark-mode switch waits until it's done
+    fun isWatching() = matchWatching || hetWatching
 
     // Stops a screen reading or sequence watch in progress (its result is ignored when it comes in), including one
     // still waiting for screen-capture permission
@@ -191,6 +235,7 @@ class ToaPuzzleTool(
         // notes that said it was busy ("Reading the screen...") would otherwise stay up for good
         fun idle(note: String?) = note?.takeUnless { it.endsWith("...") }
         lightNote = idle(lightNote); additionNote = idle(additionNote); sequenceNote = idle(sequenceNote); matchNote = idle(matchNote)
+        hetNote = idle(hetNote)
     }
 
     // Hides the bubble, this window and the map at the bottom while a picture is taken, so none of them is
@@ -211,6 +256,7 @@ class ToaPuzzleTool(
 
     // Done: the full window back, the map off the screen
     private fun leaveOnScreen() {
+        stopHetWatch(null)
         if (!onScreen) return
         onScreen = false
         hideMapOverlay()
@@ -232,6 +278,7 @@ class ToaPuzzleTool(
                 Page.SEQUENCE -> if (onScreen) sequenceSmall() else sequence()
                 Page.OBELISK -> obelisk()
                 Page.MATCHING -> matching()
+                Page.HET -> if (onScreen) hetSmall() else het()
             }
         }
         scroll = s
@@ -245,10 +292,11 @@ class ToaPuzzleTool(
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(label("Tombs of Amascut: Path of Scabaras", 15f, bold = true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(label("Tombs of Amascut puzzles", 15f, bold = true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(helpButton(), LinearLayout.LayoutParams(dp(HELP_SIZE_DP), dp(HELP_SIZE_DP)).apply { leftMargin = dp(4) })
         }, full())
-        help("Pick the puzzle you're in. The light, addition, sequence and matching puzzles can read the screen; " +
+        help("Pick the puzzle you're in: the first five are on the Path of Scabaras, the mirrors on the Path of Het. " +
+            "The light, addition, sequence and matching puzzles and the Path of Het can read the screen; " +
             "you can also tap in what you see, and the answer is marked on the map.\n\nFor the best results " +
             "reading the screen: camera facing east, looking straight down, with the zoom set to 25%.")
         Page.entries.drop(1).forEach { p ->
@@ -303,6 +351,8 @@ class ToaPuzzleTool(
                     else -> tile(canvas, r, TILE_HIDDEN)
                 }
             }
+            // the room with one way through it
+            Page.HET -> HetMap(ToaPuzzles.HET_ROOMS[0].way, 0, small = true, maxHeightDp = ICON_H_DP) { open(p) }
             Page.MENU -> View(context)
         }
     }
@@ -721,6 +771,362 @@ class ToaPuzzleTool(
     private val obeliskBox = RectF()
     private fun obeliskRect(r: RectF) = obeliskBox.apply { set(r.centerX() - r.width() * 0.22f, r.top, r.centerX() + r.width() * 0.22f, r.bottom) }
 
+    // ---------------- Path of Het: mirrors ----------------
+
+    private fun LinearLayout.het() {
+        tip("stand in the doorway looking down at the room, zoomed out so most of it shows, then tap Watch.")
+        addView(bar(button("Watch", GO_GREEN) { watchHet() } to 1f), full(4))
+        help("Watch looks at the screen once a second as you walk through the room: it finds which of the three " +
+            "rooms you're in, this raid's cracked walls and the fixed mirrors standing about, and fills in what the " +
+            "statues and walls hide as they come into view.\n\n" +
+            "The map at the bottom of the screen shows where to put each mirror (gold), its shiny side facing as drawn " +
+            "(the beam comes in and goes out on that side), and the cracked walls to mine (orange border). A grey " +
+            "mirror is a fixed one already standing there. ◀ ▶ change the way, Done brings this window back.\n\n" +
+            "Keep it on while you mine the obelisk: when the walls fall it clears the map, and if the seal isn't " +
+            "broken it reads the new layout as soon as its walls rise. It stops after 5 minutes, or tap Stop.")
+        hetNote?.let { addView(label(it, 11f).apply { setTextColor(WARN) }, full(4)) }
+    }
+
+    // The window while the map is at the bottom of the screen: ◀ ▶ try the other ways
+    private fun LinearLayout.hetSmall() {
+        fun step(by: Int) { hetAnswer = (hetAnswer + by + ToaPuzzles.HET_ANSWERS.size) % ToaPuzzles.HET_ANSWERS.size; show(); refreshMapOverlay() }
+        addView(smallRow(if (hetWatching) smallButton("Stop", WARN) { stopHetWatch("Stopped watching.") }
+            else smallButton("Watch", GO_GREEN) { watchHet() }, smallButton("◀") { step(-1) },
+            label(if (hetAnswer < 0) "–" else "${hetAnswer + 1}/${ToaPuzzles.HET_ANSWERS.size}", 14f, bold = true).apply { gravity = Gravity.CENTER; setPadding(dp(4), 0, dp(4), 0) },
+            smallButton("▶") { step(1) },
+            smallButton("Done", WARN) { leaveOnScreen() }))
+        hetNote?.takeIf { it.startsWith("Couldn't") || it.startsWith("Watch") }?.let { addView(label(it, 9f).apply { setTextColor(WARN) }, full(2)) }
+    }
+
+    // Watch: a look about once a second as you walk through the room. The first finds the room; the next ones follow
+    // the camera from the last look (HetReader.watchLook, several times quicker than a full read), and each
+    // adds what it can see to hetMemory: squares behind the caster and the walls fill in as you walk, and a fixed
+    // mirror only counts once two looks agree. The map at the bottom updates as it goes. It keeps watching through
+    // the round (HetReader.watchLook): when the walls go down it clears the map, and reads the next layout when it
+    // rises. Stops after 5 minutes, or if you leave the game.
+    private fun watchHet() {
+        if (!capture.isActive) {
+            hetNote = "Waiting for screen-capture permission..."
+            show()
+            val asked = reading
+            capture.request { ok ->
+                if (destroyed || asked != reading) return@request   // closed or cancelled while asking
+                if (ok) watchHet() else { hetNote = "Couldn't turn on screen capture: ${capture.lastError}."; show() }
+            }
+            return
+        }
+        capture.matchScreenSize()
+        hetWatching = true
+        watchRun++
+        hetMemory.reset()
+        hetTracking = false
+        clearHetLayout()   // (not the last Watch's answer: this may be another layout)
+        hetWatchStarted = SystemClock.uptimeMillis()
+        hetNote = "Watching: looking for the room..."
+        onScreen = true
+        // bottom left: the top left corner is where the game shows Het's seal and its health while you mine it
+        setWindowCompact(BubbleService.COMPACT_BOTTOM_LEFT)
+        showMapOverlay()
+        show()
+        handler.postDelayed(hetTick, 300L)
+    }
+
+    private fun stopHetWatch(note: String?) {
+        if (!hetWatching) return
+        hetWatching = false
+        handler.removeCallbacks(hetTick)
+        endWatchWorker()
+        freeWatchMemory()
+        if (note != null) hetNote = note
+        if (!destroyed && ::holder.isInitialized) { show(); refreshMapOverlay() }
+    }
+
+    private val hetTick: Runnable = object : Runnable {
+        override fun run() {
+            if (!hetWatching || destroyed) return
+            if (capture.gameHidden) { stopHetWatch("You left the game, so watching stopped."); return }
+            if (SystemClock.uptimeMillis() - hetWatchStarted > HET_WATCH_MAX_MS) { stopHetWatch("Stopped watching after 5 minutes."); return }
+            // once the whole way has been seen and the room is in view, it only needs to notice the walls going down: a
+            // look every 2 seconds. Lost, or with the walls down, it looks every second to catch the next layout quickly.
+            val settled = hetTracking && hetMemory.looks >= 3 && hetAnswer >= 0 && hetHiddenOnWay().isEmpty()
+            handler.postDelayed(this, if (settled) HET_SETTLED_MS else HET_INTERVAL_MS)
+            if (watchBusy) return   // still working on the last look
+            val shot = capture.grab() ?: return
+            // what's under this window and the map is the app, not the game: blanked out before reading
+            val covered = ArrayList<IntArray>()
+            if (holder.isShown) {
+                val loc = IntArray(2)
+                holder.getLocationOnScreen(loc)
+                covered.add(intArrayOf(loc[0], loc[1], loc[0] + holder.width, loc[1] + holder.height))
+            }
+            mapBounds()?.let { covered.add(it) }
+            val room = hetMemory.room
+            val camera = hetMemory.camera
+            val locked = hetMemory.locked
+            val lost = hetMemory.lostLooks
+            val zoom = hetMemory.zoom
+            val seal = hetMemory.seal
+            val run = watchRun
+            watchBusy = true
+            watchWorker().execute {
+                val started = SystemClock.uptimeMillis()
+                val look = try {
+                    try { watchPixels.load(shot) } finally { shot.recycle() }
+                    for (c in covered) watchPixels.blank(c[0], c[1], c[2], c[3])
+                    HetReader.watchLook(watchPixels, room, camera, locked, lost, zoom, seal)
+                } catch (_: Exception) { null }
+                // test builds only: how long each look took (adb logcat -s PathOfHet)
+                if (debugBuild) Log.d("PathOfHet", "look ${SystemClock.uptimeMillis() - started} ms: room ${look?.reading?.room}, " +
+                    "walls down ${look?.wallsDown}, seal ${look?.seal}")
+                handler.post {
+                    watchBusy = false
+                    if (!hetWatching || destroyed) { freeWatchMemory(); return@post }
+                    if (run != watchRun || look == null) return@post
+                    val outcome = hetMemory.use(look)
+                    // the seal broken: the room is done
+                    if (hetMemory.broken) { stopHetWatch("Het's seal is broken: on to Akkha!"); return@post }
+                    hetTracking = outcome == HetReader.Memory.Outcome.SAME || outcome == HetReader.Memory.Outcome.CHANGED
+                    when (outcome) {
+                        HetReader.Memory.Outcome.CLEARED -> {
+                            // the round is over: forget this layout, and wait for the next one
+                            clearHetLayout()
+                            hetNote = "Watching: the room is clear. Waiting for the next layout..."
+                            show(); refreshMapOverlay()
+                        }
+                        HetReader.Memory.Outcome.WALLS_DOWN -> if (hetMemory.room < 0) {
+                            hetNote = "Watching: waiting for the walls to rise..."; show()
+                        }
+                        // (zoomed in close, or the camera turned fast: it keeps the answer and picks the room up again)
+                        HetReader.Memory.Outcome.LOST -> if (hetMemory.room < 0) {
+                            hetNote = "Watching: can't make out the room yet. Look down at it, zoomed out."; show()
+                        }
+                        // before Het's seal's bar shows, the walls haven't risen and the bare floor can fit a room by
+                        // chance: nothing is shown for the first HET_BAR_WAIT_MS (after that it's shown anyway, in
+                        // case this screen's bar can't be read)
+                        else -> if (hetMemory.seal < 0f && SystemClock.uptimeMillis() - hetWatchStarted < HET_BAR_WAIT_MS) {
+                            hetNote = "Watching: waiting for the walls to rise..."; show()
+                        } else {
+                            val first = hetMemory.room != hetRoom
+                            if (first || hetMemory.looks <= 1 || outcome == HetReader.Memory.Outcome.CHANGED) useHetMemory(first)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Takes the layout off the map and the page (a new Watch, or the walls down at the end of a round)
+    private fun clearHetLayout() {
+        hetRoom = -1; hetAnswer = -1; hetCracked = null
+        hetSeen = emptyList(); hetUnseen = emptyList(); hetFacing = emptyMap()
+    }
+
+    // Shows what Watch has made out: the room, this raid's cracked walls, the fixed mirrors settled so far, and the
+    // best way round them
+    private fun useHetMemory(first: Boolean) {
+        val r = hetMemory.room
+        val room = ToaPuzzles.HET_ROOMS[r]
+        hetRoom = r
+        val read = hetMemory.cracked
+        val cracked = BooleanArray(room.blocks.size) { i -> val c = read?.getOrNull(i) ?: -1; if (c < 0) room.usuallyCracked[i] else c == 1 }
+        hetCracked = if (cracked.contentEquals(room.usuallyCracked)) null else cracked
+        hetSeen = hetMemory.fixed
+        hetUnseen = hetMemory.unseen
+        hetFacing = hetMemory.facing.mapValues { ToaPuzzles.Facing.entries[it.value] }
+        val before = hetAnswer
+        hetAnswer = ToaPuzzles.hetBestWay(room.wallsWith(cracked), room.fixed, hetSeen, hetFacing).takeIf { it >= 0 } ?: room.way
+        hetNote = "Watching room ${r + 1}" +
+            (if (hetSeen.isNotEmpty()) ": ${hetSeen.size} fixed mirror${if (hetSeen.size == 1) "" else "s"} found" else "") +
+            (if (!first && before != hetAnswer) ". Way changed to go round one" else "")
+        show()
+        refreshMapOverlay()
+    }
+
+    // The squares on the way shown that no read could see yet (a fixed mirror could be standing there)
+    private fun hetHiddenOnWay() = if (hetAnswer < 0) emptyList() else ToaPuzzles.hetBeam(ToaPuzzles.HET_ANSWERS[hetAnswer]).filter { it in hetUnseen }
+
+    // The corners of the way shown where a fixed mirror already stands: the room's own (HetRoom.fixed), or one read
+    // on screen this raid facing the way the corner needs (or whose facing couldn't be read: then it has to face the
+    // way the map shows). One read facing another way isn't one of them: it's drawn as it stands, in the beam's way.
+    private fun hetFixedCorners(answer: Int = hetAnswer): List<Int> {
+        val room = ToaPuzzles.HET_ROOMS.getOrNull(hetRoom)
+        val own = room?.takeIf { it.way == answer }?.fixed ?: emptyList()
+        return ToaPuzzles.HET_ANSWERS.getOrElse(answer) { emptyList() }
+            .filter { m -> val s = m.x * ToaPuzzles.HET_SIZE + m.y; s in own || (s in hetSeen && (hetFacing[s] ?: m.facing) == m.facing) }
+            .map { it.x * ToaPuzzles.HET_SIZE + it.y }
+    }
+
+    // One mirror on the Path of Het map, centred on x, y: a gold square (a mirror to place) or a grey one with a dark
+    // border (a fixed mirror already there), its shiny half on the side it faces and the mirror itself the line across
+    private val hetShine = Path()
+    private val hetBox = RectF()
+    private fun drawHetMirror(canvas: Canvas, x: Float, y: Float, h: Float, facing: ToaPuzzles.Facing, fixed: Boolean) {
+        val l = x - h; val r = x + h; val t = y - h; val b = y + h
+        hetBox.set(l, t, r, b)
+        fill.color = if (fixed) HET_FIXED else YELLOW
+        canvas.drawRect(hetBox, fill)
+        hetShine.reset()
+        when (facing) {
+            ToaPuzzles.Facing.NORTH_EAST -> { hetShine.moveTo(l, t); hetShine.lineTo(r, t); hetShine.lineTo(r, b) }
+            ToaPuzzles.Facing.SOUTH_EAST -> { hetShine.moveTo(l, b); hetShine.lineTo(r, b); hetShine.lineTo(r, t) }
+            ToaPuzzles.Facing.SOUTH_WEST -> { hetShine.moveTo(l, t); hetShine.lineTo(l, b); hetShine.lineTo(r, b) }
+            ToaPuzzles.Facing.NORTH_WEST -> { hetShine.moveTo(l, b); hetShine.lineTo(l, t); hetShine.lineTo(r, t) }
+        }
+        hetShine.close()
+        fill.color = HET_SHINE
+        canvas.drawPath(hetShine, fill)
+        stroke.color = INK; stroke.strokeWidth = h * 0.24f
+        when (facing) {
+            ToaPuzzles.Facing.NORTH_EAST, ToaPuzzles.Facing.SOUTH_WEST -> canvas.drawLine(l, t, r, b, stroke)
+            else -> canvas.drawLine(l, b, r, t, stroke)
+        }
+        if (fixed) { stroke.strokeWidth = h * 0.2f; canvas.drawRect(hetBox, stroke) }
+    }
+
+    // The picked room's walls, with this raid's cracks if the room was read (null: no room picked)
+    private fun hetWalls(): IntArray? {
+        val room = ToaPuzzles.HET_ROOMS.getOrNull(hetRoom) ?: return null
+        return hetCracked?.let { room.wallsWith(it) } ?: room.walls
+    }
+
+    // The Path of Het room with one way through it: the three statues across the middle, the room's walls (if it's
+    // known: smooth ones light grey, cracked ones dark), the beam from the caster to the shielded statue, and a gold
+    // mirror at each corner, its shiny half on the side the beam comes in and goes out. Cracked walls the beam crosses
+    // get an orange border (mine them). `answer` -1 draws just the room. A small one (the puzzle list's picture)
+    // leaves out the floor's squares and draws mirrors as gold dots. Turned so `hetTop` is at the top.
+    @SuppressLint("ViewConstructor")
+    private inner class HetMap(
+        answer: Int,
+        room: Int,
+        private val small: Boolean,
+        private val maxHeightDp: Int,
+        onTap: (() -> Unit)? = null
+    ) : View(context) {
+        private val mirrors = ToaPuzzles.HET_ANSWERS.getOrElse(answer) { emptyList() }
+        // the corners where a fixed mirror already stands, in this room on its way (drawn grey)
+        private val fixed = if (room == hetRoom) hetFixedCorners(answer) else ToaPuzzles.HET_ROOMS.getOrNull(room)?.takeIf { it.way == answer }?.fixed ?: emptyList()
+        // other fixed mirrors read on screen this raid: drawn facing the way they were read, or a plain grey square
+        private val others = if (room == hetRoom && !small) hetSeen.filter { it !in fixed } else emptyList()
+        private val squares = if (answer < 0) emptyList() else ToaPuzzles.hetBeam(mirrors)
+        private val walls = if (room == hetRoom) hetWalls() else ToaPuzzles.HET_ROOMS.getOrNull(room)?.walls
+        private val turn = -90f * hetTop
+        private val beam = Path()
+        private val floorShape = Path()
+        private val box = RectF()
+        private var cell = 0f; private var left = 0f; private var top = 0f
+
+        init { if (onTap != null) setOnClickListener { onTap() } }
+
+        // Where a point of the room is on screen (before turning): x east, y north, so north is up. The drawing
+        // reaches HET_DRAW_MARGIN squares past the 21x21 squares on every side, for the alcoves.
+        private val m = ToaPuzzles.HET_DRAW_MARGIN
+        private val span = ToaPuzzles.HET_SIZE + 2 * m
+        private fun sx(x: Float) = left + (x + m) * cell
+        private fun sy(y: Float) = top + (ToaPuzzles.HET_SIZE + m - y) * cell
+        // a square's middle on screen
+        private fun cx(x: Float) = sx(x + 0.5f)
+        private fun cy(y: Float) = sy(y + 0.5f)
+        private fun squareBox(s: Int) {
+            val x = (s / ToaPuzzles.HET_SIZE).toFloat(); val y = (s % ToaPuzzles.HET_SIZE).toFloat()
+            box.set(sx(x), sy(y + 1), sx(x + 1), sy(y))
+        }
+
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val w = MeasureSpec.getSize(widthMeasureSpec)
+            setMeasuredDimension(w, minOf(w, dp(maxHeightDp)))
+        }
+
+        override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+            val size = minOf(w, h).toFloat()
+            cell = size / span
+            left = (w - size) / 2f; top = (h - size) / 2f
+            // the beam: out of the caster's west side, through each square's middle, into the shielded statue
+            beam.reset()
+            if (squares.isEmpty()) return
+            beam.moveTo(cx(ToaPuzzles.HET_CASTER_X - 0.5f), cy(ToaPuzzles.HET_MIDDLE_Y + 1f))
+            for (s in squares) beam.lineTo(cx((s / ToaPuzzles.HET_SIZE).toFloat()), cy((s % ToaPuzzles.HET_SIZE).toFloat()))
+            val last = squares.last(); val before = squares.getOrElse(squares.size - 2) { last }
+            val dx = (last / ToaPuzzles.HET_SIZE - before / ToaPuzzles.HET_SIZE) * 0.5f
+            val dy = (last % ToaPuzzles.HET_SIZE - before % ToaPuzzles.HET_SIZE) * 0.5f
+            beam.lineTo(cx(last / ToaPuzzles.HET_SIZE + dx), cy(last % ToaPuzzles.HET_SIZE + dy))
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            canvas.withRotation(turn, width / 2f, height / 2f) {
+                // the floor: the room's own outline (ToaPuzzles.HET_OUTLINE, from the wiki's map of the room)
+                val e = span * cell
+                floorShape.reset()
+                ToaPuzzles.HET_OUTLINE.forEachIndexed { i, (ox, oy) ->
+                    if (i == 0) floorShape.moveTo(sx(ox), sy(oy)) else floorShape.lineTo(sx(ox), sy(oy))
+                }
+                floorShape.close()
+                fill.color = HET_FLOOR
+                drawPath(floorShape, fill)
+                if (!small) withClip(floorShape) {
+                    stroke.color = HET_LINES; stroke.strokeWidth = 1f
+                    for (i in 1 until span) {
+                        drawLine(left + i * cell, top, left + i * cell, top + e, stroke)
+                        drawLine(left, top + i * cell, left + e, top + i * cell, stroke)
+                    }
+                }
+                // the outer wall round the edge and across the alcoves' mouths, with gaps for the two doors (west and
+                // east), to get your bearings
+                stroke.color = HET_RIM; stroke.strokeWidth = cell * (if (small) 0.8f else 0.5f)
+                drawPath(floorShape, stroke)
+                for (a in ToaPuzzles.HET_ALCOVE_WALLS) drawLine(sx(a[0].toFloat()), sy(a[2].toFloat()), sx(a[1].toFloat()), sy(a[2].toFloat()), stroke)
+                fill.color = HET_FLOOR
+                for (doorX in listOf(0f, ToaPuzzles.HET_SIZE.toFloat())) {
+                    box.set(sx(doorX) - cell * 0.5f, sy(ToaPuzzles.HET_DOOR_TO_Y.toFloat()), sx(doorX) + cell * 0.5f, sy(ToaPuzzles.HET_DOOR_FROM_Y.toFloat()))
+                    drawRect(box, fill)
+                }
+                // the walls, a square at a time
+                if (walls != null) for (s in walls.indices) {
+                    if (walls[s] == 0) continue
+                    squareBox(s)
+                    fill.color = if (walls[s] == 1) HET_WALL else HET_CRACKED
+                    drawRect(box, fill)
+                }
+                // the caster, Het's seal and the shielded statue, 3×3 each
+                for (x in listOf(ToaPuzzles.HET_CASTER_X, ToaPuzzles.HET_SEAL_X, ToaPuzzles.HET_TARGET_X)) {
+                    val seal = x == ToaPuzzles.HET_SEAL_X
+                    box.set(sx(x + 0.3f), sy(ToaPuzzles.HET_MIDDLE_Y + 2.7f), sx(x + 2.7f), sy(ToaPuzzles.HET_MIDDLE_Y + 0.3f))
+                    fill.color = if (seal) HET_SEAL else HET_STONE
+                    drawRoundRect(box, cell * 0.4f, cell * 0.4f, fill)
+                    if (!seal) { fill.color = YELLOW; drawCircle(box.centerX(), box.centerY(), cell * 0.6f, fill) }
+                }
+                // the beam: a soft glow with a white middle
+                stroke.color = HET_GLOW; stroke.strokeWidth = cell * 0.5f
+                drawPath(beam, stroke)
+                stroke.color = Color.WHITE; stroke.strokeWidth = cell * 0.18f
+                drawPath(beam, stroke)
+                for (mirror in mirrors) {
+                    val x = cx(mirror.x.toFloat()); val y = cy(mirror.y.toFloat())
+                    val already = (mirror.x * ToaPuzzles.HET_SIZE + mirror.y) in fixed
+                    if (small) { fill.color = if (already) HET_FIXED else YELLOW; drawCircle(x, y, cell * 1.1f, fill); continue }
+                    // exactly the size of its square, so it shows which square to stand it on
+                    drawHetMirror(this, x, y, cell * 0.5f, mirror.facing, already)
+                }
+                for (s in others) {
+                    val facing = hetFacing[s]
+                    if (facing != null) {
+                        drawHetMirror(this, cx((s / ToaPuzzles.HET_SIZE).toFloat()), cy((s % ToaPuzzles.HET_SIZE).toFloat()), cell * 0.5f, facing, true)
+                        continue
+                    }
+                    squareBox(s)
+                    fill.color = HET_FIXED; drawRect(box, fill)
+                    stroke.color = INK; stroke.strokeWidth = cell * 0.1f; drawRect(box, stroke)
+                }
+                // cracked walls the beam crosses get an orange border, on top of the beam: mine these
+                if (walls != null && !small) for (s in squares) if (walls[s] == 2) {
+                    squareBox(s)
+                    box.inset(cell * 0.1f, cell * 0.1f)
+                    stroke.color = HET_MINE; stroke.strokeWidth = cell * 0.2f
+                    drawRect(box, stroke)
+                }
+            }
+        }
+    }
+
     // ---------------- Matching puzzle ----------------
 
     private fun LinearLayout.matching() {
@@ -968,6 +1374,8 @@ class ToaPuzzleTool(
                 Page.LIGHT -> addView(lightBoardView(MAP_CELL_DP * 3), LinearLayout.LayoutParams(cell * 3, cell * 3))
                 Page.ADDITION -> addView(additionBoardView(MAP_CELL_DP * 4), LinearLayout.LayoutParams(cell * 4, cell * 4))
                 Page.SEQUENCE -> addView(sequenceBoardView(MAP_CELL_DP * 4), LinearLayout.LayoutParams(cell * 4, cell * 4))
+                Page.HET -> if (hetAnswer >= 0) addView(HetMap(hetAnswer, hetRoom, small = false, maxHeightDp = HET_MAP_DP),
+                    LinearLayout.LayoutParams(dp(HET_MAP_DP), dp(HET_MAP_DP)))
                 else -> addView(matchBoardsView(maxHeightDp = MAP_CELL_DP * 3), LinearLayout.LayoutParams(cell * 7, cell * 3))
             }
         })
@@ -1223,6 +1631,11 @@ class ToaPuzzleTool(
         }
         override fun rgb(x: Int, y: Int) = data[y * width + x]
         fun release() { data = IntArray(0); width = 0; height = 0 }
+        // paints a part of the picture black (the app's own windows over the game), so it isn't read as the game
+        fun blank(left: Int, top: Int, right: Int, bottom: Int) {
+            val l = left.coerceIn(0, width); val r = right.coerceIn(l, width)
+            for (y in maxOf(0, top) until minOf(height, bottom)) data.fill(0, y * width + l, y * width + r)
+        }
     }
 
     // ---------------- Small building blocks ----------------
