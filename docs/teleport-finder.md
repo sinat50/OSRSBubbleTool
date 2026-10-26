@@ -1,8 +1,8 @@
 # Teleport Finder: updating its data
 
 How to rebuild the Teleport Finder's data after the update checker reports `teleports` (Shortest Path),
-`dungeons` (RuneLite) or `obstacles` (Golems Don't Die). Last done 24 October 2026 (Shortest Path 537092d,
-22 October), in about 10 minutes all told. The scripts are described in `tools/README.md`; this is the whole
+`dungeons` (RuneLite) or `obstacles` (Golems Don't Die). Last done 26 October 2026 (Shortest Path 0fb23cd,
+24 October), in about 10 minutes all told. The scripts are described in `tools/README.md`; this is the whole
 routine, in order.
 
 ## The files
@@ -75,3 +75,6 @@ top answer became the Games necklace.
 - 10 Oct 2026: Shortest Path's collision map went to 4 bits per tile; `build_collision.py` converts it.
 - 24 Oct 2026: new transports (Chasm of Tears, Ancient Guthixian Temple), Aldarin house portal, clearer cape
   teleport names; the hand-added Wyrmscraig necklace of passage removed from `ADD` (Shortest Path has it now).
+- 26 Oct 2026: Prifddinas city platforms and staircases, Iorwerth Dungeon shortcuts, Trahaearn Mine and Zalcano
+  links (walks only: teleports and collision map unchanged); 14 more joins. Iorwerth Dungeon routes much shorter
+  (Dark beasts 239 → 116, Greater Nechryael 198 → 75); still 23 guesses.

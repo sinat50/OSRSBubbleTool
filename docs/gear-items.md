@@ -1,6 +1,6 @@
 # Gear Loadouts and DPS Calculator: updating the item lists
 
-The two tools have separate item lists from separate sources. Last done 24 October 2026 (The Fractured Archive gear).
+The two tools have separate item lists from separate sources. Last done 26 October 2026 (the DPS calculator's October gear).
 
 | List | Used for | From | Built by |
 | --- | --- | --- | --- |
@@ -37,8 +37,15 @@ When the update checker reports `dps-items` (the repository's `cdn/json/equipmen
 `fetch_pictures.py` as in `tools/README.md`. Commits that only change the calculator's code (most of them) need
 nothing: the app shows the live calculator.
 
+If a picture's name changes only in capital letters ("Blood moon" → "Blood Moon"), Windows keeps the file but Git
+still holds the old spelling. Record the rename (`git rm --cached` the old path, `git add` the new one), and if the
+build then says "Duplicate resources", build again or use Build → Clean Project (a stale build cache).
+
 ## History
 
 - 24 Oct 2026: 30 new items (Ascension crossbows and bolts, Obligator, Rondache, Zorya's tome, Living record
   tiers 1-5, and Fractured Archive quest items). The DPS calculator's item list was last changed 2 September
   2026, so it has none of the October gear (nor the 7 October Imbued ancient capes) yet.
+- 26 Oct 2026: DPS calculator moved to 741f2f2 (24 October list): 25 new entries (Ascension crossbows and bolts,
+  Obligator, Rondache, Zorya's tome, Living record, Imbued ancient capes, locked Dizana's quiver), and 43 item
+  names and pictures recapitalised (Moon armour, "of Ruin", Scythe of Vitur...). `wiki_icons.txt` unchanged.
