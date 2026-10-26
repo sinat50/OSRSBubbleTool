@@ -8,7 +8,7 @@ import kotlin.math.roundToInt
 // bundled as assets/teleports.tsv), finding a place's coordinates on its OSRS Wiki page, and ranking
 // teleports by how close they land. No Android parts, so it can be tested on a computer.
 // The teleport, entrance and walking data (assets/teleports.tsv, entrances.tsv, collision.bin, walks.txt, dungeons.txt) come from Shortest Path
-// (Copyright (c) Skretzo and contributors) and RuneLite's world map (Copyright (c) 2018, Morgan Lewis),
+// (Copyright (c) Skretzo and contributors) and RuneLite's world map (Copyright (c) 2020, Arman S),
 // both BSD 2-Clause License; the full notices are on the app's Legal screen.
 object TeleportData {
 

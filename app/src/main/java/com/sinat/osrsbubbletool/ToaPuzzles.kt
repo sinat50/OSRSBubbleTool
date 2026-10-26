@@ -3,6 +3,8 @@
  * (github.com/LlemonDuck/tombs-of-amascut).
  *
  * Copyright (c) 2022, LlemonDuck
+ * Copyright (c) 2022, TheStonedTurtle
+ * Copyright (c) 2019, Ron Young <https://github.com/raiyni>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

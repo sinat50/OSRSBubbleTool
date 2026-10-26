@@ -23,6 +23,7 @@ import android.window.OnBackInvokedCallback
 import android.window.OnBackInvokedDispatcher
 import androidx.core.content.edit
 import androidx.core.net.toUri
+import androidx.core.view.isGone
 import androidx.core.view.WindowCompat
 import com.sinat.osrsbubbletool.Palette.BUTTON_BROWN
 import com.sinat.osrsbubbletool.Palette.DARK_BROWN
@@ -426,28 +427,63 @@ class MainActivity : Activity() {
             addView(label(text, size), matchWidth(4))
         }
 
+        // A button that shows (and hides again) the full text of a licence kept in assets/licences/
+        fun fullText(file: String) {
+            val showLabel = "Show the full licence"
+            val hideLabel = "Hide the full licence"
+            val text = label("", 10f).apply { isGone = true }
+            val toggle = button(showLabel) {}
+            toggle.setOnClickListener {
+                // read only when first asked for (the GPL is 35 KB of text)
+                if (text.text.isEmpty()) text.text = assets.open("licences/$file").bufferedReader().use { it.readText() }
+                text.isGone = !text.isGone
+                toggle.text = if (text.isGone) showLabel else hideLabel
+            }
+            addView(toggle, wrap().apply { topMargin = dp(8) })
+            addView(text, matchWidth(6))
+        }
+
         section("Jagex",
             "Created using intellectual property belonging to Jagex Limited under the terms of Jagex's Fan Content Policy. " +
             "This content is not endorsed by or affiliated with Jagex.\n\n" +
-            "Old School RuneScape and RuneScape are trademarks of Jagex Limited. Item, monster and game pictures are (c) Jagex Limited.\n\n" +
-            "OSRS Bubble Tool is free and has no ads or paid features.")
+            "Old School RuneScape and RuneScape are trademarks of Jagex Limited. Item, monster and game pictures are (c) Jagex Limited. " +
+            "The solved puzzle pictures, item pictures and other game pictures in the app were taken from the OSRS Wiki, " +
+            "the OSRS Wiki DPS calculator and RuneLite; they are Jagex's.\n\n" +
+            "OSRS Bubble Tool is free and has no ads or paid features. It is not affiliated with Jagex, RuneLite, the " +
+            "RuneLite plugin authors credited below, or the Old School RuneScape Wiki.")
+
+        section("Privacy",
+            "The app has no analytics, no ads and no account of its own, and the developer never receives anything from it. " +
+            "It talks to the internet only when you use a tool that needs it: the OSRS Wiki, the DPS and XP calculators, " +
+            "GE Prices and the Shooting Star Tracker load in the app like a browser (they see your internet address and may " +
+            "set cookies, as in any browser); the Teleport " +
+            "Finder sends your search words to the wiki; and when the app opens it asks GitHub whether there's a newer " +
+            "version (you can turn that off in Settings). Your settings, notes, timers and loadouts are saved " +
+            "on the phone, and go into your phone's normal Android backup if you have that on. Nothing else is stored or sent.")
 
         section("This app's licence",
             "OSRS Bubble Tool is free software: (c) 2026 sinat50, licensed under the GNU General Public License, version 3 " +
             "or any later version (gnu.org/licenses/gpl-3.0). You can use, change and share it; if you share a changed " +
-            "version, share its source code under the same licence. It comes with no warranty. The full text is in the " +
-            "LICENSE file at github.com/sinat50/OSRSBubbleTool.\n\n" +
+            "version, share its source code under the same licence. It comes with no warranty. Its source code is at " +
+            "github.com/sinat50/OSRSBubbleTool.\n\n" +
             "That covers the app's own code. What it includes from others keeps its own terms, listed below.")
+        fullText("gpl-3.0.txt")
+
+        section("Libraries",
+            "The app is built with Google's AndroidX and Material Components libraries and JetBrains' Kotlin standard " +
+            "library, used under the Apache License, Version 2.0 (apache.org/licenses/LICENSE-2.0).\n\n" +
+            "Copyright The Android Open Source Project\n" +
+            "Copyright JetBrains s.r.o. and Kotlin Programming Language contributors", size = 11f)
+        fullText("apache-2.0.txt")
 
         section("OSRS Wiki",
-            "Content from the Old School RuneScape Wiki (oldschool.runescape.wiki) is used under the Creative Commons " +
+            "Text and data from the Old School RuneScape Wiki (oldschool.runescape.wiki) are used under the Creative Commons " +
             "Attribution-NonCommercial-ShareAlike 3.0 licence (creativecommons.org/licenses/by-nc-sa/3.0). " +
-            "It has been shortened and reformatted for the app, and anything adapted from it is shared under the same licence. It includes:\n\n" +
-            "\u2022 Puzzle Box Solver: the solved puzzle box pictures\n" +
-            "\u2022 DPS Calculator gear import: a few item pictures\n" +
-            "\u2022 Gear Loadouts: every item's name, ID, equipment slot and picture, from the wiki's item pages\n" +
-            "\u2022 Quest Helper: solved puzzle pictures and some puzzle answers from the wiki's quick guides\n" +
-            "\u2022 Hunter Rumours: rumour lists, locations, travel and equipment from the Hunters' Rumours pages\n" +
+            "They have been shortened and reformatted for the app, and anything adapted from them is shared under the same licence. " +
+            "(The wiki's pictures aren't under this licence: they're Jagex's, see above.) It includes:\n\n" +
+            "\u2022 Gear Loadouts: every item's name, ID and equipment slot, from the wiki's item pages\n" +
+            "\u2022 Quest Helper: some puzzle answers from the wiki's quick guides (such as Lunar Diplomacy's)\n" +
+            "\u2022 Hunter Rumours: rumour lists, locations, travel and equipment from the pages Hunters' Rumours and Hunters' Rumours/Strategies\n" +
             "\u2022 Teleport Finder: search suggestions, where NPCs, monsters and places are on the map, monster levels, and descriptions of some teleport destinations\n" +
             "\u2022 ToA Puzzle Helper: the outline of the Path of Het room, traced from the wiki's map")
 
@@ -463,7 +499,7 @@ class MainActivity : Activity() {
 
         section("RuneLite",
             "Farming growth times based on RuneLite's Time Tracking plugin. Teleport Finder: newer teleport destinations " +
-            "(like the Spider cave and Wyrmscraig teleports) and the list of dungeon entrances, from RuneLite's world map. Gear Loadouts: which items can be noted, and their noted item IDs, from RuneLite's item list (github.com/runelite/runelite), and which items have a second ID when worn, from its item manager (for the bank tab layout in exports); its item icons, exactly as the game draws them, as published by RuneLite (static.runelite.net; the pictures are (c) Jagex Ltd).\n\n" +
+            "and the list of dungeon entrances, from RuneLite's world map. Gear Loadouts: which items can be noted, and their noted item IDs, from RuneLite's item list (github.com/runelite/runelite), and which items have a second ID when worn, from its item manager (for the bank tab layout in exports); its item icons, exactly as the game draws them, as published by RuneLite (static.runelite.net; the pictures are (c) Jagex Ltd).\n\n" +
             "Copyright (c) 2016-2017, Adam <Adam@sigterm.info>\nCopyright (c) 2018-2019, Abex\n" +
             "Copyright (c) 2018, NotFoxtrot <https://github.com/NotFoxtrot>\nCopyright (c) 2018, Morgan Lewis <https://github.com/MESLewis>\n" +
             "Copyright (c) 2020, Arman S <https://github.com/Rman887>\n" +
@@ -495,7 +531,8 @@ class MainActivity : Activity() {
         section("ToA Puzzle Helper",
             "Path of Scabaras puzzle rules, the addition puzzle's answers and the Path of Het's mirror answers adapted from the Tombs of Amascut RuneLite plugin " +
             "(github.com/LlemonDuck/tombs-of-amascut).\n\n" +
-            "Copyright (c) 2022, LlemonDuck\nAll rights reserved.\n\n" +
+            "Copyright (c) 2022, LlemonDuck\nCopyright (c) 2022, TheStonedTurtle\n" +
+            "Copyright (c) 2019, Ron Young <https://github.com/raiyni>\nAll rights reserved.\n\n" +
             BSD_TERMS,
             size = 11f)
 

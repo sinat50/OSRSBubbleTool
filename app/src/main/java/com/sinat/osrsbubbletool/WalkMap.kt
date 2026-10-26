@@ -8,7 +8,7 @@ import kotlin.math.max
 // (walls, rivers, fences), plus the doors, ladders, stairs, cave entrances, shortcuts, boats, portals and
 // levers that join places. From the Shortest Path RuneLite plugin's collision map and transport lists
 // (Copyright (c) Skretzo and contributors, BSD 2-Clause License), and dungeon entrances from RuneLite's
-// world map (Copyright (c) 2018, Morgan Lewis, BSD 2-Clause License). The full notices are on the app's
+// world map (Copyright (c) 2020, Arman S, BSD 2-Clause License). The full notices are on the app's
 // Legal screen. No Android parts, so it can be tested on a computer.
 //
 // collision: assets/collision.bin, one packed block per 64 x 64 map region. For every tile and plane it

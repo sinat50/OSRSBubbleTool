@@ -208,7 +208,9 @@ Each release is worked on in its own branch (named like `v1.0.9`), then merged i
    the release branch) and push.
 4. Build → Generate Signed App Bundle or APK → APK → release, with the key from the Keys folder.
 5. GitHub → Releases → new release, tag `vX.Y.Z` (the update checker reads the tag), not a pre-release,
-   attach `OSRSBubbleTool-X.Y.Z.apk`.
+   attach `OSRSBubbleTool-X.Y.Z.apk`. End the notes with: "Created using intellectual property belonging to
+   Jagex Limited under the terms of Jagex's Fan Content Policy. This content is not endorsed by or affiliated with
+   Jagex. Free software, GPL-3.0-or-later; credits in the README." (Jagex wants that line wherever people get the app.)
 
 Tags use the "v" form (`1.0.3` is the one exception). A published release's tag stays as it is: renaming it on
 GitHub creates the new tag on the latest master (that happened to v1.0.5 and was fixed by force-pushing the tag
