@@ -13,6 +13,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -164,14 +165,14 @@ class MainActivity : Activity() {
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(if (landscape) 8 else 24) })
         }
 
-        val bottom = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            addView(button("Legal") { show(Screen.LEGAL) }.compact())
-            addView(View(this@MainActivity), LinearLayout.LayoutParams(0, 1, 1f))
-            addView(button("Settings") { show(Screen.SETTINGS) }.compact())
-            addView(View(this@MainActivity), LinearLayout.LayoutParams(0, 1, 1f))
-            addView(button("Permissions") { show(Screen.PERMISSIONS) }.compact())
+        // Legal in the left corner, Settings in the exact middle, Permissions in the right corner
+        // (laid on top of each other, so Settings stays centred even though the corner buttons differ in width)
+        fun at(side: Int) = FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            side or Gravity.CENTER_VERTICAL)
+        val bottom = FrameLayout(this).apply {
+            addView(button("Legal") { show(Screen.LEGAL) }.compact(), at(Gravity.START))
+            addView(button("Settings") { show(Screen.SETTINGS) }.compact(), at(Gravity.CENTER_HORIZONTAL))
+            addView(button("Permissions") { show(Screen.PERMISSIONS) }.compact(), at(Gravity.END))
         }
 
         return page(padTop = if (landscape) 6 else 16, padBottom = if (landscape) 6 else 16) {
@@ -538,14 +539,18 @@ class MainActivity : Activity() {
         // (the scroll view stretches short pages to fill the screen, so they can still be centred)
         val root: ViewGroup = ScrollView(this).apply { isFillViewport = true; addView(column) }
         root.setBackgroundColor(PARCHMENT)
+        // Sideways, the camera hole keeps one side clear; the other side gets the same gap, so the page
+        // stays centred on the screen rather than shifted away from the camera
         root.setOnApplyWindowInsetsListener { v, insets ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+                val side = maxOf(bars.left, bars.right)
+                v.setPadding(side, bars.top, side, bars.bottom)
             } else {
                 @Suppress("DEPRECATION")
-                v.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
-                    insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
+                val side = maxOf(insets.systemWindowInsetLeft, insets.systemWindowInsetRight)
+                @Suppress("DEPRECATION")
+                v.setPadding(side, insets.systemWindowInsetTop, side, insets.systemWindowInsetBottom)
             }
             insets
         }
