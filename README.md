@@ -7,7 +7,8 @@
 <p align="center">
   A floating toolbox for Old School RuneScape on Android.<br>
   Free, no ads, and no accounts.<br>
-  Enjoying it? <a href="https://ko-fi.com/sinat50">☕ Buy me a coffee</a>
+  Enjoying it? <a href="https://ko-fi.com/sinat50">☕ Buy me a coffee</a><br>
+  Questions, ideas or bugs? <a href="https://discord.gg/MM6mFmkGh">💬 Join the Discord</a>
 </p>
 
 ---
