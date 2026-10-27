@@ -45,7 +45,7 @@ class MainActivity : Activity() {
                 "THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
     }
 
-    private enum class Screen { MAIN, SETTINGS, PERMISSIONS, LEGAL }
+    private enum class Screen { MAIN, SETTINGS, PERMISSIONS, LEGAL, SYNC }
     private var screen = Screen.MAIN
     private var backCallback: OnBackInvokedCallback? = null
 
@@ -89,7 +89,9 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         Palette.dark = AppSettings.isDark(this)   // (this screen's colours while it's in front, see show)
-        if (screen == Screen.PERMISSIONS || AppSettings.isDark(this) != shownDark) show(screen)
+        // back from Bubble Sync's camera or file chooser: show what was read (or why a file couldn't be)
+        if (screen == Screen.SYNC) syncPage.cameBack()
+        if (screen == Screen.PERMISSIONS || screen == Screen.SYNC || AppSettings.isDark(this) != shownDark) show(screen)
         // look for a newer version on GitHub each time the app is opened (unless that's switched off in Settings)
         if (AppSettings.checksUpdates(this)) UpdateChecker.check(this) { if (!isDestroyed) styleUpdateButton() }
     }
@@ -115,6 +117,7 @@ class MainActivity : Activity() {
             Screen.SETTINGS -> settingsScreen()
             Screen.PERMISSIONS -> permissionsScreen()
             Screen.LEGAL -> legalScreen()
+            Screen.SYNC -> syncScreen()
         }
         setContentView(content)
         // the clock and icons along the top (and bottom) of the screen: dark on the light page, light on the dark one
@@ -170,6 +173,8 @@ class MainActivity : Activity() {
                 textSize = if (landscape) 15f else 17f
                 if (landscape) setPadding(dp(22), dp(8), dp(22), dp(8)) else setPadding(dp(28), dp(12), dp(28), dp(12))
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(if (landscape) 8 else 24) })
+            // your quests, levels and diaries from the Bubble Tool Sync plugin, without starting the bubble
+            addView(button("Bubble Sync") { show(Screen.SYNC) }.compact(), wrap().apply { topMargin = dp(if (landscape) 6 else 12) })
         }
 
         // Legal in the left corner, Settings in the exact middle, Permissions in the right corner
@@ -290,6 +295,14 @@ class MainActivity : Activity() {
         SettingsTool(this@MainActivity) {
             if (AppSettings.isDark(this@MainActivity) != shownDark) show(Screen.SETTINGS)
         }.addSettings(this)
+    }
+
+    // The same page as the bubble's Bubble Sync window (kept between redraws, so a half-pasted code stays)
+    private val syncPage by lazy { SyncTool(this, inBubble = false) }
+
+    private fun syncScreen(): View = page {
+        addView(backButton(), wrap())
+        syncPage.addTo(this) { show(Screen.SYNC) }
     }
 
     // ---------------- Permissions screen ----------------
@@ -458,8 +471,9 @@ class MainActivity : Activity() {
             "GE Prices and the Shooting Star Tracker load in the app like a browser (they see your internet address and may " +
             "set cookies, as in any browser); the Teleport " +
             "Finder sends your search words to the wiki; and when the app opens it asks GitHub whether there's a newer " +
-            "version (you can turn that off in Settings). Your settings, notes, timers and loadouts are saved " +
-            "on the phone, and go into your phone's normal Android backup if you have that on. Nothing else is stored or sent.")
+            "version (you can turn that off in Settings). Bubble Sync uses the camera only while you scan the Bubble Tool " +
+            "Sync plugin's QR code, and the account it reads (name, levels, quests and diary tasks) stays on the phone. " +
+            "Your settings, notes, timers, loadouts and synced account are saved on the phone, and go into your phone's normal Android backup if you have that on. Nothing else is stored or sent.")
 
         section("This app's licence",
             "OSRS Bubble Tool is free software: (c) 2026 sinat50, licensed under the GNU General Public License, version 3 " +
@@ -471,9 +485,11 @@ class MainActivity : Activity() {
 
         section("Libraries",
             "The app is built with Google's AndroidX and Material Components libraries and JetBrains' Kotlin standard " +
-            "library, used under the Apache License, Version 2.0 (apache.org/licenses/LICENSE-2.0).\n\n" +
+            "library, and Bubble Sync reads QR codes with ZXing (github.com/zxing/zxing), all used under the Apache " +
+            "License, Version 2.0 (apache.org/licenses/LICENSE-2.0).\n\n" +
             "Copyright The Android Open Source Project\n" +
-            "Copyright JetBrains s.r.o. and Kotlin Programming Language contributors", size = 11f)
+            "Copyright JetBrains s.r.o. and Kotlin Programming Language contributors\n" +
+            "Copyright ZXing authors", size = 11f)
         fullText("apache-2.0.txt")
 
         section("OSRS Wiki",
@@ -499,7 +515,7 @@ class MainActivity : Activity() {
 
         section("RuneLite",
             "Farming growth times based on RuneLite's Time Tracking plugin. Teleport Finder: newer teleport destinations " +
-            "and the list of dungeon entrances, from RuneLite's world map. Gear Loadouts: which items can be noted, and their noted item IDs, from RuneLite's item list (github.com/runelite/runelite), and which items have a second ID when worn, from its item manager (for the bank tab layout in exports); its item icons, exactly as the game draws them, as published by RuneLite (static.runelite.net; the pictures are (c) Jagex Ltd).\n\n" +
+            "and the list of dungeon entrances, from RuneLite's world map. Gear Loadouts: which items can be noted, and their noted item IDs, from RuneLite's item list (github.com/runelite/runelite), and which items have a second ID when worn, from its item manager (for the bank tab layout in exports); its item icons, exactly as the game draws them, as published by RuneLite (static.runelite.net; the pictures are (c) Jagex Ltd). Bubble Sync: each quest's RuneLite quest ID, from RuneLite's quest list.\n\n" +
             "Copyright (c) 2016-2017, Adam <Adam@sigterm.info>\nCopyright (c) 2018-2019, Abex\n" +
             "Copyright (c) 2018, NotFoxtrot <https://github.com/NotFoxtrot>\nCopyright (c) 2018, Morgan Lewis <https://github.com/MESLewis>\n" +
             "Copyright (c) 2020, Arman S <https://github.com/Rman887>\n" +
@@ -553,7 +569,7 @@ class MainActivity : Activity() {
             BSD_TERMS, size = 11f)
 
         section("Quest Helper",
-            "Quest guides, quest requirements and achievement diary tasks adapted from the Quest Helper RuneLite plugin (github.com/Zoinkwiz/quest-helper).\n\n" +
+            "Quest guides, quest requirements and achievement diary tasks adapted from the Quest Helper RuneLite plugin (github.com/Zoinkwiz/quest-helper), and which game values record each diary task (for Bubble Sync).\n\n" +
             QuestGuides.COPYRIGHTS.joinToString("\n") + "\nAll rights reserved.\n\n" +
             BSD_TERMS, size = 11f)
 

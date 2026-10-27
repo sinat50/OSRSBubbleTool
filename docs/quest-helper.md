@@ -36,6 +36,13 @@ To bring in a new quest: shallow-clone the plugin into the scratchpad (`git clon
 Java file, write its JSON by the rules below, `put` it, `check`, build, then update the guide count in README.md
 ("Step-by-step guides for N quests") and mark the update checker's `quest-helper` / `new-quests` as checked.
 
+**After adding a quest or changing a diary**, run `tools/quest-helper/sync_tables.py` too (how: at the top of the
+script). It remakes `SyncTables.kt`, which Bubble Sync needs to read the Bubble Tool Sync plugin's code: each quest's
+RuneLite quest ID (matched by name with RuneLite's `Quest.java`) and each diary task's bit (from the plugin's diary
+helpers: the panel title is the task's name, its display condition the bit). It lists anything it couldn't match;
+`SyncCodeTest` fails if a quest or task is missing. Four tasks the script can't link by itself are in its `FIXES`.
+A brand-new quest only gets an ID once RuneLite's `Quest.java` has it.
+
 ## QuestData entry (from the plugin's Java)
 
 ```json
@@ -89,7 +96,7 @@ Sections (`sec`) come from `getPanels()`, one per `PanelDetails`, in order:
 
 ## Checking
 
-`./gradlew.bat assembleDebug testDebugUnitTest` (`QuestChecksTest` covers requirement checks). On the phone,
+`./gradlew.bat assembleDebug testDebugUnitTest` (`QuestChecksTest` covers requirement checks, `SyncCodeTest` the sync tables). On the phone,
 open Quest Helper, search the quest, open its guide and check the sections, dialogue and the requirements.
 Quests in `QuestData` without a guide (`check` lists them: The Enchanted Key, Lair of Tarn Razorlor, The Path of
 Glouphrie) show requirements only; that's expected.

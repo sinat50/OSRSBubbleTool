@@ -2,8 +2,11 @@ package com.sinat.osrsbubbletool
 
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.floor
+import kotlin.math.max
 
 // Every quest's requirements, and every achievement diary task, loaded from QuestData.
+// Also works out whether you meet a requirement, using your account (scanned from the Bubble Tool Sync plugin).
 object QuestBook {
 
     // A requirement for a quest or diary task
@@ -82,14 +85,102 @@ object QuestBook {
         }
     }
 
-    // How a requirement reads in a list ("70 Agility (boostable)", "Dragon Slayer I (started)")
-    fun describe(req: Req): String = when (req) {
-        is Req.Skill -> "${req.level} ${req.skill}" + if (req.boostable) " (boostable)" else ""
-        is Req.QuestDone -> req.quest + if (req.startedOnly) " (started)" else ""
-        is Req.QuestPoints -> "${req.points} Quest points"
-        is Req.Combat -> "Combat level ${req.level}"
-        is Req.Text -> req.text
+    // ---------------- Checking against your account ----------------
+
+    enum class Met { YES, NO, PARTLY, UNKNOWN }
+
+    class Check(val met: Met, val text: String)
+
+    // Your quest points (added up once for each scanned account: every "N quest points" requirement asks)
+    fun questPoints(data: Account): Int {
+        // the game's own total, when the code has it (always right, even before the app knows a new quest)
+        data.questPoints?.let { return it }
+        if (data !== pointsFor) {
+            pointsFor = data
+            points = quests.filter { data.questState(it.name) == Account.FINISHED }.sumOf { it.questPoints }
+            // Recipe for Disaster gives its 10 points one at a time, 1 for each part you finish
+            if (data.questState("Recipe for Disaster") != Account.FINISHED) {
+                points += data.quests.count { (name, state) -> name.startsWith("Recipe for Disaster - ") && state == Account.FINISHED }
+            }
+        }
+        return points
     }
+    private var pointsFor: Account? = null
+    private var points = 0
+
+    fun combatLevel(data: Account): Int? {
+        fun l(s: String) = data.level(s)
+        val att = l("Attack") ?: return null; val str = l("Strength") ?: return null
+        val def = l("Defence") ?: return null; val hp = l("Hitpoints") ?: return null
+        val pray = l("Prayer") ?: return null; val range = l("Ranged") ?: return null
+        val mage = l("Magic") ?: return null
+        val base = 0.25 * (def + hp + pray / 2)
+        val best = max(0.325 * (att + str), max(0.325 * floor(range * 1.5), 0.325 * floor(mage * 1.5)))
+        return floor(base + best).toInt()
+    }
+
+    // How a requirement reads in a list without an account ("70 Agility (boostable)", "Dragon Slayer I (started)")
+    fun describe(req: Req): String = check(req, null).text
+
+    fun check(req: Req, data: Account?): Check = when (req) {
+        is Req.Skill -> {
+            val have = data?.level(req.skill)
+            val name = "${req.level} ${req.skill}" + if (req.boostable) " (boostable)" else ""
+            when {
+                have == null -> Check(Met.UNKNOWN, name)
+                have >= req.level -> Check(Met.YES, "${req.level} ${req.skill} (you: $have)")
+                req.boostable -> Check(Met.PARTLY, "${req.level} ${req.skill} (you: $have, boostable)")
+                else -> Check(Met.NO, "${req.level} ${req.skill} (you: $have, need ${req.level - have} more)")
+            }
+        }
+        is Req.QuestDone -> {
+            val name = req.quest + if (req.startedOnly) " (started)" else ""
+            when (data?.questState(req.quest)) {
+                null -> Check(Met.UNKNOWN, name)
+                Account.FINISHED -> Check(Met.YES, name)
+                Account.IN_PROGRESS ->
+                    if (req.startedOnly) Check(Met.YES, name) else Check(Met.PARTLY, "${req.quest} (started, not finished)")
+                else -> Check(Met.NO, "$name (not started)")
+            }
+        }
+        is Req.QuestPoints -> {
+            if (data == null) Check(Met.UNKNOWN, "${req.points} Quest points")
+            else {
+                val have = questPoints(data)
+                if (have >= req.points) Check(Met.YES, "${req.points} Quest points (you: $have)")
+                else Check(Met.NO, "${req.points} Quest points (you: $have)")
+            }
+        }
+        is Req.Combat -> {
+            val have = data?.let { combatLevel(it) }
+            when {
+                have == null -> Check(Met.UNKNOWN, "Combat level ${req.level}")
+                have >= req.level -> Check(Met.YES, "Combat level ${req.level} (you: $have)")
+                else -> Check(Met.NO, "Combat level ${req.level} (you: $have)")
+            }
+        }
+        is Req.Text -> Check(Met.UNKNOWN, req.text)
+    }
+
+    enum class Status { DONE, STARTED, READY, MISSING, UNKNOWN }
+
+    // Where you stand with a quest: finished, can start it, or missing something
+    fun status(quest: QuestInfo, data: Account?): Status = standing(quest, data).first
+
+    // The same, with how many requirements are missing (worked out together, for the list of quests)
+    fun standing(quest: QuestInfo, data: Account?): Pair<Status, Int> {
+        if (data == null) return Status.UNKNOWN to 0
+        return when (data.questState(quest.name)) {
+            Account.FINISHED -> Status.DONE to 0
+            Account.IN_PROGRESS -> Status.STARTED to 0
+            null -> Status.UNKNOWN to 0   // the plugin's RuneLite doesn't know this quest yet (a new one): it may already be done
+            else -> missing(quest.requirements, data).size.let { if (it == 0) Status.READY to 0 else Status.MISSING to it }
+        }
+    }
+
+    // The requirements you definitely don't meet (boostable skills count as met)
+    fun missing(reqs: List<Req>, data: Account?): List<Req> =
+        reqs.filter { r -> check(r, data).met.let { it == Met.NO || (it == Met.PARTLY && r is Req.QuestDone) } }
 
     fun wikiUrl(page: String): String =
         "https://oldschool.runescape.wiki/w/" + java.net.URLEncoder.encode(page.replace(' ', '_'), "UTF-8")

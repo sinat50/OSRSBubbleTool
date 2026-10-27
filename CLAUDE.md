@@ -54,6 +54,7 @@ Code: `app/src/main/java/com/sinat/osrsbubbletool/` (one file per tool, roughly)
 | `TeleportFinderTool.kt`, `TeleportData.kt`, `WalkMap.kt` | Teleport Finder (Beta): wiki lookup, teleport list, walking-route search |
 | `QuestHelperTool.kt`, `QuestData.kt`, `QuestGuides.kt`, `QuestBook.kt`, `QuestPuzzles.kt`, `QuestSolvers.kt`, `QuestSolverViews.kt`, `PuzzleDiagramView.kt` | Quest Helper (Beta), from the Quest Helper RuneLite plugin (`PuzzleDiagramView` draws the puzzle answer maps). **Read `docs/quest-helper.md` before adding or changing quests**: `QuestData.kt` and `QuestGuides.kt` are changed only with `tools/quest-helper/quest_files.py` |
 | `HunterRumourTool.kt`, `HunterRumours.kt` | Hunter Rumours |
+| `AccountSync.kt`, `SyncTool.kt`, `SyncScanActivity.kt`, `SyncFileActivity.kt`, `SyncTables.kt` | Bubble Sync: your quests, levels and diary tasks, scanned from the **Bubble Tool Sync** RuneLite plugin's QR code (the owner's own plugin, BSD 2-Clause: github.com/sinat50/bubble-tool-sync, on this computer at `C:\Users\Tanis\IdeaProjects\BubbleToolSync`, opened in IntelliJ). It replaced WikiSync (removed in v1.1.0: the OSRS Wiki doesn't allow it in other apps). `SyncCode` reads the code (format version 1, written out in `AccountSync.kt` and in the plugin's `CLAUDE.md`: **both must match**), `AccountSync` keeps it, `SyncBadge` is the ✓/✗ tag in the Quest Helper, Hunter Rumours and Teleport Finder. The same page is on the main screen (Bubble Sync button under Start Bubble; `SyncTool` with `inBubble = false`, drawn by `MainActivity.syncScreen`). `SyncScanActivity` is the camera (CameraX + ZXing) and `SyncFileActivity` the file chooser for the plugin's exported `account-<name>.txt`; the tool window steps aside while either is open and the bubble reopens it after (`ACTION_SYNC_SCAN_DONE`), with any message in `AccountSync.notice`. `SyncTables.kt` (each quest's RuneLite ID, each diary task's bit) is made by `tools/quest-helper/sync_tables.py` |
 | `ZulrahTool.kt` | Zulrah Helper |
 | `FarmingTool.kt`, `FarmingTimers.kt`, `FarmingTimerReceiver.kt` | Timers (one exact alarm per timer, no background work) |
 | `GameRoomTool.kt`, `Game2048View.kt`, `FlyerView.kt`, `GameData.kt`, `SandGardenView.kt`, `SandRenderer.kt`, `SandSound.kt`, `SandGardenLayout.kt`, `ZenGardenFile.kt`, `ZenThings.kt`, `ZenPatterns.kt`, `ChessGame.kt`, `ChessView.kt` | Game Room: 2048, Wing It, the Zen Garden and Chess. **Read `docs/zen-garden.md` before changing the `Sand*` or `ZenGarden*` files, and `docs/chess.md` before changing chess** (the engine is CuckooChess, GPL, unchanged in `app/src/main/java/chess/`, with its data in `app/src/main/resources/`) |
@@ -137,8 +138,8 @@ trailer and the ToA demo video; how to update them is in `trailer/README.md`), `
 - **Battery**: web pages in hidden windows are paused; Wing It only animates while you're playing; the Zen
   Garden's rules are in `docs/zen-garden.md`.
 - **Teleport Finder routes**: `WalkMap` spreads out from the target (reverse Dijkstra over the collision map
-  plus `walks.txt`). Walks can carry requirements ("70 Agility; Regicide"), shown but not checked (the app has no
-  account data: WikiSync was removed in October 2026, as the OSRS Wiki doesn't allow it in other apps). Closed-off areas fall back to dungeon-entrance estimates ("guess" results). Joins into
+  plus `walks.txt`). Walks can carry requirements ("70 Agility; Regicide"): with a synced account (Bubble Sync)
+  the ones you can't use yet are left out of the search, and teleports you can't use are faded. Closed-off areas fall back to dungeon-entrance estimates ("guess" results). Joins into
   closed-off areas are precomputed (`find_closed_off_areas.py`).
 - **Wiki links** from the game open in the bubble's Wiki window via `WikiLinkActivity`, only if the owner turns
   on "Open by default" for the wiki (it can't be auto-verified: not our website). `WikiLinkActivity` is exported, so any app
@@ -164,10 +165,10 @@ trailer and the ToA demo video; how to update them is in `trailer/README.md`), `
 ## Checking your work
 
 - Build with `./gradlew.bat assembleDebug`, and run Android's checks with `./gradlew.bat lintDebug` (report in
-  `app/build/reports/lint-results-debug.sarif`). Expected warnings: 92 "SetTextI18n" (text written in the code,
+  `app/build/reports/lint-results-debug.sarif`). Expected warnings: 99 "SetTextI18n" (text written in the code,
   see `.scratch/lint-text-warnings/`) and 2 "IconXmlAndPng" (the app icon).
 - PC tests: `./gradlew.bat testDebugUnitTest`, in `app/src/test/`: chess (rules and the computer player), the Puzzle Box and Light Box solvers, the ToA
-  answers, farming growth times, how quest requirements read, the Zen Garden's save file, placed things and auto rake patterns, keeping windows clear of the bars, and Gear Loadouts (items, loadouts and the RuneLite format; the
+  answers, farming growth times, how quest requirements read and are checked against an account, reading Bubble Tool Sync codes (`SyncCodeTest`), the Zen Garden's save file, placed things and auto rake patterns, keeping windows clear of the bars, and Gear Loadouts (items, loadouts and the RuneLite format; the
   screen readers on the owner's screenshots at other screen sizes and brightness, skipped without them; amounts
   drawn from the game's font) (expected answers worked out by hand or from the game, never copied from the code); `ToaReaderTest` needs recordings, `HetReaderTest` the owner's Path of Het screenshots and `HetReplayTest` pictures cut from a recorded Watch run (see `docs/toa-helper.md`). The real
   `org.json` is added for tests only (Android's own isn't on the PC). Code with Android parts gets a pure version

@@ -35,7 +35,7 @@ import org.json.JSONObject
 
 // Teleport Finder: type an NPC, monster or place, and see the teleports that land closest to it.
 // Where things are comes from the OSRS Wiki (looked up when you search); the teleports are built in.
-class TeleportFinderTool(private val context: Context) {
+class TeleportFinderTool(private val context: Context, private val openSync: () -> Unit = {}) {
 
     companion object {
         private const val USER_AGENT = "OSRSBubbleTool/1.0 (personal Android app)"
@@ -47,6 +47,7 @@ class TeleportFinderTool(private val context: Context) {
     private val work = Executors.newSingleThreadExecutor()
     private var destroyed = false   // set when the tool is closed down (bubble closed, or dark mode/text size changed)
     private val prefs = context.getSharedPreferences("teleport_finder", Context.MODE_PRIVATE)
+    private val sync = AccountSync(context)   // your quests and levels, if you've scanned your account (Bubble Sync)
     private val teleports: List<TeleportData.Teleport> by lazy {
         try { TeleportData.parse(context.assets.open("teleports.tsv").bufferedReader().use { it.readText() }) } catch (e: Exception) { emptyList() }
     }
@@ -62,11 +63,13 @@ class TeleportFinderTool(private val context: Context) {
     private var working: String? = null                      // the results being worked out right now
     private var lastKey: String? = null                      // the last results worked out, so redraws don't redo it
     private var lastList: List<TeleportData.Result> = emptyList()
+    private var lastNeeds: List<String> = emptyList()           // what the ways in need, if you can't get there yet
 
     private lateinit var holder: FrameLayout
     private lateinit var results: LinearLayout
     private lateinit var resultsScroll: ScrollView   // the results scroll on their own, under the search box
     private lateinit var field: EditText
+    private lateinit var badgeSlot: FrameLayout   // the ✓/✗ Bubble Sync tag, redrawn when the window opens
 
     // What's on screen
     private var query = ""
@@ -88,7 +91,13 @@ class TeleportFinderTool(private val context: Context) {
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(8), dp(8), dp(8), dp(4))
-                addView(label("Teleport Finder (Beta)", 15f, bold = true), full())
+                addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    addView(label("Teleport Finder (Beta)", 15f, bold = true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                    badgeSlot = FrameLayout(context)
+                    addView(badgeSlot)
+                }, full())
                 addView(label("Type an NPC, monster or place.", 11f).apply { setTextColor(FADED) }, full(1))
                 field = EditText(context).apply {
                     setHintTextColor(FADED)
@@ -132,13 +141,25 @@ class TeleportFinderTool(private val context: Context) {
                     results = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
                     addView(results, full(2))
                     addView(label("Places from the OSRS Wiki. Teleports, the walking map and dungeon entrances from the Shortest Path plugin and RuneLite, and obstacles from the Golems Don't Die plugin. " +
-                        "Distances are walking routes, counting walls, doors, ladders and cave entrances.", 9f).apply { setTextColor(FADED) }, full(12))
+                        "Distances are walking routes, counting walls, doors, ladders and cave entrances. With Bubble Sync, " +
+                        "shortcuts you can't use yet are left out.", 9f).apply { setTextColor(FADED) }, full(12))
                 })
             }
             addView(resultsScroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         })
         refresh()
+        // back from the Bubble Sync tool: update the tag, and which teleports are faded
+        holder.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) { showBadge(); refresh() }
+            override fun onViewDetachedFromWindow(v: View) {}
+        })
+        showBadge()
         return holder
+    }
+
+    private fun showBadge() {
+        badgeSlot.removeAllViews()
+        badgeSlot.addView(SyncBadge.view(context, sync) { openSync() })
     }
 
     // The window's ◀ button: from results back to the search
@@ -330,7 +351,11 @@ class TeleportFinderTool(private val context: Context) {
             else -> "Closest teleports first."
         }, 10f).apply { setTextColor(FADED) }, full(2))
 
-        val key = "${s.x},${s.y},${s.plane}"
+        val data = sync.cached
+        fun missing(t: TeleportData.Teleport) = if (data == null) emptyList() else TeleportData.unmet(t,
+            levels = { data.level(it) },
+            questDone = { q -> data.questState(q)?.let { it == Account.FINISHED } })
+        val key = "${s.x},${s.y},${s.plane}|${sync.state.hashCode()}"
         if (key != lastKey) {
             // Working out the walking routes takes a moment, so it's done in the background
             results.addView(label("Working out the walking routes…", 12f).apply { setTextColor(FADED) }, full(8))
@@ -338,22 +363,30 @@ class TeleportFinderTool(private val context: Context) {
                 working = key
                 val title = page.orEmpty()   // read here: the page can change while this works in the background
                 background {
+                    var needs = emptyList<String>()
                     val list = try {
                         val map = map()
                         // what the area is called, to find the way in if the walking map has none (the page's own
                         // name is left out: a monster's name says little about where its cave starts)
                         val hint = s.area.ifBlank { if (title.isEmpty() || !s.label.startsWith(title)) s.label else "" }
-                        // stop once enough teleports are reached
-                        val field = map.from(s.x, s.y, s.plane, TeleportData.landingTiles(teleports), 70, hint = hint)
-                        TeleportData.closestOnFoot(teleports, map, field, RESULTS)
+                        // stop once enough teleports you can use are reached (ones you can't use yet don't count)
+                        val usable = TeleportData.landingTiles(teleports.filter { missing(it).isEmpty() })
+                        // shortcuts, doors and boats your levels and quests don't allow yet are left out
+                        val locked = if (data == null) null else BooleanArray(map.requirements.size) { i ->
+                            TeleportData.unmet(map.requirements[i], levels = { data.level(it) },
+                                questDone = { q -> data.questState(q)?.let { it == Account.FINISHED } }).isNotEmpty()
+                        }
+                        val field = map.from(s.x, s.y, s.plane, usable, 70, hint = hint, locked = locked)
+                        needs = field.needs
+                        TeleportData.closestOnFoot(teleports, map, field, RESULTS) { missing(it).isNotEmpty() }
                             // somewhere the walking map doesn't cover at all: straight-line guesses
-                            .ifEmpty { TeleportData.closest(teleports, s, RESULTS, links) }
+                            .ifEmpty { TeleportData.closest(teleports, s, RESULTS, links) { missing(it).isNotEmpty() } }
                     } catch (e: Throwable) {   // including running out of memory: fall back to straight-line guesses
-                        try { TeleportData.closest(teleports, s, RESULTS, links) } catch (e2: Throwable) { emptyList() }
+                        try { TeleportData.closest(teleports, s, RESULTS, links) { missing(it).isNotEmpty() } } catch (e2: Throwable) { emptyList() }
                     }
                     handler.post {
                         if (working != key) return@post
-                        working = null; lastKey = key; lastList = list
+                        working = null; lastKey = key; lastList = list; lastNeeds = needs
                         refresh()
                     }
                 }
@@ -361,17 +394,27 @@ class TeleportFinderTool(private val context: Context) {
             return
         }
         val list = lastList
+        if (lastNeeds.isNotEmpty()) {
+            // closed off for you: the ways in need levels or quests you don't have yet (from Bubble Sync)
+            results.addView(label("You can't walk here yet. The way in needs " +
+                (if (lastNeeds.size <= 4) lastNeeds.joinToString(", ") else lastNeeds.take(4).joinToString(", ") + " or more") + ".", 12f).apply {
+                setTextColor(WARN)
+            }, full(8))
+        }
         if (list.isEmpty()) {
+            if (lastNeeds.isNotEmpty()) return
             results.addView(label("No teleport lands near here. Search for the way in instead (for example its entrance or the nearest town).", 12f),
                 full(8))
             return
         }
         for (r in list) {
+            val miss = missing(r.teleport)
             results.addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(10), dp(7), dp(10), dp(7))
                 background = GradientDrawable().apply { setColor(ROW_BROWN); cornerRadius = dp(6).toFloat() }
+                if (miss.isNotEmpty()) alpha = 0.55f
                 addView(LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
                     addView(label(r.teleport.name, 13f, bold = true))
@@ -385,7 +428,10 @@ class TeleportFinderTool(private val context: Context) {
                     // the way in or out the route goes through, e.g. "Then: Climb-down Trapdoor"
                     r.via?.let { addView(label("Then: $it", 10f).apply { setTextColor(DARK_BROWN) }) }
                     if (r.guess) addView(label("The way in isn't on the walking map, so this distance is a guess.", 9f).apply { setTextColor(WARN) })
-                    if (r.teleport.requirements.isNotBlank()) addView(label("Needs: " + r.teleport.requirements, 10f).apply { setTextColor(FADED) })
+                    when {
+                        miss.isNotEmpty() -> addView(label("You still need: " + miss.joinToString(", "), 10f, bold = true).apply { setTextColor(WARN) })
+                        r.teleport.requirements.isNotBlank() -> addView(label("Needs: " + r.teleport.requirements, 10f).apply { setTextColor(FADED) })
+                    }
                 }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                 addView(LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
@@ -396,6 +442,8 @@ class TeleportFinderTool(private val context: Context) {
                 }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { leftMargin = dp(6) })
             }, full(4))
         }
+        if (data != null) results.addView(label("Faded: teleports your quests or levels don't allow yet. Items you own aren't checked.", 9f)
+            .apply { setTextColor(FADED) }, full(6))
     }
 
     private fun row(text: String, onClick: () -> Unit) = LinearLayout(context).apply {

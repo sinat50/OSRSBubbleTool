@@ -37,6 +37,11 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.core.ktx)
     implementation(libs.material)
+    // Account Sync's QR scanner: the camera (CameraX) and the QR code reader (ZXing), both Apache 2.0
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.zxing.core)
     testImplementation(libs.junit)
     testImplementation(libs.org.json)   // the real JSON reader, for PC tests only (Android's own isn't there)
     androidTestImplementation(libs.androidx.espresso.core)

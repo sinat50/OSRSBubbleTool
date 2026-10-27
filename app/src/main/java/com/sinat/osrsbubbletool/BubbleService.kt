@@ -69,6 +69,9 @@ class BubbleService : Service() {
         const val ACTION_OPEN_WIKI = "com.sinat.osrsbubbletool.OPEN_WIKI"
         const val EXTRA_URL = "url"
 
+        // Sent by SyncScanActivity when the camera closes (scanned or not): the Bubble Sync window comes back
+        const val ACTION_SYNC_SCAN_DONE = "com.sinat.osrsbubbletool.SYNC_SCAN_DONE"
+
         // True while the bubble is on (so you're most likely playing)
         @Volatile var isRunning = false
         // whether the bubble's tool windows were built dark (the app's main screen puts the shared colours back to
@@ -226,9 +229,7 @@ class BubbleService : Service() {
     // apart from the tools, at the bottom.
     // inMenu = false: not one of the tools (left out of the tool list in the menu and in Settings → Tools in the menu)
     enum class Tool(val label: String, val inMenu: Boolean = true) {
-        // (WikiSync was removed: the OSRS Wiki doesn't allow it in other apps. Its menu line stays for one
-        // version with a note saying so; take it out, and wikiSyncNotice below, in the next update.)
-        WIKISYNC("WikiSync (Disabled)"),
+        SYNC("Bubble Sync"),   // your quests, levels and diaries, scanned from the Bubble Tool Sync plugin
         WIKI("OSRS Wiki"),
         PUZZLE_BOX("Puzzle Box Solver"),
         LIGHT_BOX("Light Box Solver"),
@@ -253,6 +254,7 @@ class BubbleService : Service() {
     private lateinit var bubble: ImageView
     private lateinit var bubbleParams: WindowManager.LayoutParams
     private lateinit var capture: CaptureManager   // screen capture shared by all tools
+    private var syncReturnTo: Tool? = null   // the tool that opened Bubble Sync, for the back button
 
     // What the bubble needs from one tool: what goes in its window, and what to do when things happen.
     // (Tools that don't care about something leave it out.)
@@ -319,6 +321,7 @@ class BubbleService : Service() {
         if (intent?.action == ACTION_CAPTURE_RESULT) capture.onPermissionResult(intent)
         // (checked again here: only real OSRS Wiki pages open in the Wiki window, see WikiAddress)
         if (intent?.action == ACTION_OPEN_WIKI) intent.getStringExtra(EXTRA_URL)?.let { WikiAddress.safe(it) }?.let { openWikiLink(it) }
+        if (intent?.action == ACTION_SYNC_SCAN_DONE) openTool(Tool.SYNC)
         return START_NOT_STICKY
     }
 
@@ -614,9 +617,16 @@ class BubbleService : Service() {
 
     private fun openTool(tool: Tool) {
         if (tool != Tool.WIKI) wikiReturnTo = null   // went somewhere else: forget the way back
+        if (tool != Tool.SYNC) syncReturnTo = null
         hideToolWindow()
         currentTool = tool
         showToolWindow()
+    }
+
+    // A tool's ✓/✗ sync tag was tapped: open Bubble Sync, with ◀ going back to that tool
+    private fun openSync(from: Tool) {
+        openTool(Tool.SYNC)
+        syncReturnTo = from
     }
 
     private fun toggleToolWindow() {
@@ -1013,35 +1023,23 @@ class BubbleService : Service() {
             ToolParts(t::buildView, onBack = null, onClosed = t::onWindowClosed, onDestroy = t::destroy)
         }
         Tool.QUESTS -> QuestHelperTool(toolContext, openWiki = { url -> openWikiLink(url, returnTo = Tool.QUESTS) },
-            hideWindow = { hideToolWindow() }).let { t ->
+            hideWindow = { hideToolWindow() }, openSync = { openSync(Tool.QUESTS) }).let { t ->
             ToolParts(t::buildView, t::goBack)
         }
-        Tool.WIKISYNC -> ToolParts(::wikiSyncNotice, onBack = null)
+        Tool.SYNC -> ToolParts(SyncTool(toolContext, hideWindow = { hideToolWindow() })::buildView,
+            onBack = { syncReturnTo?.let { openTool(it) } })
         Tool.CALCULATOR -> ToolParts(CalculatorTool(toolContext)::buildView, onBack = null)
         Tool.NOTES -> NotesTool(toolContext).let { t -> ToolParts(t::buildView, t::goBack, onClosed = t::onWindowClosed) }
         Tool.GAMES -> GameRoomTool(toolContext, ::setGamesFrameless, ::pinGamesCorners).let { t ->
             ToolParts(t::buildView, t::goBack, onDestroy = t::destroy)
         }
-        Tool.HUNTER -> HunterRumourTool(toolContext).let { t ->
+        Tool.HUNTER -> HunterRumourTool(toolContext, openSync = { openSync(Tool.HUNTER) }).let { t ->
             ToolParts(t::buildView, t::goBack)
         }
-        Tool.TELEPORTS -> TeleportFinderTool(toolContext).let { t ->
+        Tool.TELEPORTS -> TeleportFinderTool(toolContext, openSync = { openSync(Tool.TELEPORTS) }).let { t ->
             ToolParts(t::buildView, t::goBack, onDestroy = t::destroy)
         }
         Tool.SETTINGS -> ToolParts(SettingsTool(toolContext)::buildView, onBack = null)
-    }
-
-    // The WikiSync window: just a note that it was removed (for one version only)
-    private fun wikiSyncNotice(): View = ScrollView(toolContext).apply {
-        setBackgroundColor(Palette.PARCHMENT)
-        addView(TextView(toolContext).apply {
-            text = "Due to WikiSync's policy on third-party use, WikiSync features have been removed from the app. " +
-                "This window will be deleted in the next update."
-            textSize = 14f
-            setTextColor(Palette.DARK_BROWN)
-            gravity = Gravity.CENTER
-            setPadding(dp(16), dp(24), dp(16), dp(24))
-        })
     }
 
     // A tool that's just a web page, with ◀ going back a page
@@ -1521,6 +1519,7 @@ class BubbleService : Service() {
         wikiWeb = null
         pendingWikiUrl = wikiPage
         wikiReturnTo = null
+        syncReturnTo = null
         gamesFrameless = false
         reopen?.let { openTool(it) }
     }
