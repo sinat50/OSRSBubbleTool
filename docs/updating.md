@@ -8,6 +8,7 @@ no notes yet, write them (in `docs/<tool>.md`) the first time you update it, and
 | --- | --- | --- |
 | `teleports`, `dungeons`, `obstacles` | Teleport Finder | `docs/teleport-finder.md` |
 | `quest-helper`, `new-quests` | Quest Helper | `docs/quest-helper.md` (new quests only arrive once the Quest Helper plugin has them) |
+| `quest-helper`, `new-quests` | Bubble Sync | After any quest or diary change, run `tools/quest-helper/sync_tables.py` (`docs/quest-helper.md`, "After adding a quest or changing a diary"). A new skill or a new diary area also needs a new code format in the Bubble Tool Sync plugin (`C:\Users\Tanis\IdeaProjects\BubbleToolSync`, its `CLAUDE.md`) and in `AccountSync.kt`, both at once |
 | `dps-items`, `item-pictures` | DPS Calculator | `docs/gear-items.md` (DPS section) |
 | `puzzle-pictures`, `quest-pictures` | Puzzle Box Solver, Quest Helper | Delete the changed picture from `assets/puzzles/` or `assets/quest_images/`, run `tools/dps/fetch_pictures.py` |
 | `new-gear` | Gear Loadouts, DPS Calculator item lists | `docs/gear-items.md` |

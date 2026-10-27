@@ -50,6 +50,11 @@ from one JSON file per quest kept in `quest-helper/quests/`. Each file is writte
 plugin's Java, following `docs/quest-helper.md`. `python tools/quest-helper/quest_files.py` (from the project
 folder) lists its commands.
 
+`sync_tables.py` makes `SyncTables.kt` for Bubble Sync: each quest's RuneLite ID and each diary task's place in the
+Bubble Tool Sync plugin's code. Run it after adding a quest or changing a diary: `python
+tools/quest-helper/sync_tables.py QUEST_HELPER_FOLDER QUEST_JAVA` (a clone of the Quest Helper plugin and RuneLite's
+`Quest.java`; details at the top of the script and in `docs/quest-helper.md`).
+
 ## DPS Calculator gear import (`dps/`)
 
 ```

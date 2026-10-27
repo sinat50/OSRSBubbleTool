@@ -33,7 +33,7 @@ Tool windows are two inches wide in landscape. Drag the bar at the top to move a
 
 | Tool | What it does |
 | --- | --- |
-| **Bubble Sync** | Your quests, levels and achievement diaries, for the Quest Helper, Hunter Rumours and Teleport Finder. Install the **Bubble Tool Sync** plugin in RuneLite on your PC, click its icon in the side bar, and scan the QR code it shows with your phone's camera. Or paste its text, or import the file it exports. Quest points are the game's own total. Nothing goes over the internet. Scan again after quests, diary tasks or level-ups. Also on the app's main screen, under Start Bubble. |
+| **Bubble Sync** | Your quests, levels and achievement diaries, for the Quest Helper, Hunter Rumours and Teleport Finder. Install the free **Bubble Tool Sync** plugin from RuneLite's Plugin Hub on your PC ([its code](https://github.com/sinat50/bubble-tool-sync)), click its icon in the side bar, and scan the QR code it shows with your phone's camera. Or paste its text, or import the file it exports. Quest points are the game's own total. Nothing goes over the internet. Scan again after quests, diary tasks or level-ups. Also on the app's main screen, under Start Bubble. |
 | **OSRS Wiki** | The wiki in a window over the game, shrunk to fit. Can also open the game's own wiki links (the wiki button) in the bubble instead of your browser. |
 | **Puzzle Box Solver** | Finds the clue puzzle box on screen by itself, reads the tiles and shows your next moves on top of it, with "Move 3 of 42" above the puzzle. Choose colour-coded boxes or shrinking dots. Follows your moves as you slide tiles, and re-plans if you make a different move. |
 | **Light Box Solver** | Finds the light box by itself, asks you to press each button once to learn what it does, then outlines the buttons that turn every bulb on. Instructions appear right on the light box. |
@@ -78,6 +78,7 @@ The app's **Permissions** screen explains each one and has a button to turn it o
 | Notifications | Timer alerts, and the small notification Android requires while the bubble runs. |
 | Alarms & reminders | Makes timer alerts arrive on time instead of a few minutes late. |
 | Screen capture | Asked by Android the first time you use a tool that reads the screen, once each time you start the bubble. On Android 14 and newer you can pick **A single app → Old School RuneScape**, so only the game is captured. |
+| Camera | Optional. Asked by Android the first time you tap Scan in Bubble Sync, and used only while you scan the plugin's QR code. Without it, paste the code or import the file instead. |
 | Open wiki links | Optional. Lets the game's wiki button open pages in the bubble. Other apps' wiki links still go to your browser. |
 
 ## Building it yourself

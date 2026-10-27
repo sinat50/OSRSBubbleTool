@@ -171,7 +171,7 @@ the owner's phone screenshots and live raids (October 2026), never guessed.
   (`wallsUp` at least `MIN_WALLS_UP`: 0.93-1 on every screenshot). It then finds room 3, fixed mirrors 9,2 NW,
   14,17 SW and 18,6 NW, and way 6 (the 14,17 mirror is its corner, already facing right); the mirror the owner
   placed at 3,10 reads north-east, as way 6 asks. Replay: `HetReplayTest` with `HET_REPLAY=<frames folder>` and
-  `HET_REPLAY_ROOM` (0-2), run with `--rerun` (Gradle doesn't notice a changed setting). Our simple camera puts the disc in the wrong place (too low far away, too high near), so it's
+  `HET_REPLAY_ROOM` (0-2), run with `--rerun` (Gradle doesn't notice a changed setting). Frames, one a second, are made with `ffmpeg -i <recording>.mp4 -vf fps=1 <folder>\f%03d.png` from the recordings in `C:\Users\Tanis\Documents\Androiddev\OSRSBubbleTool\pathofhet\` (each one's start second and room are at the top of `HetReplayTest.kt`); add `HET_REPLAY_BOTTOM=1` for the 26 October recordings (window at the bottom left), and run `./gradlew.bat --stop` between runs (the Gradle daemon keeps the old settings). Each replay must end in the right room and should catch mining within 1-2 looks. `HetReader.follow` is kept only for `HetReaderTest.followsTheCamera`. Our simple camera puts the disc in the wrong place (too low far away, too high near), so it's
   searched for from 0.9 to 4.5 squares up. Next: more RuneLite-known raids.
 - **Checking a Het room's walls**: the best source by far is a straight-down RuneLite screenshot (camera tilted all
   the way down with the Camera plugin's vertical camera, west at the top). Capture the RuneLite window even when it's

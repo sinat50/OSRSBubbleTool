@@ -14,6 +14,7 @@ body:
       label: Which part of the app?
       options:
         - The bubble or its menu
+        - Bubble Sync (or the Bubble Tool Sync plugin)
         - Main screen, Settings or Permissions
         - OSRS Wiki
         - Puzzle Box Solver
